@@ -43,6 +43,7 @@ namespace VCL {
         std::unique_ptr<ASTExpression> ParseUnaryOperationExpression(Lexer& lexer);
         
         ASTTypeInfo ParseTypeInfo(Lexer& lexer);
+        void ParseTemplatedTypeInfo(Lexer& lexer, ASTTypeInfo& typeInfo);
         int GetTokenPrecedence(Token& token);
         void TokenUnaryToBinary(Token& token);
         void TokenBinaryToUnary(Token& token);

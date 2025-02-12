@@ -52,9 +52,6 @@ public:
             } },
         compileLayer{ *this->session, objectLayer, std::make_unique<llvm::orc::ConcurrentIRCompiler>(std::move(jtmb)) },
         main{ this->session->createBareJITDylib("<main>") }, dumpObjs{ false } {
-        main.addGenerator(llvm::cantFail(
-            llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(layout.getGlobalPrefix())
-        ));
     }
 
     llvm::Error AddModule(llvm::orc::ThreadSafeModule module, llvm::orc::ResourceTrackerSP rt = nullptr) {
@@ -186,7 +183,7 @@ namespace VCL {
             if (v.scope == 0) {
                 if (v.v->isConstant())
                     throw std::runtime_error{ std::format("\"{}\" variable is immutable.", node->name) };
-                value = JITType::CastRHSToLHS(v.v->getType(), value, m->builder.get());
+                value = JITType::CastRHSToLHS(v.v->getValueType(), value, m->builder.get());
                 m->builder->CreateStore(value, v.v);
             } else {
                 value = JITType::CastRHSToLHS(v.a->getType(), value, m->builder.get());
@@ -197,10 +194,34 @@ namespace VCL {
         void VisitVariableDeclaration(ASTVariableDeclaration* node) override {
             llvm::Type* type = JITType::GetType(node->type, c->context.get());
             
-            if (currentScope == 0) {
-                bool isExtern = (node->type.qualifiers & ASTTypeInfo::QualifierFlag::IN) || 
-                    (node->type.qualifiers & ASTTypeInfo::QualifierFlag::OUT);
+            bool isExtern = (node->type.qualifiers & ASTTypeInfo::QualifierFlag::IN) || 
+                (node->type.qualifiers & ASTTypeInfo::QualifierFlag::OUT);
+
+            if (node->type.arraySize > 0) {
+                if (currentScope != 0)
+                    throw std::runtime_error{ "Structured type cannot be local." };
+
+                if (isExtern)
+                    throw std::runtime_error{ "Structured type cannot be extern." };
                 
+                llvm::Constant* initializer = llvm::Constant::getNullValue(type);
+                llvm::GlobalVariable* v = new llvm::GlobalVariable{
+                    *m->module,
+                    type,
+                    false,
+                    llvm::GlobalValue::PrivateLinkage,
+                    initializer,
+                    node->name
+                };
+
+                v->setAlignment(llvm::Align(JITType::GetMaxVectorWidth()));
+
+                VarInfo vInfo{ nullptr, v, currentScope, false };
+
+                if (!namedVariables.count(node->name))
+                    namedVariables[node->name] = FixedSizeStack<VarInfo, 32>{};
+                namedVariables[node->name].Push(vInfo);
+            } else if (currentScope == 0) {
                 if (node->expression && isExtern)
                     throw std::runtime_error{ std::format("Cannot initialize extern variable \"{}\".", node->name) };
                 
@@ -228,7 +249,9 @@ namespace VCL {
                 if (node->type.qualifiers & ASTTypeInfo::QualifierFlag::IN)
                     v->setConstant(true);
 
-                VarInfo vInfo{ nullptr, v, currentScope };
+                v->setAlignment(llvm::Align(JITType::GetMaxVectorWidth()));
+
+                VarInfo vInfo{ nullptr, v, currentScope, true };
 
                 if (!namedVariables.count(node->name))
                     namedVariables[node->name] = FixedSizeStack<VarInfo, 32>{};
@@ -250,7 +273,7 @@ namespace VCL {
                 llvm::AllocaInst* a = CreateEntryBlockAlloca(bb, node->name, type);
                 m->builder->CreateStore(initValue, a);
 
-                VarInfo vInfo{ a, nullptr, currentScope };
+                VarInfo vInfo{ a, nullptr, currentScope, true };
 
                 if (!namedVariables.count(node->name))
                     namedVariables[node->name] = FixedSizeStack<VarInfo, 32>{};
@@ -303,7 +326,7 @@ namespace VCL {
 
             for (auto& arg : function->args()) {
                 llvm::AllocaInst* a = CreateEntryBlockAlloca(basicBlock, arg.getName(), arg.getType());
-                VarInfo vInfo{ a, nullptr, currentScope };
+                VarInfo vInfo{ a, nullptr, currentScope, true };
                 m->builder->CreateStore(&arg, a);
                 if (!namedVariables.count(std::string_view{ arg.getName() }))
                     namedVariables[std::string_view{ arg.getName() }] = FixedSizeStack<VarInfo, 32>{};
@@ -439,10 +462,18 @@ namespace VCL {
             
             VarInfo& v = namedVariables[node->name].Top();
 
-            if (v.scope == 0)
-                values.push(m->builder->CreateLoad(v.v->getValueType(), v.v, node->name));
-            else
-                values.push(m->builder->CreateLoad(v.a->getAllocatedType(), v.a, node->name));
+            if (v.scope == 0) {
+                if (v.load)
+                    values.push(m->builder->CreateLoad(v.v->getValueType(), v.v, node->name));
+                else
+                    values.push(v.v);
+            }
+            else {
+                if (v.load)
+                    values.push(m->builder->CreateLoad(v.a->getAllocatedType(), v.a, node->name));
+                else
+                    values.push(v.a);
+            }
         }
 
         void VisitFunctionCall(ASTFunctionCall* node) override {
@@ -481,6 +512,7 @@ namespace VCL {
             llvm::AllocaInst* a;
             llvm::GlobalVariable* v;
             uint32_t scope;
+            bool load;
         };
 
         Module::LLVMModuleData* m;

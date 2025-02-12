@@ -40,6 +40,8 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer& lexer) {
         case TokenType::CONST:
         case TokenType::FLOAT:
         case TokenType::VFLOAT:
+        case TokenType::BUFFER:
+        case TokenType::ARRAY:
         case TokenType::VOID:
             statement = ParseDeclarationStatement(lexer);
             break;
@@ -133,7 +135,7 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseDeclarationStatement(Lexer&
 }
 
 VCL::ASTTypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
-    ASTTypeInfo type{ ASTTypeInfo::QualifierFlag::NONE, ASTTypeInfo::TypeName::NONE };
+    ASTTypeInfo type{ ASTTypeInfo::QualifierFlag::NONE, ASTTypeInfo::TypeName::NONE, 0 };
 
     Token firstToken = lexer.Peek();
     bool c = true;
@@ -141,6 +143,11 @@ VCL::ASTTypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
         Token currentToken = lexer.Peek();
 
         switch (currentToken.type) {
+            case TokenType::BUFFER:
+            case TokenType::ARRAY:
+                ParseTemplatedTypeInfo(lexer, type);
+                c = false;
+                break;
             case TokenType::IN:
                 type.qualifiers |= ASTTypeInfo::QualifierFlag::IN;
                 break;
@@ -184,6 +191,54 @@ VCL::ASTTypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
     }
 
     return type;
+}
+
+void VCL::Parser::ParseTemplatedTypeInfo(Lexer& lexer, ASTTypeInfo& typeInfo) {
+    Token currentToken = lexer.Consume();
+
+    switch (currentToken.type) {
+        case TokenType::BUFFER:
+            typeInfo.qualifiers |= ASTTypeInfo::QualifierFlag::BUFFER;
+            break;
+        case TokenType::ARRAY:
+            typeInfo.qualifiers |= ASTTypeInfo::QualifierFlag::ARRAY;
+            break;
+        default:
+            throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Expecting buffer type.", 
+                currentToken.line, currentToken.position, currentToken.name) };
+    }
+
+    currentToken = lexer.Consume();
+    if (currentToken.type != TokenType::INFERIOR)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Expecting template start.", 
+            currentToken.line, currentToken.position, currentToken.name) };
+
+    currentToken = lexer.Consume();
+    switch (currentToken.type) {
+        case TokenType::FLOAT:
+            typeInfo.type = ASTTypeInfo::TypeName::FLOAT;
+            break;
+        default:
+            throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Expecting scalar type.", 
+                currentToken.line, currentToken.position, currentToken.name) };
+    }
+
+    currentToken = lexer.Consume();
+    if (currentToken.type != TokenType::COMA)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Missing coma.", 
+            currentToken.line, currentToken.position, currentToken.name) };
+
+    currentToken = lexer.Consume();
+    if (currentToken.type != TokenType::LITERALINT)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Missing buffer size.", 
+            currentToken.line, currentToken.position, currentToken.name) };
+    
+    typeInfo.arraySize = std::stoi(std::string{ currentToken.name });
+
+    currentToken = lexer.Peek();
+    if (currentToken.type != TokenType::SUPERIOR)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Expecting template end.", 
+            currentToken.line, currentToken.position, currentToken.name) };
 }
 
 std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseVariableDeclarationStatement(Lexer& lexer, ASTTypeInfo type) {

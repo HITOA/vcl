@@ -28,21 +28,47 @@ llvm::Type* VCL::JITType::GetType(VCL::ASTTypeInfo typeInfo, llvm::LLVMContext* 
             return llvm::Type::getVoidTy(*context);
     }
 
-    return type;
+    if (typeInfo.arraySize == 0)
+        return type;
+
+    // This type is a buffer
+
+    uint32_t alignment = GetMaxVectorWidth() / (type->getScalarSizeInBits() / 8);
+
+    size_t alignedSize = typeInfo.arraySize;
+    if (alignedSize % alignment != 0)
+        alignedSize = typeInfo.arraySize - (typeInfo.arraySize % alignment) + alignment;
+    size_t paddedAlignedSize = alignedSize + alignment * 2;
+    
+    llvm::ArrayType* arrayType = llvm::ArrayType::get(type, paddedAlignedSize);
+
+    if (typeInfo.qualifiers & ASTTypeInfo::QualifierFlag::ARRAY)
+        return arrayType;
+
+    // This type is a ring buffer
+
+    llvm::Type* currentIndexType = llvm::Type::getInt32Ty(*context);
+
+    llvm::StructType* bufferType = llvm::StructType::create(*context, { currentIndexType, arrayType });
+
+    return bufferType;
 }
 
-llvm::Type* VCL::JITType::GetBaseType(llvm::Type* type) {
-    if (type->isVectorTy())
-        return ((llvm::VectorType*)type)->getElementType();
-    return type;
+llvm::Type* VCL::JITType::GetBaseType(llvm::Value* value) {
+    if (value->getType()->isVectorTy())
+        return value->getType()->getScalarType();
+    if (value->getType()->isPointerTy() && llvm::isa<llvm::GlobalVariable>(value))
+        return llvm::cast<llvm::GlobalVariable>(value)->getValueType();
+
+    return value->getType();
 }
 
 llvm::Value* VCL::JITType::CastRHSToLHS(llvm::Type* lhsType, llvm::Value* rhs, llvm::IRBuilder<>* builder) {
     llvm::Type* rhsType = rhs->getType();
 
     if (lhsType->getTypeID() != rhsType->getTypeID()) {
-        llvm::Type* lhsBaseType = GetBaseType(lhsType);
-        llvm::Type* rhsBaseType = GetBaseType(rhsType);
+        llvm::Type* lhsBaseType = lhsType->getScalarType();
+        llvm::Type* rhsBaseType = GetBaseType(rhs);
 
         if (lhsBaseType->getTypeID() == rhsBaseType->getTypeID()) {
             if (lhsType->isVectorTy()) {

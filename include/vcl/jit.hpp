@@ -61,6 +61,6 @@ namespace VCL {
         std::shared_ptr<JITContext> context;
     };
 
-    static size_t GetMaxVectorWidth();
+    size_t GetMaxVectorWidth();
 
 }

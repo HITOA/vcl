@@ -24,6 +24,8 @@ namespace VCL {
             TYPE_DEF
             MAX
         } type;
+
+        size_t arraySize; //Non zero mean this is an array type
     };
 
     inline ASTTypeInfo::QualifierFlag operator|(ASTTypeInfo::QualifierFlag a, ASTTypeInfo::QualifierFlag b) {
