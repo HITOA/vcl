@@ -39,6 +39,7 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer& lexer) {
         case TokenType::OUT:
         case TokenType::CONST:
         case TokenType::FLOAT:
+        case TokenType::INT:
         case TokenType::VFLOAT:
         case TokenType::BUFFER:
         case TokenType::ARRAY:
@@ -62,6 +63,15 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer& lexer) {
             break;
         case TokenType::RETURN:
             statement = ParseReturnStatement(lexer);
+            break;
+        case TokenType::IF:
+            statement = ParseIfStatement(lexer);
+            break;
+        case TokenType::WHILE:
+            statement = ParseWhileStatement(lexer);
+            break;
+        case TokenType::FOR:
+            statement = ParseForStatement(lexer);
             break;
         default:
             throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\".", 
@@ -104,11 +114,11 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseVariableAssignment(Lexer& l
     
     std::unique_ptr<VCL::ASTExpression> expression = ParseExpression(lexer);
 
-    if (lexer.Peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Expecting semicolon after \"{}\".", 
+    if (lexer.Peek().type != TokenType::SEMICOLON && lexer.Peek().type != TokenType::RPAR) {
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Expecting semicolon or right parenthesis after \"{}\".", 
             lexer.Peek().line, lexer.Peek().position, lexer.Peek().name, lexer.Peek(-1).name) };
     }
-    lexer.Consume(); //Consume semicolon
+    lexer.Consume(); //Consume
 
     return std::make_unique<ASTVariableAssignment>(identifierToken.name, std::move(expression));
 }
@@ -159,6 +169,10 @@ VCL::ASTTypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
                 break;
             case TokenType::FLOAT:
                 type.type = ASTTypeInfo::TypeName::FLOAT;
+                c = false;
+                break;
+            case TokenType::INT:
+                type.type = ASTTypeInfo::TypeName::INT;
                 c = false;
                 break;
             case TokenType::VFLOAT:
@@ -218,15 +232,22 @@ void VCL::Parser::ParseTemplatedTypeInfo(Lexer& lexer, ASTTypeInfo& typeInfo) {
         case TokenType::FLOAT:
             typeInfo.type = ASTTypeInfo::TypeName::FLOAT;
             break;
+        case TokenType::VFLOAT:
+            typeInfo.type = ASTTypeInfo::TypeName::VFLOAT;
+            break;
         default:
-            throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Expecting scalar type.", 
+            throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\".", 
                 currentToken.line, currentToken.position, currentToken.name) };
     }
 
-    currentToken = lexer.Consume();
-    if (currentToken.type != TokenType::COMA)
+    currentToken = lexer.Peek();
+    if (currentToken.type == TokenType::SUPERIOR) {
+        typeInfo.arraySize = 0;
+        return;
+    } else if (currentToken.type != TokenType::COMA)
         throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\". Missing coma.", 
             currentToken.line, currentToken.position, currentToken.name) };
+    lexer.Consume(); //Consume coma
 
     currentToken = lexer.Consume();
     if (currentToken.type != TokenType::LITERALINT)
@@ -350,6 +371,94 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseReturnStatement(Lexer& lexe
     }
     lexer.Consume(); //Consume semicolon
     return std::move(statement);
+}
+
+std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseIfStatement(Lexer& lexer) {
+    lexer.Consume(); //Consume IF Token
+
+    if (lexer.Peek().type != TokenType::LPAR)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\".", 
+            lexer.Peek().line, lexer.Peek().position, lexer.Peek().name) };
+    lexer.Consume(); //Consume lpar
+
+    std::unique_ptr<ASTExpression> condition = ParseExpression(lexer);
+
+    
+    if (lexer.Peek().type != TokenType::RPAR)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\".", 
+            lexer.Peek().line, lexer.Peek().position, lexer.Peek().name) };
+    lexer.Consume(); //Consume rpar
+
+    std::unique_ptr<ASTStatement> thenStmt = nullptr;
+
+    if (lexer.Peek().type == TokenType::LBRACKET)
+        thenStmt = ParseCompoundStatement(lexer);
+    else
+        thenStmt = ParseStatement(lexer);
+
+    std::unique_ptr<ASTStatement> elseStmt = nullptr;
+
+    if (lexer.Peek().type == TokenType::ELSE) {
+        lexer.Consume();
+        if (lexer.Peek().type == TokenType::LBRACKET)
+            elseStmt = ParseCompoundStatement(lexer);
+        else
+            elseStmt = ParseStatement(lexer);
+    }
+
+    return std::make_unique<ASTIfStatement>(std::move(condition), std::move(thenStmt), std::move(elseStmt));
+}
+
+std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseWhileStatement(Lexer& lexer) {
+    lexer.Consume(); //Consume While Token
+
+    if (lexer.Peek().type != TokenType::LPAR)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\".", 
+            lexer.Peek().line, lexer.Peek().position, lexer.Peek().name) };
+    lexer.Consume(); //Consume lpar
+
+    std::unique_ptr<ASTExpression> condition = ParseExpression(lexer);
+    
+    if (lexer.Peek().type != TokenType::RPAR)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\".", 
+            lexer.Peek().line, lexer.Peek().position, lexer.Peek().name) };
+    lexer.Consume(); //Consume rpar
+
+    std::unique_ptr<ASTStatement> thenStmt = nullptr;
+
+    if (lexer.Peek().type == TokenType::LBRACKET)
+        thenStmt = ParseCompoundStatement(lexer);
+    else
+        thenStmt = ParseStatement(lexer);
+
+    return std::make_unique<ASTWhileStatement>(std::move(condition), std::move(thenStmt));
+}
+
+std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseForStatement(Lexer& lexer) {
+    lexer.Consume(); //Consume FOR Token
+
+    if (lexer.Peek().type != TokenType::LPAR)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\".", 
+            lexer.Peek().line, lexer.Peek().position, lexer.Peek().name) };
+    lexer.Consume(); //Consume lpar
+
+    std::unique_ptr<ASTStatement> start = ParseStatement(lexer);
+    std::unique_ptr<ASTExpression> condition = ParseExpression(lexer);
+
+    if (lexer.Peek().type != TokenType::SEMICOLON)
+        throw std::runtime_error{ std::format("({}:{}): Unexpected token \"{}\".", 
+            lexer.Peek().line, lexer.Peek().position, lexer.Peek().name) };
+    lexer.Consume(); //Consume semicolon
+
+    std::unique_ptr<ASTStatement> end = ParseStatement(lexer);
+    std::unique_ptr<ASTStatement> thenStmt = nullptr;
+
+    if (lexer.Peek().type == TokenType::LBRACKET)
+        thenStmt = ParseCompoundStatement(lexer);
+    else
+        thenStmt = ParseStatement(lexer);
+
+    return std::make_unique<ASTForStatement>(std::move(start), std::move(condition), std::move(end), std::move(thenStmt));
 }
 
 std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParseExpression(Lexer& lexer) {

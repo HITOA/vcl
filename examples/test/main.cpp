@@ -110,7 +110,7 @@ void TestDelay(std::filesystem::path filepath) {
         float fvs = VCL::GetMaxVectorWidth() / sizeof(float);
         
         float* inputs = AllocFloatVector();
-        float delay = fvs + fvs / 2;
+        float delay = fvs / 2;
         float* outputs = AllocFloatVector();
 
         for (int i = 0; i < fvs; ++i)

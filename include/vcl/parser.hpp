@@ -32,6 +32,9 @@ namespace VCL {
         std::unique_ptr<ASTFunctionPrototype> ParseFunctionPrototype(Lexer& lexer, ASTTypeInfo type);
         std::unique_ptr<ASTFunctionArgument> ParseFunctionArgument(Lexer& lexer);
         std::unique_ptr<ASTStatement> ParseReturnStatement(Lexer& lexer);
+        std::unique_ptr<ASTStatement> ParseIfStatement(Lexer& lexer);
+        std::unique_ptr<ASTStatement> ParseWhileStatement(Lexer& lexer);
+        std::unique_ptr<ASTStatement> ParseForStatement(Lexer& lexer);
 
         std::unique_ptr<ASTExpression> ParseExpression(Lexer& lexer);
         std::unique_ptr<ASTExpression> ParsePrimaryExpression(Lexer& lexer);

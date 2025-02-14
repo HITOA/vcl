@@ -11,6 +11,7 @@
 #undef TYPE_DEF
 #define TYPE_DEF \
     DEF(FLOAT,              "float") \
+    DEF(INT,                "int") \
     DEF(VOID,               "void") \
     DEF(VFLOAT,             "vfloat")
 
@@ -24,7 +25,11 @@
 
 #undef KEYWORD_DEF
 #define KEYWORD_DEF \
-    DEF(RETURN,             "return")
+    DEF(RETURN,             "return") \
+    DEF(IF,                 "if") \
+    DEF(ELSE,                 "else") \
+    DEF(WHILE,              "while") \
+    DEF(FOR,                "for")
 
 #undef UNARY_OPERATOR_DEF
 #define UNARY_OPERATOR_DEF \
@@ -43,6 +48,8 @@
     DEF(INFERIOREQUAL,      "<=",       6) \
     DEF(EQUAL,              "==",       7) \
     DEF(NOTEQUAL,           "!=",       7) \
+    DEF(LOGICALAND,         "&&",       11) \
+    DEF(LOGICALOR,          "||",       12) \
     DEF(ASSIGNMENT,         "=",        14)
 
 #undef PUNCTUATOR_DEF
@@ -52,4 +59,6 @@
     DEF(RPAR,               ")") \
     DEF(LBRACKET,           "{") \
     DEF(RBRACKET,           "}") \
-    DEF(COMA,               ",")
+    DEF(COMA,               ",") \
+    DEF(LSQUAREBRACKET,     "[") \
+    DEF(RSQUAREBRACKER,     "]")

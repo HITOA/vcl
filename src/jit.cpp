@@ -186,7 +186,7 @@ namespace VCL {
                 value = JITType::CastRHSToLHS(v.v->getValueType(), value, m->builder.get());
                 m->builder->CreateStore(value, v.v);
             } else {
-                value = JITType::CastRHSToLHS(v.a->getType(), value, m->builder.get());
+                value = JITType::CastRHSToLHS(v.a->getAllocatedType(), value, m->builder.get());
                 m->builder->CreateStore(value, v.a);
             }
         }
@@ -267,7 +267,7 @@ namespace VCL {
                 }else {
                     initValue = llvm::ConstantFP::get(*c->context, llvm::APFloat(0.0f));
                 }
-
+                
                 initValue = JITType::CastRHSToLHS(type, initValue, m->builder.get());
 
                 llvm::AllocaInst* a = CreateEntryBlockAlloca(bb, node->name, type);
@@ -280,8 +280,6 @@ namespace VCL {
                 namedVariables[node->name].Push(vInfo);
             }
         }
-
-        void VisitFunctionArgument(ASTFunctionArgument* node) override {}
 
         void VisitFunctionPrototype(ASTFunctionPrototype* node) override {
             if (JITBuiltins::IsBuiltinFunction(node->name))
@@ -334,10 +332,10 @@ namespace VCL {
             }
 
             node->body->Accept(this);
-
-            for (auto& arg : function->args()) {
-                namedVariables[std::string_view{ arg.getName() }].Pop();
-            }
+            
+            for (auto& s : namedVariables)
+                if (s.second.Top().scope == currentScope)
+                    s.second.Pop();
 
             --currentScope;
 
@@ -361,6 +359,94 @@ namespace VCL {
             node->expression->Accept(this);
             m->builder->CreateRet(values.top());
             values.pop();
+        }
+
+        void VisitIfStatement(ASTIfStatement* node) override {
+            node->condition->Accept(this);
+            llvm::Value* r = values.top();
+            values.pop();
+            r = JITType::CastRHSToLHS(llvm::Type::getInt1Ty(*c->context), r, m->builder.get());
+            r = m->builder->CreateICmpNE(r, llvm::ConstantInt::get(llvm::Type::getInt1Ty(*c->context), 0));
+
+            llvm::Function* function = m->builder->GetInsertBlock()->getParent();
+
+            llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(*c->context, "then", function);
+            llvm::BasicBlock* elseBB = llvm::BasicBlock::Create(*c->context, "else", function);
+            llvm::BasicBlock* endBB = llvm::BasicBlock::Create(*c->context, "end", function);
+
+            m->builder->CreateCondBr(r, thenBB, elseBB);
+
+            m->builder->SetInsertPoint(thenBB);
+            node->thenStmt->Accept(this);
+            m->builder->CreateBr(endBB);
+
+            m->builder->SetInsertPoint(elseBB);
+            if (node->elseStmt)
+                node->elseStmt->Accept(this);
+            m->builder->CreateBr(endBB);
+
+            m->builder->SetInsertPoint(endBB);
+        }
+
+        void VisitWhileStatement(ASTWhileStatement* node) override {
+            llvm::Function* function = m->builder->GetInsertBlock()->getParent();
+
+            llvm::BasicBlock* conditionBB = llvm::BasicBlock::Create(*c->context, "while", function);
+            llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(*c->context, "then", function);
+            llvm::BasicBlock* endBB = llvm::BasicBlock::Create(*c->context, "end", function);
+            
+            m->builder->CreateBr(conditionBB);
+
+
+            m->builder->SetInsertPoint(conditionBB);
+            node->condition->Accept(this);
+            llvm::Value* r = values.top();
+            values.pop();
+            r = JITType::CastRHSToLHS(llvm::Type::getInt1Ty(*c->context), r, m->builder.get());
+            r = m->builder->CreateICmpNE(r, llvm::ConstantInt::get(llvm::Type::getInt1Ty(*c->context), 0));
+            m->builder->CreateCondBr(r, thenBB, endBB);
+
+            m->builder->SetInsertPoint(thenBB);
+            node->thenStmt->Accept(this);
+            m->builder->CreateBr(conditionBB);
+
+            m->builder->SetInsertPoint(endBB);
+        }
+
+        void VisitForStatement(ASTForStatement* node) override {
+            llvm::Function* function = m->builder->GetInsertBlock()->getParent();
+
+            llvm::BasicBlock* conditionBB = llvm::BasicBlock::Create(*c->context, "for", function);
+            llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(*c->context, "then", function);
+            llvm::BasicBlock* endBB = llvm::BasicBlock::Create(*c->context, "end", function);
+
+            ++currentScope;
+            
+            node->start->Accept(this);
+            m->builder->CreateBr(conditionBB);
+
+            m->builder->SetInsertPoint(conditionBB);
+            node->condition->Accept(this);
+            llvm::Value* r = values.top();
+            values.pop();
+            r = JITType::CastRHSToLHS(llvm::Type::getInt1Ty(*c->context), r, m->builder.get());
+            r = m->builder->CreateICmpNE(r, llvm::ConstantInt::get(llvm::Type::getInt1Ty(*c->context), 0));
+            m->builder->CreateCondBr(r, thenBB, endBB);
+
+            m->builder->SetInsertPoint(thenBB);
+            node->thenStmt->Accept(this);
+            node->end->Accept(this);
+            m->builder->CreateBr(conditionBB);
+
+            m->builder->SetInsertPoint(endBB);
+            
+
+            // a DecreaseScope function would be nice or something like that but im lazy
+            for (auto& s : namedVariables)
+                if (s.second.Top().scope == currentScope)
+                    s.second.Pop();
+
+            --currentScope;
         }
 
         void VisitUnaryExpression(ASTUnaryExpression* node) override {
@@ -394,50 +480,86 @@ namespace VCL {
             BinaryOpType op = (BinaryOpType)node->op;
             switch (op) {
                 case BinaryOpType::ADDITION:
-                    values.push(m->builder->CreateFAdd(lhs, rhs));
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFAdd(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateAdd(lhs, rhs));
                     break;
                 case BinaryOpType::SUBSTRACTION:
-                    values.push(m->builder->CreateFSub(lhs, rhs));
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFSub(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateSub(lhs, rhs));
                     break;
                 case BinaryOpType::MULTIPLICATION:
-                    values.push(m->builder->CreateFMul(lhs, rhs));
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFMul(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateMul(lhs, rhs));
                     break;
                 case BinaryOpType::DIVISION:
-                    values.push(m->builder->CreateFDiv(lhs, rhs));
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFDiv(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateSDiv(lhs, rhs));
                     break;
                 case BinaryOpType::SUPERIOR:
                 {
-                    llvm::Value* v = m->builder->CreateFCmpOGT(lhs, rhs);
-                    values.push(v);
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFCmpOGT(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateICmpUGT(lhs, rhs));
                     break;
                 }
                 case BinaryOpType::INFERIOR:
                 {
-                    llvm::Value* v = m->builder->CreateFCmpOLT(lhs, rhs);
-                    values.push(v);
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFCmpOLT(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateICmpULT(lhs, rhs));
                     break;
                 }
                 case BinaryOpType::SUPERIOREQUAL:
                 {
-                    llvm::Value* v = m->builder->CreateFCmpOGE(lhs, rhs);
-                    values.push(v);
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFCmpOGE(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateICmpUGE(lhs, rhs));
                     break;
                 }
                 case BinaryOpType::INFERIOREQUAL:
                 {
-                    llvm::Value* v = m->builder->CreateFCmpOLE(lhs, rhs);
-                    values.push(v);
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFCmpOLE(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateICmpULE(lhs, rhs));
                     break;
                 }
                 case BinaryOpType::EQUAL:
                 {
-                    llvm::Value* v = m->builder->CreateFCmpOEQ(lhs, rhs);
-                    values.push(v);
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFCmpOEQ(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateICmpEQ(lhs, rhs));
                     break;
                 }
                 case BinaryOpType::NOTEQUAL:
                 {
-                    llvm::Value* v = m->builder->CreateFCmpONE(lhs, rhs);
+                    if (JITType::GetBaseType(lhs)->isFloatTy())
+                        values.push(m->builder->CreateFCmpONE(lhs, rhs));
+                    else
+                        values.push(m->builder->CreateICmpNE(lhs, rhs));
+                    break;
+                }
+                case BinaryOpType::LOGICALAND:
+                {
+                    llvm::Value* v = m->builder->CreateAnd(lhs, rhs);
+                    values.push(v);
+                    break;
+                }
+                case BinaryOpType::LOGICALOR:
+                {
+                    llvm::Value* v = m->builder->CreateOr(lhs, rhs);
                     values.push(v);
                     break;
                 }
@@ -577,7 +699,7 @@ void VCL::JITContext::Reset() {
     jit->mpm = std::make_unique<llvm::ModulePassManager>();
 
     jit->lpm->addPass(llvm::IndVarSimplifyPass{});
-    jit->lpm->addPass(llvm::LICMPass{ llvm::LICMOptions{} });
+    //jit->lpm->addPass(llvm::LICMPass{ llvm::LICMOptions{} });
 
     jit->fpm->addPass(llvm::createFunctionToLoopPassAdaptor(std::move(*jit->lpm)));
 

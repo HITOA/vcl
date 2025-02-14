@@ -21,6 +21,9 @@ llvm::Type* VCL::JITType::GetType(VCL::ASTTypeInfo typeInfo, llvm::LLVMContext* 
         case VCL::ASTTypeInfo::TypeName::FLOAT:
             type = llvm::Type::getFloatTy(*context);
             break;
+        case VCL::ASTTypeInfo::TypeName::INT:
+            type = llvm::Type::getInt32Ty(*context);
+            break;
         case VCL::ASTTypeInfo::TypeName::VFLOAT:
             type = llvm::FixedVectorType::get(llvm::Type::getFloatTy(*context), GetMaxVectorWidth() / sizeof(float));
             break;
@@ -28,7 +31,7 @@ llvm::Type* VCL::JITType::GetType(VCL::ASTTypeInfo typeInfo, llvm::LLVMContext* 
             return llvm::Type::getVoidTy(*context);
     }
 
-    if (typeInfo.arraySize == 0)
+    if (typeInfo.arraySize == 0 && !(typeInfo.qualifiers & ASTTypeInfo::QualifierFlag::ARRAY))
         return type;
 
     // This type is a buffer
@@ -67,6 +70,24 @@ llvm::Value* VCL::JITType::CastRHSToLHS(llvm::Type* lhsType, llvm::Value* rhs, l
     llvm::Type* rhsType = rhs->getType();
 
     if (lhsType->getTypeID() != rhsType->getTypeID()) {
+        if (lhsType->isIntegerTy() && rhsType->isFloatTy())
+            rhs = builder->CreateFPToSI(rhs, lhsType);
+        else if (lhsType->isFloatTy() && rhsType->isIntegerTy())
+            rhs = builder->CreateSIToFP(rhs, lhsType);
+        else if (lhsType->isIntegerTy() && rhsType->isIntegerTy()) {
+            uint32_t lhsWidth = lhsType->getIntegerBitWidth();
+            uint32_t rhsWidth = rhsType->getIntegerBitWidth();
+            if (lhsWidth < rhsWidth)
+                builder->CreateTrunc(rhs, lhsType);
+            else
+                builder->CreateZExt(rhs, lhsType);
+        }
+
+        rhsType = rhs->getType();
+
+        if (lhsType->getTypeID() == rhsType->getTypeID())
+            return rhs;
+
         llvm::Type* lhsBaseType = lhsType->getScalarType();
         llvm::Type* rhsBaseType = GetBaseType(rhs);
 
@@ -76,6 +97,8 @@ llvm::Value* VCL::JITType::CastRHSToLHS(llvm::Type* lhsType, llvm::Value* rhs, l
             } else {
                 throw std::runtime_error{ "Cannot implicitly cast vector type to non vector type." };
             }
+        } else {
+            throw std::runtime_error{ "Unable to handle this implicit cast." };
         }
     }
     

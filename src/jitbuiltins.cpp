@@ -31,6 +31,14 @@ static llvm::Value* BuiltinTernaryIntrinsic(llvm::Intrinsic::ID it, std::vector<
     return builder->CreateIntrinsic(it, { argsv[0]->getType() }, { argv1, argv2, argv3 });
 }
 
+static llvm::Value* BuiltinLen(std::vector<llvm::Value*>& argsv, llvm::IRBuilder<>* builder) {
+    if (argsv.size() != 1)
+        throw std::runtime_error{ "len function takes 1 argument." };
+    llvm::Value* argv1 = argsv[0];
+    return nullptr;
+}
+
+
 static llvm::Value* BuiltinFMod(std::vector<llvm::Value*>& argsv, llvm::IRBuilder<>* builder) {
     if (argsv.size() != 2)
         throw std::runtime_error{ "Builtin binary function takes 2 arguments." };
@@ -251,6 +259,8 @@ static llvm::Value* BuiltinVRead(std::vector<llvm::Value*>& argsv, llvm::IRBuild
     llvm::Value* currentIndexPtr = builder->CreateStructGEP(bufferType, argv1, 0);
     llvm::Value* currentIndex = builder->CreateLoad(bufferType->getTypeAtIndex(0U), currentIndexPtr);
 
+    argv2 = builder->CreateAdd(argv2, llvm::ConstantInt::get(llvm::Type::getInt32Ty(builder->getContext()), alignment));
+
     currentIndex = builder->CreateSRem(
         builder->CreateAdd(
             currentIndex,
@@ -324,6 +334,8 @@ static std::unordered_map<std::string_view, std::function<llvm::Value*(std::vect
     { "ceil",       std::bind(BuiltinUnaryIntrinsic, llvm::Intrinsic::ceil, _1, _2) },
     { "floor",      std::bind(BuiltinUnaryIntrinsic, llvm::Intrinsic::floor, _1, _2) },
     { "round",      std::bind(BuiltinUnaryIntrinsic, llvm::Intrinsic::round, _1, _2) },
+    
+    //{ "len",        BuiltinLen },
 
     { "pow",        std::bind(BuiltinBinaryIntrinsic, llvm::Intrinsic::pow, _1, _2) },
     { "min",        std::bind(BuiltinBinaryIntrinsic, llvm::Intrinsic::minnum, _1, _2) },

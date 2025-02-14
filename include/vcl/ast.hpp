@@ -152,6 +152,52 @@ namespace VCL {
         std::unique_ptr<ASTExpression> expression;
     };
 
+    class ASTIfStatement : public ASTStatement {
+    public:
+        ASTIfStatement(std::unique_ptr<ASTExpression> condition,
+            std::unique_ptr<ASTStatement> thenStmt,
+            std::unique_ptr<ASTStatement> elseStmt) :
+            condition{ std::move(condition) },
+            thenStmt{ std::move(thenStmt) },
+            elseStmt{ std::move(elseStmt) } {};
+
+        void Accept(ASTVisitor* visitor) override;
+    public:
+        std::unique_ptr<ASTExpression> condition;
+        std::unique_ptr<ASTStatement> thenStmt;
+        std::unique_ptr<ASTStatement> elseStmt;
+    };
+
+    class ASTWhileStatement : public ASTStatement {
+    public:
+        ASTWhileStatement(std::unique_ptr<ASTExpression> condition,
+            std::unique_ptr<ASTStatement> thenStmt) : 
+            condition{ std::move(condition) },
+            thenStmt{ std::move(thenStmt) } {};
+
+        void Accept(ASTVisitor* visitor) override;
+    public:
+        std::unique_ptr<ASTExpression> condition;
+        std::unique_ptr<ASTStatement> thenStmt;
+    };
+
+    class ASTForStatement : public ASTStatement {
+    public:
+        ASTForStatement(std::unique_ptr<ASTStatement> start,
+            std::unique_ptr<ASTExpression> condition,
+            std::unique_ptr<ASTStatement> end,
+            std::unique_ptr<ASTStatement> thenStmt) :
+            start{ std::move(start) }, condition{ std::move(condition) }, 
+            end{ std::move(end) }, thenStmt{ std::move(thenStmt) } {};
+
+        void Accept(ASTVisitor* visitor) override;
+    public:
+        std::unique_ptr<ASTStatement> start;
+        std::unique_ptr<ASTExpression> condition;
+        std::unique_ptr<ASTStatement> end;
+        std::unique_ptr<ASTStatement> thenStmt;
+    };
+
     // Expressions
 
     class ASTUnaryExpression : public ASTExpression {
@@ -223,6 +269,9 @@ namespace VCL {
         virtual void VisitFunctionPrototype(ASTFunctionPrototype* node) {};
         virtual void VisitFunctionDeclaration(ASTFunctionDeclaration* node) {};
         virtual void VisitReturnStatement(ASTReturnStatement* node) {};
+        virtual void VisitIfStatement(ASTIfStatement* node) {};
+        virtual void VisitWhileStatement(ASTWhileStatement* node) {};
+        virtual void VisitForStatement(ASTForStatement* node) {};
         virtual void VisitUnaryExpression(ASTUnaryExpression* node) {};
         virtual void VisitBinaryExpression(ASTBinaryExpression* node) {};
         virtual void VisitLiteralExpression(ASTLiteralExpression* node) {};

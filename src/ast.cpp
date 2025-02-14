@@ -9,6 +9,9 @@ void VCL::ASTFunctionArgument::Accept(ASTVisitor* visitor) { visitor->VisitFunct
 void VCL::ASTFunctionPrototype::Accept(ASTVisitor* visitor) { visitor->VisitFunctionPrototype(this); }
 void VCL::ASTFunctionDeclaration::Accept(ASTVisitor* visitor) { visitor->VisitFunctionDeclaration(this); }
 void VCL::ASTReturnStatement::Accept(ASTVisitor* visitor) { visitor->VisitReturnStatement(this); }
+void VCL::ASTIfStatement::Accept(ASTVisitor* visitor) { visitor->VisitIfStatement(this); }
+void VCL::ASTWhileStatement::Accept(ASTVisitor* visitor) { visitor->VisitWhileStatement(this); }
+void VCL::ASTForStatement::Accept(ASTVisitor* visitor) { visitor->VisitForStatement(this); }
 void VCL::ASTUnaryExpression::Accept(ASTVisitor* visitor) { visitor->VisitUnaryExpression(this); }
 void VCL::ASTBinaryExpression::Accept(ASTVisitor* visitor) { visitor->VisitBinaryExpression(this); }
 void VCL::ASTLiteralExpression::Accept(ASTVisitor* visitor) { visitor->VisitLiteralExpression(this); }
