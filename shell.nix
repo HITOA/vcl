@@ -2,12 +2,12 @@ with import <nixpkgs> {};
 pkgs.mkShell {
   nativeBuildInputs = with pkgs; [ 
     cmake
+    gcc
     gdb
     pkg-config
 
     libllvm
-
-    graphviz
+    doxygen
   ];
 
   NIX_LD_LIBRARY_PATH = lib.makeLibraryPath [

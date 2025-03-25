@@ -1,6 +1,4 @@
-#include <vcl/lexer.hpp>
-
-#include <vcl/definition.hpp>
+#include <VCL/Lexer.hpp>
 
 #include <cstring>
 #include <algorithm>
@@ -31,6 +29,7 @@ bool VCL::Lexer::Tokenize(std::string_view source) {
             tokens.emplace_back(Token{
                 currentTokenType,
                 currentTokenName,
+                source,
                 position + 1,
                 line + 1
             });
@@ -44,6 +43,7 @@ bool VCL::Lexer::Tokenize(std::string_view source) {
 
     tokens.emplace_back(Token{
         TokenType::ENDOFFILE,
+        source,
         source,
         position,
         line

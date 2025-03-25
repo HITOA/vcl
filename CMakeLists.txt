@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(vcl)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -15,12 +16,21 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
 add_library(vcl 
     STATIC 
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ast.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/jit.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/jitbuiltins.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/jittype.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/lexer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/parser.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Utility.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.hpp
+
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/AST.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Lexer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Parser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.cpp)
 target_include_directories(vcl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 llvm_map_components_to_libnames(llvm_libs support core irreader orcjit nativecodegen)
@@ -30,3 +40,23 @@ target_link_libraries(vcl ${llvm_libs})
 target_include_directories(vcl PRIVATE ${LLVM_INCLUDE_DIRS})
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/examples)
+
+option(VCL_BUILD_DOC "Build VCL documentation" ON)
+
+if (VCL_BUILD_DOC)
+    find_package(Doxygen)
+    if (DOXYGEN_FOUND)
+        set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
+        set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+        configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+        message("Doxygen build started")
+        add_custom_target(vcl_doc_doxygen ALL
+            COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            COMMENT "Generating API documentation with Doxygen"
+            VERBATIM )
+
+    else (DOXYGEN_FOUND)
+        message("Doxygen need to be installed to generate the doxygen documentation")
+    endif (DOXYGEN_FOUND)
+endif (VCL_BUILD_DOC)

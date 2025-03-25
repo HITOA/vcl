@@ -1,10 +1,8 @@
-#include <vcl/ast.hpp>
+#include <VCL/AST.hpp>
 
 
 void VCL::ASTProgram::Accept(ASTVisitor* visitor) { visitor->VisitProgram(this); };
 void VCL::ASTCompoundStatement::Accept(ASTVisitor* visitor) { visitor->VisitCompoundStatement(this); }
-void VCL::ASTVariableAssignment::Accept(ASTVisitor* visitor) { visitor->VisitVariableAssignment(this); }
-void VCL::ASTVariableDeclaration::Accept(ASTVisitor* visitor) { visitor->VisitVariableDeclaration(this); }
 void VCL::ASTFunctionArgument::Accept(ASTVisitor* visitor) { visitor->VisitFunctionArgument(this); }
 void VCL::ASTFunctionPrototype::Accept(ASTVisitor* visitor) { visitor->VisitFunctionPrototype(this); }
 void VCL::ASTFunctionDeclaration::Accept(ASTVisitor* visitor) { visitor->VisitFunctionDeclaration(this); }
@@ -16,4 +14,6 @@ void VCL::ASTUnaryExpression::Accept(ASTVisitor* visitor) { visitor->VisitUnaryE
 void VCL::ASTBinaryExpression::Accept(ASTVisitor* visitor) { visitor->VisitBinaryExpression(this); }
 void VCL::ASTLiteralExpression::Accept(ASTVisitor* visitor) { visitor->VisitLiteralExpression(this); }
 void VCL::ASTVariableExpression::Accept(ASTVisitor* visitor) { visitor->VisitVariableExpression(this); }
+void VCL::ASTVariableAssignment::Accept(ASTVisitor* visitor) { visitor->VisitVariableAssignment(this); }
+void VCL::ASTVariableDeclaration::Accept(ASTVisitor* visitor) { visitor->VisitVariableDeclaration(this); }
 void VCL::ASTFunctionCall::Accept(ASTVisitor* visitor) { visitor->VisitFunctionCall(this); }

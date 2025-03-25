@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vcl/definition.hpp>
+#include <VCL/Definition.hpp>
 
 #include <string_view>
 #include <memory>
@@ -8,42 +8,13 @@
 
 
 namespace VCL {
-
-    struct ASTTypeInfo {
-#undef DEF
-#define DEF(name, symbol, ...) name = __VA_ARGS__,
-        enum class QualifierFlag {
-            NONE = 0,
-            TYPE_QUALIFIER_DEF
-        } qualifiers;
-
-#undef DEF
-#define DEF(name, symbol, ...) name,
-        enum class TypeName {
-            NONE,
-            TYPE_DEF
-            MAX
-        } type;
-
-        size_t arraySize; //Non zero mean this is an array type
-    };
-
-    inline ASTTypeInfo::QualifierFlag operator|(ASTTypeInfo::QualifierFlag a, ASTTypeInfo::QualifierFlag b) {
-        return (ASTTypeInfo::QualifierFlag)((int)a | (int)b);
-    }
-
-    inline ASTTypeInfo::QualifierFlag operator|=(ASTTypeInfo::QualifierFlag& a, ASTTypeInfo::QualifierFlag b) {
-        
-        a = (ASTTypeInfo::QualifierFlag)((int)a | (int)b);
-        return a;
-    }
-
-    inline bool operator&(ASTTypeInfo::QualifierFlag a, ASTTypeInfo::QualifierFlag b) {
-        return ((int)a & (int)b) != 0;
-    }
+    using ASTTypeInfo = TypeInfo;
 
     class ASTVisitor;
 
+    /**
+     * @brief represents a common base node in an abstract syntax tree.
+     */
     class ASTNode {
     public:
         virtual ~ASTNode() = default;
@@ -51,18 +22,30 @@ namespace VCL {
         virtual void Accept(ASTVisitor* visitor) {};
     };
 
+    /**
+     * @brief represents an ASTNode that have an effect.
+     */
     class ASTStatement : public ASTNode {
     public:
         virtual ~ASTStatement() = default;
+
+    public:
+        std::string_view source;
+        uint32_t position;
+        uint32_t line;
     };
 
-
+    /**
+     * @brief represents an ASTStatement that also express (return) a value.
+     */
     class ASTExpression : public ASTStatement {
     public:
         virtual ~ASTExpression() = default;
     };
 
-
+    /**
+     * @brief represents the root of a VCL Program.
+     */
     class ASTProgram : public ASTNode {
     public:
         ASTProgram(std::vector<std::unique_ptr<ASTStatement>> statements) :
@@ -73,8 +56,9 @@ namespace VCL {
         std::vector<std::unique_ptr<ASTStatement>> statements;
     };
 
-    // Statements
-    
+    /**
+     * @brief represents a compound of statements.
+     */
     class ASTCompoundStatement : public ASTStatement {
     public:
         ASTCompoundStatement(std::vector<std::unique_ptr<ASTStatement>> statements) :
@@ -85,29 +69,9 @@ namespace VCL {
         std::vector<std::unique_ptr<ASTStatement>> statements;
     };
 
-    class ASTVariableAssignment : public ASTStatement {
-    public:
-        ASTVariableAssignment(std::string_view name, std::unique_ptr<ASTExpression> expression) :
-            name{ name }, expression{ std::move(expression) } {};
-
-        void Accept(ASTVisitor* visitor) override;
-    public:
-        std::string_view name;
-        std::unique_ptr<ASTExpression> expression;
-    };
-
-    class ASTVariableDeclaration : public ASTStatement {
-    public:
-        ASTVariableDeclaration(ASTTypeInfo type, std::string_view name, std::unique_ptr<ASTExpression> expression) :
-            type{ type }, name{ name }, expression{ std::move(expression) } {};
-
-        void Accept(ASTVisitor* visitor) override;
-    public:
-        ASTTypeInfo type;
-        std::string_view name;
-        std::unique_ptr<ASTExpression> expression;
-    };
-
+    /**
+     * @brief represents a function argument declaration.
+     */
     class ASTFunctionArgument : public ASTStatement {
     public:
         ASTFunctionArgument(ASTTypeInfo type, std::string_view name) :
@@ -119,6 +83,9 @@ namespace VCL {
         std::string_view name;
     };
 
+    /**
+     * @brief represents a function prototype.
+     */
     class ASTFunctionPrototype : public ASTStatement {
     public:
         ASTFunctionPrototype(ASTTypeInfo type, std::string_view name, std::vector<std::unique_ptr<ASTFunctionArgument>> arguments) :
@@ -131,6 +98,9 @@ namespace VCL {
         std::vector<std::unique_ptr<ASTFunctionArgument>> arguments;
     };
 
+    /**
+     * @brief represents a function declaration.
+     */
     class ASTFunctionDeclaration : public ASTStatement {
     public:
         ASTFunctionDeclaration(std::unique_ptr<ASTFunctionPrototype> prototype, std::unique_ptr<ASTNode> body) :
@@ -142,6 +112,9 @@ namespace VCL {
         std::unique_ptr<ASTNode> body;
     };
 
+    /**
+     * @brief represents a return statement.
+     */
     class ASTReturnStatement : public ASTStatement {
     public:
         ASTReturnStatement(std::unique_ptr<ASTExpression> expression) :
@@ -152,6 +125,9 @@ namespace VCL {
         std::unique_ptr<ASTExpression> expression;
     };
 
+    /**
+     * @brief represents a if control flow statement.
+     */
     class ASTIfStatement : public ASTStatement {
     public:
         ASTIfStatement(std::unique_ptr<ASTExpression> condition,
@@ -168,6 +144,9 @@ namespace VCL {
         std::unique_ptr<ASTStatement> elseStmt;
     };
 
+    /**
+     * @brief represents a while loop control flow statement.
+     */
     class ASTWhileStatement : public ASTStatement {
     public:
         ASTWhileStatement(std::unique_ptr<ASTExpression> condition,
@@ -181,6 +160,9 @@ namespace VCL {
         std::unique_ptr<ASTStatement> thenStmt;
     };
 
+    /**
+     * @brief represents a for loop control flow statement.
+     */
     class ASTForStatement : public ASTStatement {
     public:
         ASTForStatement(std::unique_ptr<ASTStatement> start,
@@ -198,31 +180,38 @@ namespace VCL {
         std::unique_ptr<ASTStatement> thenStmt;
     };
 
-    // Expressions
-
+    /**
+     * @brief represents a unary expression operation.
+     */
     class ASTUnaryExpression : public ASTExpression {
     public:
-        ASTUnaryExpression(uint8_t op, std::unique_ptr<ASTExpression> expression) :
+        ASTUnaryExpression(UnaryOpType op, std::unique_ptr<ASTExpression> expression) :
             op{ op }, expression{ std::move(expression) } {};
 
         void Accept(ASTVisitor* visitor) override;
     public:
-        uint8_t op;
+        UnaryOpType op;
         std::unique_ptr<ASTExpression> expression;
     };
 
+    /**
+     * @brief represents a binary expression operation.
+     */
     class ASTBinaryExpression : public ASTExpression {
     public:
-        ASTBinaryExpression(uint8_t op, std::unique_ptr<ASTExpression> lhs, std::unique_ptr<ASTExpression> rhs) :
+        ASTBinaryExpression(BinaryOpType op, std::unique_ptr<ASTExpression> lhs, std::unique_ptr<ASTExpression> rhs) :
             op{ op }, lhs{ std::move(lhs) }, rhs{ std::move(rhs) } {};
 
         void Accept(ASTVisitor* visitor) override;
     public:
-        uint8_t op;
+        BinaryOpType op;
         std::unique_ptr<ASTExpression> lhs;
         std::unique_ptr<ASTExpression> rhs;
     };
 
+    /**
+     * @brief represents a literal numeric value.
+     */
     class ASTLiteralExpression : public ASTExpression {
     public:
         ASTLiteralExpression(float value) : type{ ASTTypeInfo::TypeName::FLOAT }, fValue{ value } {};
@@ -232,9 +221,13 @@ namespace VCL {
         ASTTypeInfo::TypeName type;
         union {
             float fValue;
+            int iValue;
         };
     };
 
+    /**
+     * @brief represents a variable value.
+     */
     class ASTVariableExpression : public ASTExpression {
     public:
         ASTVariableExpression(std::string_view name) : name{ name } {};
@@ -244,6 +237,38 @@ namespace VCL {
         std::string_view name;
     };
 
+    /**
+     * @brief represents a variable assignment.
+     */
+    class ASTVariableAssignment : public ASTExpression {
+    public:
+        ASTVariableAssignment(std::string_view name, std::unique_ptr<ASTExpression> expression) :
+            name{ name }, expression{ std::move(expression) } {};
+
+        void Accept(ASTVisitor* visitor) override;
+    public:
+        std::string_view name;
+        std::unique_ptr<ASTExpression> expression;
+    };
+
+    /**
+     * @brief represents a variable declaration.
+     */
+    class ASTVariableDeclaration : public ASTExpression {
+    public:
+        ASTVariableDeclaration(ASTTypeInfo type, std::string_view name, std::unique_ptr<ASTExpression> expression) :
+            type{ type }, name{ name }, expression{ std::move(expression) } {};
+
+        void Accept(ASTVisitor* visitor) override;
+    public:
+        ASTTypeInfo type;
+        std::string_view name;
+        std::unique_ptr<ASTExpression> expression;
+    };
+
+    /**
+     * @brief represents a function call expression.
+     */
     class ASTFunctionCall : public ASTExpression {
     public:
         ASTFunctionCall(std::string_view name, std::vector<std::unique_ptr<ASTExpression>> arguments) :
@@ -257,14 +282,15 @@ namespace VCL {
 
     // Visitor
 
+    /**
+     * @brief This is the base class to visite a whole AST from top to bottom.
+     */
     class ASTVisitor {
     public:
         virtual ~ASTVisitor() = default;
 
         virtual void VisitProgram(ASTProgram* node) {};
         virtual void VisitCompoundStatement(ASTCompoundStatement* node) {};
-        virtual void VisitVariableAssignment(ASTVariableAssignment* node) {};
-        virtual void VisitVariableDeclaration(ASTVariableDeclaration* node) {};
         virtual void VisitFunctionArgument(ASTFunctionArgument* node) {};
         virtual void VisitFunctionPrototype(ASTFunctionPrototype* node) {};
         virtual void VisitFunctionDeclaration(ASTFunctionDeclaration* node) {};
@@ -276,6 +302,8 @@ namespace VCL {
         virtual void VisitBinaryExpression(ASTBinaryExpression* node) {};
         virtual void VisitLiteralExpression(ASTLiteralExpression* node) {};
         virtual void VisitVariableExpression(ASTVariableExpression* node) {};
+        virtual void VisitVariableAssignment(ASTVariableAssignment* node) {};
+        virtual void VisitVariableDeclaration(ASTVariableDeclaration* node) {};
         virtual void VisitFunctionCall(ASTFunctionCall* node) {};
     };
 }
