@@ -1,12 +1,13 @@
 #pragma once
 
+#include <VCL/Definition.hpp>
+#include <VCL/Source.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <VCL/Definition.hpp>
 
 #undef DEF
 #define DEF(name, symbol, ...) name,
@@ -46,17 +47,9 @@ namespace VCL {
          */
         std::string_view name;
         /**
-         * @brief provide a view on the source where the token belong.
+         * @brief provide information on the token's location in the source file.
          */
-        std::string_view source;
-        /**
-         * @brief specify the horizontal position of the token in the source.
-         */
-        uint32_t position;
-        /**
-         * @brief specify the vertical position (line) of the token in the source. 
-         */
-        uint32_t line;
+        SourceLocation location;
     };
 
     /**
@@ -70,10 +63,12 @@ namespace VCL {
         Lexer() = default;
         ~Lexer() = default;
 
-        bool Tokenize(std::string_view source);
+        bool Tokenize(std::shared_ptr<Source> source);
         
         Token Consume();
         Token Peek(int32_t offset = 0);
+        
+        bool ConsumeIf(TokenType type);
 
     private:
         bool TokenizePunctuator(std::string_view source, TokenType& type, uint32_t& size);

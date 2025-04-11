@@ -2,12 +2,14 @@
 * This tool is made for precompiling vcl into bytecode and debugging purposes. It also serves as an exemple on how to use the library.
 */
 
-#include <vcl/vcl.hpp>
+#include <VCL/VCL.hpp>
+#include <VCL/Error.hpp>
 
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 #include <cstring>
 #include <filesystem>
 
@@ -105,6 +107,21 @@ bool GetOptions(int argc, const char** argv, Options& options) {
     return true;
 }
 
+class ConsoleLogger : public VCL::Logger {
+public:
+    void Log(VCL::Message& message) override {
+        const char* severityStr[] = {
+            "None",
+            "Error",
+            "Warning",
+            "Info",
+            "Debug"
+        };
+        int severityInt = (int)message.severity;
+        printf("[%s] %s\n", severityStr[severityInt], message.message.c_str());
+    };
+};
+
 int main(int argc, const char** argv) {
     Options options;
     if (!GetOptions(argc, argv, options))
@@ -115,7 +132,71 @@ int main(int argc, const char** argv) {
         return 0;
     }
 
-    std::shared_ptr<VCL::JITContext> context = VCL::JITContext::Create();
+    std::shared_ptr<ConsoleLogger> logger = std::make_shared<ConsoleLogger>();
+
+    std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger);
+
+    std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger);
+
+    /*std::filesystem::path sourceFilepath = options.inputFilenames[0];
+    if (auto source = VCL::Source::LoadFromDisk(sourceFilepath); source.has_value()) {
+        std::unique_ptr<VCL::ASTProgram> program = parser->Parse(*source);
+        if (program == nullptr)
+            return -1;
+
+        std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
+        //module->SetOptimization(false);
+        //if (!module->Emit()) //Emit ir
+        //    return -1;
+        
+        //Analysis like fetching attributes / inputs / outputs and stuff like this are done on a per module basis before submitting to the session
+
+        //session->SubmitModule(std::move(module)); //Submit for compilation
+
+    } else {
+        logger->Error("{}", source.error());
+        return -1;
+    }*/
+
+
+
+    for (size_t i = 0; i < options.inputFilenames.size(); ++i) {
+        std::filesystem::path filepath = options.inputFilenames[i];
+        std::string filename = filepath.filename();
+        std::cout << "[" << ((float)(i + 1) / (float)(options.inputFilenames.size()) * 100.0f) << 
+            "%] Building VCL " << filepath << std::endl;
+        
+        if (auto source = VCL::Source::LoadFromDisk(filepath); source.has_value()) {
+            try {
+                std::unique_ptr<VCL::ASTProgram> program = parser->Parse(*source);
+
+                std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
+                module->Emit();
+
+                if (options.optimize)
+                    module->Optimize();
+
+                if (!options.dumpIrDirectory.empty()) {
+                    std::filesystem::path dumpIrPath = std::filesystem::path{ options.dumpIrDirectory } / filename;
+                    dumpIrPath.replace_extension(".ll");
+                    std::ofstream irOutFile{ dumpIrPath, std::ios::binary | std::ios::trunc };
+                    irOutFile << module->Dump();
+                    irOutFile.close();
+                }
+
+            } catch (VCL::Exception& exception) {
+                logger->Error("{}: {}\n{}", exception.location.ToString(), exception.what(), exception.location.ToStringDetailed());
+            } catch (std::runtime_error& exception) {
+                logger->Error("{}", exception.what());
+            }
+            
+        } else {
+            logger->Error("{}", source.error());
+            continue;
+        }
+    }
+
+    /*std::shared_ptr<VCL::JITContext> context = VCL::JITContext::Create();
 
     if (options.dumpObj)
         context->DumpObjects();
@@ -168,7 +249,7 @@ int main(int argc, const char** argv) {
     } catch (std::runtime_error& err) {
         std::cout << "[ERROR]: " << err.what() << std::endl; 
         return 0;
-    }
+    }*/
 
     return 0;
 }

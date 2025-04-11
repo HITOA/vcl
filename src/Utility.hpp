@@ -28,8 +28,8 @@ namespace VCL {
     struct DispatcherFunction {
         T name;
         std::function<R(Args...)> func;
-        STFunction(T name, std::function<R(Args...)> func) : name{ name }, func{ func } {};
-        inline R operator(Args... args) const { return func(args...); }
+        DispatcherFunction(T name, std::function<R(Args...)> func) : name{ name }, func{ func } {};
+        inline R operator()(Args... args) const { return func(args...); }
     };
 
     template<typename T, typename R, typename... Args>
@@ -63,5 +63,4 @@ namespace VCL {
         }
         return maxVectorWidthInBytes / elementSize;
     }
-    
 }

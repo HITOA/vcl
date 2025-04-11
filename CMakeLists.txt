@@ -17,21 +17,32 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 add_library(vcl 
     STATIC 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utility.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.hpp
 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AST.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/Lexer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/Parser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionSession.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Lexer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Module.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Parser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Source.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.cpp)
 target_include_directories(vcl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+set_property(TARGET vcl PROPERTY COMPILE_WARNING_AS_ERROR ON)
 
 llvm_map_components_to_libnames(llvm_libs support core irreader orcjit nativecodegen)
 

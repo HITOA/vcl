@@ -8,8 +8,8 @@ namespace VCL {
     using Handle = std::shared_ptr<T>;
     
     template<typename T, typename... Args>
-    using MakeHandle = std::make_shared<T, Args...>;
+    inline auto MakeHandle(Args... args) { return std::make_shared<T>(args...); }
 
     template<typename T, typename U>
-    using HandleCast = std::static_pointer_cast<T, U>;
+    inline auto HandleCast(std::shared_ptr<U>& r) { return std::static_pointer_cast<T, U>(r); }
 }

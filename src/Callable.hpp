@@ -79,10 +79,17 @@ namespace VCL {
         Function& operator=(const Function& value) = default;
         Function& operator=(Function&& value) noexcept = default;
         
-        /**
-         * @brief Get function's return type
-         */
-        Type GetReturnType() const;
+        std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv) override;
+
+        Type GetReturnType() override;
+
+        uint32_t GetArgCount() override;
+
+        Type GetArgType(uint32_t index) override;
+
+        bool CheckArgType(uint32_t index, Type type) override;
+
+        CallableType GetCallableType() override;
 
         /**
          * @brief Get function's args info

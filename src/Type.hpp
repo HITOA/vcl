@@ -1,20 +1,21 @@
 #pragma once
 
 #include <VCL/Definition.hpp>
-
-#include "ModuleContext.hpp"
+#include <VCL/Error.hpp>
 
 #include <llvm/IR/Type.h>
 
+#include <expected>
+
 
 namespace VCL {
-
+    class ModuleContext;
     /**
      * @brief represents a VCL Type.
      */
     class Type {
     public:
-        Type() = delete;
+        Type();
         Type(TypeInfo typeInfo, llvm::Type* type, ModuleContext* context);
         Type(const Type& type) = default;
         Type(Type&& type) noexcept = default;

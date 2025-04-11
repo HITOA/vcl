@@ -4,7 +4,7 @@
 
 #include "Value.hpp"
 
-#include <stack>
+#include <deque>
 #include <unordered_map>
 #include <string>
 #include <expected>
@@ -18,6 +18,8 @@ namespace VCL {
     struct Scope {
         llvm::BasicBlock* bb;
         std::unordered_map<std::string, Handle<Value>> namedValue;
+
+        Scope(llvm::BasicBlock* bb) : bb{ bb }, namedValue{} {};
     };
 
     /**
@@ -25,8 +27,8 @@ namespace VCL {
      */
     class ScopeManager {
     public:
-        ScopeManager() = default;
-        ~ScopeManager() = default;
+        ScopeManager();
+        ~ScopeManager();
 
         /**
          * @brief Push a new scope into the scopes stack.
@@ -72,7 +74,7 @@ namespace VCL {
         /**
          * @brief The scope stack. It can't contain less than one scope wich represent the global scope.
          */
-        std::stack<Scope> scopes;
+        std::deque<Scope> scopes;
     };
 
     /**
@@ -91,6 +93,7 @@ namespace VCL {
 
     private:
         ScopeManager* sm;
+        bool released;
     };
 
 }

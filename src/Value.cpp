@@ -1,6 +1,9 @@
 #include "Value.hpp"
 
+#include "ModuleContext.hpp"
 #include "Utility.hpp"
+
+#include <iostream>
 
 
 VCL::Value::Value() : value{ nullptr }, type{ TypeInfo{}, nullptr, nullptr }, context{ nullptr } {}
@@ -10,9 +13,10 @@ VCL::Value::Value(llvm::Value* value, Type type, ModuleContext* context) :
 
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Load() {
     llvm::Value* loadedValue = value;
+    std::string loadedValueName = value->getName().str() + "_loaded";
 
     if (loadedValue->getType()->isPointerTy())
-        loadedValue = context->GetIRBuilder().CreateLoad(type.GetLLVMType(), loadedValue);
+        loadedValue = context->GetIRBuilder().CreateLoad(type.GetLLVMType(), loadedValue, loadedValueName);
 
     return Value::Create(loadedValue, type, context);
 }
@@ -28,7 +32,7 @@ bool VCL::Value::IsAssignableFrom(Handle<Value> value) const {
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Cast(Type type) {
     if (this->type == type)
         return Value::Create(value, type, context);
-
+    
     if (value->getType()->isPointerTy())
         std::unexpected(Error{ "Cannot cast pointer type to non pointer type" });
 
@@ -84,7 +88,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Create(llvm::Valu
     return MakeHandle<Value>(value, type, context);
 }
 
-std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVariable(Type type, Handle<Value> initializer, ModuleContext* context) {
+std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name) {
     llvm::Constant* initializerValue = nullptr;
     bool isExtern = false;
 
@@ -102,20 +106,23 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
         type.GetLLVMType(),
         type.GetTypeInfo().IsConst() || type.GetTypeInfo().IsInput(),
         isExtern ? llvm::GlobalValue::ExternalLinkage : llvm::GlobalValue::PrivateLinkage,
-        initializerValue
+        initializerValue, name
     };
 
     return Value::Create(value, type, context);
 }
 
-std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateLocalVariable(Type type, Handle<Value> initializer, ModuleContext* context) {
+std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateLocalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name) {
     llvm::BasicBlock* bb = context->GetIRBuilder().GetInsertBlock();
-    llvm::BasicBlock::iterator insertPoint = context->GetIRBuilder().GetInsertPoint(); //Should work after insertion ?
-    context->GetIRBuilder().SetInsertPoint(bb->begin());
-    llvm::AllocaInst* alloca = context->GetIRBuilder().CreateAlloca(type.GetLLVMType());
+    llvm::AllocaInst* alloca;
+    {
+        llvm::IRBuilder<>::InsertPointGuard ipGuard{ context->GetIRBuilder() };
+        context->GetIRBuilder().SetInsertPoint(bb->getFirstInsertionPt());
+        context->GetIRBuilder().SetCurrentDebugLocation(llvm::DebugLoc());
+        alloca = context->GetIRBuilder().CreateAlloca(type.GetLLVMType(), nullptr, name);
+    }
     if (initializer)
         context->GetIRBuilder().CreateStore(initializer->GetLLVMValue(), alloca);
-    context->GetIRBuilder().SetInsertPoint(insertPoint);
     return Value::Create(alloca, type, context);
 }
 
@@ -129,7 +136,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateConstantInt
     if (!type.has_value())
         std::unexpected(type.error());
 
-    llvm::Constant* constant = llvm::ConstantInt::get(type->GetLLVMType(), llvm::APInt{ 32, value, true });
+    llvm::Constant* constant = llvm::ConstantInt::get(type->GetLLVMType(), value, true);
 
     return Value::Create(constant, *type, context);
 }

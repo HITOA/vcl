@@ -1,6 +1,7 @@
 #pragma once
 
 #include <VCL/Definition.hpp>
+#include <VCL/Source.hpp>
 
 #include <string_view>
 #include <memory>
@@ -30,9 +31,7 @@ namespace VCL {
         virtual ~ASTStatement() = default;
 
     public:
-        std::string_view source;
-        uint32_t position;
-        uint32_t line;
+        SourceLocation location;
     };
 
     /**
@@ -48,12 +47,13 @@ namespace VCL {
      */
     class ASTProgram : public ASTNode {
     public:
-        ASTProgram(std::vector<std::unique_ptr<ASTStatement>> statements) :
-            statements{ std::move(statements) } {};
+        ASTProgram(std::vector<std::unique_ptr<ASTStatement>> statements, std::shared_ptr<Source> source) :
+            statements{ std::move(statements) }, source{ source } {};
 
         void Accept(ASTVisitor* visitor) override;
     public:
         std::vector<std::unique_ptr<ASTStatement>> statements;
+        std::shared_ptr<Source> source;
     };
 
     /**

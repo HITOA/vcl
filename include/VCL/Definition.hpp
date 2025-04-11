@@ -89,14 +89,14 @@ namespace VCL {
         enum class CompositeType {
             NONE = 0,
             TYPE_COMPOSITE_DEF
-        } compositeType;
+        } compositeType = CompositeType::NONE;
 
 #undef DEF
 #define DEF(name, symbol, ...) name = __VA_ARGS__,
         enum class QualifierFlag {
             NONE = 0,
             TYPE_QUALIFIER_DEF
-        } qualifiers;
+        } qualifiers = QualifierFlag::NONE;
 
 #undef DEF
 #define DEF(name, symbol, ...) name,
@@ -104,9 +104,24 @@ namespace VCL {
             NONE,
             CALLABLE,
             TYPE_DEF
-        } type;
+        } type = TypeName::NONE;
 
-        size_t bufferSize;
+        size_t bufferSize = 0;
+
+
+        friend inline TypeInfo::QualifierFlag operator|(TypeInfo::QualifierFlag a, TypeInfo::QualifierFlag b) {
+            return (TypeInfo::QualifierFlag)((int)a | (int)b);
+        }
+
+        friend inline TypeInfo::QualifierFlag operator|=(TypeInfo::QualifierFlag& a, TypeInfo::QualifierFlag b) {
+            
+            a = (TypeInfo::QualifierFlag)((int)a | (int)b);
+            return a;
+        }
+
+        friend inline bool operator&(TypeInfo::QualifierFlag a, TypeInfo::QualifierFlag b) {
+            return ((int)a & (int)b) != 0;
+        }
 
         inline bool IsInput() const {
             return qualifiers & QualifierFlag::IN;
@@ -129,18 +144,4 @@ namespace VCL {
         }
     };
 
-
-    inline TypeInfo::QualifierFlag operator|(TypeInfo::QualifierFlag a, TypeInfo::QualifierFlag b) {
-        return (TypeInfo::QualifierFlag)((int)a | (int)b);
-    }
-
-    inline TypeInfo::QualifierFlag operator|=(TypeInfo::QualifierFlag& a, TypeInfo::QualifierFlag b) {
-        
-        a = (TypeInfo::QualifierFlag)((int)a | (int)b);
-        return a;
-    }
-
-    inline bool operator&(TypeInfo::QualifierFlag a, TypeInfo::QualifierFlag b) {
-        return ((int)a & (int)b) != 0;
-    }
 }

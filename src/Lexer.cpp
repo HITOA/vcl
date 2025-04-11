@@ -4,15 +4,17 @@
 #include <algorithm>
 
 
-bool VCL::Lexer::Tokenize(std::string_view source) {
+bool VCL::Lexer::Tokenize(std::shared_ptr<Source> source) {
     uint32_t offset = 0;
     uint32_t position = 0;
     uint32_t line = 0;
 
-    while (offset < source.length()) {
-        while (SkipWhitespace(source, offset, position, line) || SkipComment(source, offset, position, line)) {}
+    std::string_view source_view = source->source;
 
-        std::string_view currentSource{ source.data() + offset, source.length() - offset };
+    while (offset < source_view.length()) {
+        while (SkipWhitespace(source_view, offset, position, line) || SkipComment(source_view, offset, position, line)) {}
+
+        std::string_view currentSource{ source_view.data() + offset, source_view.length() - offset };
         TokenType currentTokenType;
         uint32_t currentTokenSize;
 
@@ -29,9 +31,12 @@ bool VCL::Lexer::Tokenize(std::string_view source) {
             tokens.emplace_back(Token{
                 currentTokenType,
                 currentTokenName,
-                source,
-                position + 1,
-                line + 1
+                SourceLocation{
+                    source,
+                    position,
+                    line,
+                    currentTokenSize
+                }
             });
         } else {
             return false;
@@ -43,10 +48,13 @@ bool VCL::Lexer::Tokenize(std::string_view source) {
 
     tokens.emplace_back(Token{
         TokenType::ENDOFFILE,
-        source,
-        source,
-        position,
-        line
+        source_view,
+        SourceLocation{
+            source,
+            position,
+            line,
+            1
+        }
     });
 
     return true;
@@ -59,6 +67,15 @@ VCL::Token VCL::Lexer::Consume() {
 
 VCL::Token VCL::Lexer::Peek(int32_t offset) {
     return tokens[std::clamp(cursor + offset, 0u, (uint32_t)tokens.size())];
+}
+
+bool VCL::Lexer::ConsumeIf(TokenType type) {
+    Token token = tokens[cursor];
+    if (token.type == type) {
+        ++cursor;
+        return true;
+    }
+    return false;
 }
 
 bool VCL::Lexer::TokenizePunctuator(std::string_view source, TokenType& type, uint32_t& size) {

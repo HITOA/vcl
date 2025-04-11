@@ -1,7 +1,13 @@
 #include "Type.hpp"
 
+#include "ModuleContext.hpp"
 #include "Utility.hpp"
 
+#include <iostream>
+
+
+VCL::Type::Type() :
+    typeInfo{}, type{ nullptr }, context{ nullptr } {}
 
 VCL::Type::Type(TypeInfo typeInfo, llvm::Type* type, ModuleContext* context) :
     typeInfo{ typeInfo }, type{ type }, context{ context } {}
@@ -25,7 +31,6 @@ bool VCL::Type::operator!=(Type& rhs) const {
 
 std::expected<VCL::Type, VCL::Error> VCL::Type::Create(TypeInfo typeInfo, ModuleContext* context) {
     llvm::Type* type;
-
     switch (typeInfo.type)
     {
     case TypeInfo::TypeName::FLOAT:
@@ -57,8 +62,10 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::CreateFromLLVMType(llvm::Type* t
 
     TypeInfo typeInfo;
     
-    if (type->isFunctionTy())
+    if (type->isFunctionTy()) {
         typeInfo.type = TypeInfo::TypeName::CALLABLE;
+        return Type{ typeInfo, type, context };
+    }
 
     if (scalarType->isFloatTy())
         typeInfo.type = TypeInfo::TypeName::FLOAT;
