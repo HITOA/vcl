@@ -55,8 +55,8 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
         throw Exception{ "Function redefinition", node->location };
 
     llvm::Function* llvmFunction = function->GetLLVMFunction();
-
-    llvm::BasicBlock* bb = llvm::BasicBlock::Create(context->GetContext(), "entry", llvmFunction);
+    
+    llvm::BasicBlock* bb = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "entry", llvmFunction);
     context->GetIRBuilder().SetInsertPoint(bb);
 
     ScopeGuard scopeGuard{ &context->GetScopeManager() };
@@ -91,7 +91,7 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
 void VCL::ModuleBuilder::VisitReturnStatement(ASTReturnStatement* node) {
     if (node->expression) {
         node->expression->Accept(this);
-        context->GetIRBuilder().CreateRet(lastReturnedValue->GetLLVMValue());
+        context->GetIRBuilder().CreateRet(ThrowOnError(lastReturnedValue->Load(), node->location)->GetLLVMValue());
     } else {
         context->GetIRBuilder().CreateRetVoid();
     }
@@ -123,7 +123,8 @@ void VCL::ModuleBuilder::VisitUnaryExpression(ASTUnaryExpression* node) {
             result = ThrowOnError(DISPATCH_UNARY(
                 UNARY_DISPATCH_FUNCTION(FLOAT, CreateFNeg),
                 UNARY_DISPATCH_FUNCTION(VFLOAT, CreateFNeg),
-                UNARY_DISPATCH_FUNCTION(INT, CreateNeg)
+                UNARY_DISPATCH_FUNCTION(INT, CreateNeg),
+                UNARY_DISPATCH_FUNCTION(VINT, CreateNeg)
             )(value->GetType().GetTypeInfo().type, value->GetLLVMValue()), node->location);
             break;
         case UnaryOpType::NOT:
@@ -153,28 +154,32 @@ void VCL::ModuleBuilder::VisitBinaryExpression(ASTBinaryExpression* node) {
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFAdd),
-                BINARY_DISPATCH_FUNCTION(INT, CreateAdd)
+                BINARY_DISPATCH_FUNCTION(INT, CreateAdd),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateAdd)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::SUBSTRACTION:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFSub),
-                BINARY_DISPATCH_FUNCTION(INT, CreateSub)
+                BINARY_DISPATCH_FUNCTION(INT, CreateSub),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateSub)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::MULTIPLICATION:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFMul),
                 BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFMul),
-                BINARY_DISPATCH_FUNCTION(INT, CreateMul)
+                BINARY_DISPATCH_FUNCTION(INT, CreateMul),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateMul)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::DIVISION:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFDiv),
                 BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFDiv),
-                BINARY_DISPATCH_FUNCTION(INT, CreateSDiv)
+                BINARY_DISPATCH_FUNCTION(INT, CreateSDiv),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateSDiv)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         
@@ -182,52 +187,72 @@ void VCL::ModuleBuilder::VisitBinaryExpression(ASTBinaryExpression* node) {
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOGT),
                 BINARY_DISPATCH_FUNCTION(INT, CreateICmpUGT),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpUGT)
+                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpUGT),
+                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOGT),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpUGT),
+                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpUGT)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::INFERIOR:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOLT),
                 BINARY_DISPATCH_FUNCTION(INT, CreateICmpULT),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpULT)
+                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpULT),
+                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOLT),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpULT),
+                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpULT)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::SUPERIOREQUAL:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOGE),
                 BINARY_DISPATCH_FUNCTION(INT, CreateICmpUGE),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpUGE)
+                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpUGE),
+                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOGE),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpUGE),
+                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpUGE)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::INFERIOREQUAL:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOLE),
                 BINARY_DISPATCH_FUNCTION(INT, CreateICmpULE),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpULE)
+                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpULE),
+                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOLE),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpULE),
+                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpULE)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::EQUAL:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOEQ),
                 BINARY_DISPATCH_FUNCTION(INT, CreateICmpEQ),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpEQ)
+                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpEQ),
+                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOEQ),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpEQ),
+                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpEQ)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::NOTEQUAL:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpONE),
                 BINARY_DISPATCH_FUNCTION(INT, CreateICmpNE),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpNE)
+                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpNE),
+                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpONE),
+                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpNE),
+                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpNE)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::LOGICALAND:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateAnd),
+                BINARY_DISPATCH_FUNCTION(VBOOL, CreateAnd)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case BinaryOpType::LOGICALOR:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateOr),
+                BINARY_DISPATCH_FUNCTION(VBOOL, CreateOr)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         default:
@@ -292,22 +317,32 @@ void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
     Handle<Value> value = ThrowOnError(context->GetScopeManager().GetNamedValue(node->name), node->location);
 
     if (!value->GetType().GetTypeInfo().IsCallable())
-        throw Exception{ std::format("`{}` isn't a function", node->name), node->location };
+        throw Exception{ std::format("`{}` isn't callable", node->name), node->location };
     
     Handle<Callable> callee = HandleCast<Callable, Value>(value);
     
-    if (callee->GetArgCount() > node->arguments.size())
-        throw Exception{ std::format("`{}` calling with too few arguments", node->name), node->location };
-    if (callee->GetArgCount() < node->arguments.size())
-        throw Exception{ std::format("`{}` calling with too many arguments", node->name), node->location };
+    if (callee->GetCallableType() == CallableType::Function) {
+        uint32_t argCount = HandleCast<Function>(callee)->GetArgCount();
 
-    std::vector<Handle<Value>> argsv( (size_t)callee->GetArgCount() );
+        if (argCount > node->arguments.size())
+            throw Exception{ std::format("`{}` calling with too few argument(s), expecting {} argument(s)", node->name, argCount), node->location };
+        if (argCount < node->arguments.size())
+            throw Exception{ std::format("`{}` calling with too many argument(s), expecting {} argument(s)", node->name, argCount), node->location };
+    } else if (!callee->CheckArgCount(node->arguments.size())) {
+        throw Exception{ std::format("`{}` wrong number of arguments given.", node->name), node->location };
+    }
+
+    std::vector<Handle<Value>> argsv( (size_t)node->arguments.size() );
     
-    for (uint32_t i = 0; i < callee->GetArgCount(); ++i) {
+    for (uint32_t i = 0; i < node->arguments.size(); ++i) {
         node->arguments[i]->Accept(this);
         Handle<Value> argValue = ThrowOnError(lastReturnedValue->Load(), node->location);
+
         if (!callee->CheckArgType(i, argValue->GetType()))
-            argValue = ThrowOnError(argValue->Cast(callee->GetArgType(i)), node->location);
+            if (callee->GetCallableType() == CallableType::Function)
+                argValue = ThrowOnError(argValue->Cast(HandleCast<Function>(callee)->GetArgType(i)), node->location);
+            else
+                throw Exception{ std::format("Argument number {} is of wrong type", i), node->location };
         argsv[i] = argValue;
     }
 

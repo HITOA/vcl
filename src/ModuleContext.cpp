@@ -2,20 +2,20 @@
 
 
 
-VCL::ModuleContext::ModuleContext(std::string_view name, llvm::LLVMContext* context, std::shared_ptr<Logger> logger) :
-    context{ context }, module{ name, *context }, irBuilder{ *context }, sm{}, logger{ logger } {
-
+VCL::ModuleContext::ModuleContext(std::string_view name, llvm::orc::ThreadSafeContext context, std::shared_ptr<Logger> logger) :
+    module{ std::make_unique<llvm::Module>(name, *context.getContext()), context }, irBuilder{ *context.getContext() }, sm{}, logger{ logger } {
+    
 }
 
 VCL::ModuleContext::~ModuleContext() {
 
 }
 
-llvm::LLVMContext& VCL::ModuleContext::GetContext() {
-    return *context;
+llvm::orc::ThreadSafeContext VCL::ModuleContext::GetTSContext() {
+    return module.getContext();
 }
 
-llvm::Module& VCL::ModuleContext::GetModule() {
+llvm::orc::ThreadSafeModule& VCL::ModuleContext::GetTSModule() {
     return module;
 }
 

@@ -1,7 +1,7 @@
 #include "Scope.hpp"
 
 
-VCL::ScopeManager::ScopeManager() {
+VCL::ScopeManager::ScopeManager() : scopes{} {
     PushScope(nullptr); //Push global scope
 }
 
@@ -23,7 +23,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::ScopeManager::GetNamedVa
         if (scope.namedValue.count(nameStr))
             return scope.namedValue.at(nameStr);
     }
-    return std::unexpected(Error{ std::format("Undefine named value \'{}\'", name) });
+    return std::unexpected(Error{ std::format("Undefined named value \'{}\'", name) });
 }
 
 bool VCL::ScopeManager::PushNamedValue(std::string_view name, Handle<Value> value) {

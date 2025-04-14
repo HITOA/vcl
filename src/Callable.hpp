@@ -34,27 +34,17 @@ namespace VCL {
         virtual std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv) = 0;
 
         /**
-         * @brief Get the callable return type.
-         */
-        virtual Type GetReturnType() = 0;
-
-        /**
-         * @brief Get the callable arguments count.
-         */
-        virtual uint32_t GetArgCount() = 0;
-
-        /**
-         * @brief Get the callable argument type given the index.
-         */
-        virtual Type GetArgType(uint32_t index) = 0;
-
-        /**
          * @brief Check if the given type can be taken as argument given the index.
          * 
          * This might be better to use instead of manually checking with GetArgType
          * because some callable might support more than one arguments type.
          */
         virtual bool CheckArgType(uint32_t index, Type type) = 0;
+
+        /**
+         * @brief Check if the given number of argument are valid for this callable.
+         */
+        virtual bool CheckArgCount(uint32_t count) = 0;
 
         /**
          * @brief Get the callable type. can be used for casting into full type.
@@ -81,15 +71,26 @@ namespace VCL {
         
         std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv) override;
 
-        Type GetReturnType() override;
-
-        uint32_t GetArgCount() override;
-
-        Type GetArgType(uint32_t index) override;
-
         bool CheckArgType(uint32_t index, Type type) override;
 
+        bool CheckArgCount(uint32_t count) override;
+
         CallableType GetCallableType() override;
+
+        /**
+         * @brief Get function's return type.
+         */
+        Type GetReturnType();
+
+        /**
+         * @brief Get function's arguments count.
+         */
+        uint32_t GetArgCount();
+
+        /**
+         * @brief Get function's argument type given the index.
+         */
+        Type GetArgType(uint32_t index);
 
         /**
          * @brief Get function's args info

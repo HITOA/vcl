@@ -46,6 +46,11 @@ namespace VCL {
          * This is true if both are of the same type and if this value isn't const.
          */
         bool IsAssignableFrom(Handle<Value> value) const;
+
+        /**
+         * @brief Splat the non vector value into a vector of same type.
+         */
+        std::expected<Handle<Value>, Error> Splat();
         
         /**
          * @brief Cast this Value to the given type and return the casted Value.

@@ -16,7 +16,9 @@ vfloat PolyBlep(vfloat p, float dt) {
     vfloat v1 = p1 * 2.0 - p1 * p1 - 1.0;
     p1 = (p - 1.0) / dt;
     vfloat v2 = p1 * p1 + p1 * 2.0 + 1.0;
-    return select(p < dt, v1, select(p > 1.0 - dt, v2, 0.0));
+    vbool cond1 = p < dt;
+    vbool cond2 = p > 1.0 - dt;
+    return select(cond1, v1, select(cond2, v2, 0.0));
 }
 
 vfloat Square(vfloat p, float dt) {

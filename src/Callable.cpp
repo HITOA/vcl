@@ -31,6 +31,10 @@ VCL::Type VCL::Function::GetArgType(uint32_t index) {
     return argsType[index].type;
 }
 
+bool VCL::Function::CheckArgCount(uint32_t count) {
+    return count == argsType.size();
+}
+
 bool VCL::Function::CheckArgType(uint32_t index, Type type) {
     return argsType[index].type == type;
 }
@@ -66,7 +70,7 @@ std::expected<VCL::Handle<VCL::Function>, VCL::Error> VCL::Function::Create(
         argsType[i] = argsInfo[i].type.GetLLVMType();
 
     llvm::FunctionType* functionType = llvm::FunctionType::get(returnType.GetLLVMType(), argsType, false);
-    llvm::Function* function = llvm::Function::Create(functionType, llvm::GlobalValue::ExternalLinkage, name, context->GetModule());
+    llvm::Function* function = llvm::Function::Create(functionType, llvm::GlobalValue::ExternalLinkage, name, context->GetTSModule().getModuleUnlocked());
 
     for (size_t i = 0; i < argsInfo.size(); ++i)
         function->getArg(i)->setName(argsInfo[i].name);

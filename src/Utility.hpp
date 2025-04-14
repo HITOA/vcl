@@ -22,6 +22,7 @@
 
 #define DISPATCH_BINARY(...) Dispatcher<TypeInfo::TypeName, llvm::Value*, llvm::Value*, llvm::Value*>{ __VA_ARGS__ }
 
+
 namespace VCL {
 
     template<typename T, typename R, typename... Args>
@@ -50,17 +51,5 @@ namespace VCL {
         if (!type.has_value())
             return std::unexpected(type.error());
         return Value::Create(value, *type, context);
-    }
-
-    inline uint32_t GetMaxVectorElementWidth(uint32_t elementSize) {
-        static uint32_t maxVectorWidthInBytes = 0;
-        if (maxVectorWidthInBytes == 0) {
-            llvm::StringMap<bool> features = llvm::sys::getHostCPUFeatures();
-            if (features["avx512f"]) maxVectorWidthInBytes = 64;
-            if (features["avx2"]) maxVectorWidthInBytes = 32;
-            if (features["sse2"]) maxVectorWidthInBytes = 16;
-            else maxVectorWidthInBytes = 8;
-        }
-        return maxVectorWidthInBytes / elementSize;
     }
 }

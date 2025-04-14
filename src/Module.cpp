@@ -3,6 +3,7 @@
 #include "ModuleContext.hpp"
 #include "ModuleBuilder.hpp"
 #include "ModuleOptimizer.hpp"
+#include "Intrinsics.hpp"
 
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_os_ostream.h>
@@ -11,7 +12,7 @@
 
 
 VCL::Module::Module(std::unique_ptr<ModuleContext> context) : context{ std::move(context) } {
-
+    Intrinsics::Register(this->context.get());
 }
 
 VCL::Module::~Module() {
@@ -28,7 +29,7 @@ void VCL::Module::Emit() {
     std::stringstream sstream{};
     llvm::raw_os_ostream llvmStream{ sstream };
     bool brokenDebugInfo;
-    if (llvm::verifyModule(context->GetModule(), &llvmStream, &brokenDebugInfo))
+    if (llvm::verifyModule(*context->GetTSModule().getModuleUnlocked(), &llvmStream, &brokenDebugInfo))
         throw std::runtime_error{ sstream.str() };
     if (brokenDebugInfo && context->GetLogger())
         context->GetLogger()->Warning("{}", sstream.str());
@@ -36,6 +37,7 @@ void VCL::Module::Emit() {
 
 void VCL::Module::Optimize() {
     ModuleOptimizerSettings settings{};
+    settings.enableInliner = false;
     std::unique_ptr<ModuleOptimizer> optimizer = ModuleOptimizer::Create(settings);
     optimizer->Run(context.get());
 }
@@ -43,6 +45,6 @@ void VCL::Module::Optimize() {
 std::string VCL::Module::Dump() {
     std::string str;
     llvm::raw_string_ostream output{ str };
-    context->GetModule().print(output, nullptr);
+    context->GetTSModule().getModuleUnlocked()->print(output, nullptr);
     return str;
 }

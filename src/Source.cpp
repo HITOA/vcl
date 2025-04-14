@@ -3,6 +3,8 @@
 #include <fstream>
 #include <format>
 
+#include <iostream>
+
 
 std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromDisk(std::filesystem::path& path) {
     std::ifstream file{ path, std::ios::binary };
@@ -37,10 +39,14 @@ std::string GetLineFromString(std::string str, uint32_t line) {
 }
 
 std::string VCL::SourceLocation::ToString() {
+    if (source == nullptr)
+        return "NULL";
     return std::format("{}:{}:{}", std::filesystem::weakly_canonical(source->path).string(), line + 1, position);
 }
 
 std::string VCL::SourceLocation::ToStringDetailed() {
+    if (source == nullptr)
+        return "NULL";
     std::string error_line = GetLineFromString(source->source, line);
     std::string pointer_message;
     pointer_message.resize(error_line.length());

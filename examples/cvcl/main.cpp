@@ -19,7 +19,7 @@ struct Options {
     bool optimize = true;
     std::string outputDirectory;
     std::string dumpIrDirectory;
-    bool dumpObj = false;
+    std::string dumpObjFilename;
     std::string entryPoint = "Main";
 };
 
@@ -38,7 +38,7 @@ bool GetOptions(int argc, const char** argv, Options& options) {
             "\n-o, --output <dir>: output compiled bitcode into this directory."
             "\n-e, --entry-point <name>: name of the program entry point (default is \"Main\")."
             "\n--dump-ir <dir>: dump input file(s) module(s) readable ir into this directory."
-            "\n--dump-obj: dump object file(s)."
+            "\n--dump-obj <file>: dump object to disk."
             "\n--no-optimization: disable any optimization on the ir." << std::endl;
             return false;
         }
@@ -67,7 +67,12 @@ bool GetOptions(int argc, const char** argv, Options& options) {
 
 
         if (strcmp(argv[idx], "--dump-obj") == 0) {
-            options.dumpObj = true;
+            ++idx;
+            if (idx >= argc) {
+                std::cout << "Missing filename for --dump-obj." << std::endl;
+                return false;
+            }
+            options.dumpObjFilename = argv[idx];
             ++idx;
             continue;
         }
@@ -138,27 +143,12 @@ int main(int argc, const char** argv) {
 
     std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger);
 
-    /*std::filesystem::path sourceFilepath = options.inputFilenames[0];
-    if (auto source = VCL::Source::LoadFromDisk(sourceFilepath); source.has_value()) {
-        std::unique_ptr<VCL::ASTProgram> program = parser->Parse(*source);
-        if (program == nullptr)
-            return -1;
-
-        std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
-        //module->SetOptimization(false);
-        //if (!module->Emit()) //Emit ir
-        //    return -1;
-        
-        //Analysis like fetching attributes / inputs / outputs and stuff like this are done on a per module basis before submitting to the session
-
-        //session->SubmitModule(std::move(module)); //Submit for compilation
-
-    } else {
-        logger->Error("{}", source.error());
-        return -1;
-    }*/
-
-
+    if (!options.dumpObjFilename.empty()) {
+        std::filesystem::path dumpObjFilename = std::filesystem::path{ options.dumpObjFilename };
+        std::filesystem::path dumpObjDir = dumpObjFilename.parent_path();
+        std::string dumpObjName = dumpObjFilename.filename();
+        session->SetDumpObject(dumpObjDir, dumpObjName);
+    }
 
     for (size_t i = 0; i < options.inputFilenames.size(); ++i) {
         std::filesystem::path filepath = options.inputFilenames[i];
@@ -184,6 +174,8 @@ int main(int argc, const char** argv) {
                     irOutFile.close();
                 }
 
+                session->SubmitModule(std::move(module));
+
             } catch (VCL::Exception& exception) {
                 logger->Error("{}: {}\n{}", exception.location.ToString(), exception.what(), exception.location.ToStringDetailed());
             } catch (std::runtime_error& exception) {
@@ -196,60 +188,10 @@ int main(int argc, const char** argv) {
         }
     }
 
-    /*std::shared_ptr<VCL::JITContext> context = VCL::JITContext::Create();
-
-    if (options.dumpObj)
-        context->DumpObjects();
-
-    
     try {
-        for (size_t i = 0; i < options.inputFilenames.size(); ++i) {
-            std::string filepath = options.inputFilenames[i];
-            std::string filename = filepath.substr(filepath.find_last_of("/\\") + 1);
-            std::cout << "[" << ((float)(i + 1) / (float)(options.inputFilenames.size()) * 100.0f) << 
-                "%] Building VCL \"" << filepath << "\"" << std::endl;
-            
-            std::ifstream file{ filepath, std::ios::binary };
-
-            if (!file.is_open()) {
-                std::cout << "Couldn't open source file \"" << filepath << "\"" << std::endl;
-                return 0;
-            }
-
-            std::stringstream buffer{};
-            buffer << file.rdbuf();
-            std::string source = buffer.str();
-            file.close();
-
-            std::unique_ptr<VCL::Module> module = VCL::Module::Create(filename, context);
-            module->BindSource(source);
-            
-            if (options.optimize)
-                module->Optimize();
-
-            if (!options.dumpIrDirectory.empty()) {
-                std::filesystem::path p = std::filesystem::path{ options.dumpIrDirectory } / filename;
-                p.replace_extension(".ll");
-                std::ofstream irOutFile{ p, std::ios::binary | std::ios::trunc };
-                irOutFile << module->Dump();
-                irOutFile.close();
-            }
-
-            if (!options.outputDirectory.empty()) {
-                std::filesystem::path p = std::filesystem::path{ options.dumpIrDirectory } / filename;
-                p.replace_extension(".bc");
-                module->Serialize(p);
-            }
-            
-            context->AddModule(std::move(module));
-        }
-
-        context->Lookup(options.entryPoint);
-
-    } catch (std::runtime_error& err) {
-        std::cout << "[ERROR]: " << err.what() << std::endl; 
+        if (!session->Lookup(options.entryPoint))
+            return 0;
+    } catch (std::runtime_error& exception) {
         return 0;
-    }*/
-
-    return 0;
+    }
 }

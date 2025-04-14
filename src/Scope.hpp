@@ -19,6 +19,7 @@ namespace VCL {
         llvm::BasicBlock* bb;
         std::unordered_map<std::string, Handle<Value>> namedValue;
 
+        Scope() = delete;
         Scope(llvm::BasicBlock* bb) : bb{ bb }, namedValue{} {};
     };
 

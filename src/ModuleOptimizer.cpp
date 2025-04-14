@@ -50,7 +50,7 @@ VCL::ModuleOptimizer::~ModuleOptimizer() {
 }
 
 void VCL::ModuleOptimizer::Run(ModuleContext* context) {
-    mpm->run(context->GetModule(), *mam);
+    mpm->run(*context->GetTSModule().getModuleUnlocked(), *mam);
 }
 
 std::unique_ptr<VCL::ModuleOptimizer> VCL::ModuleOptimizer::Create(ModuleOptimizerSettings settings) {

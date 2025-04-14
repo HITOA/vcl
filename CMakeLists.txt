@@ -18,9 +18,13 @@ add_library(vcl
     STATIC 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Handle.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsic.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsics.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/NativeTarget.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utility.hpp
@@ -30,11 +34,14 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionSession.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsic.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsics.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Lexer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Module.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/NativeTarget.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Parser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Source.cpp

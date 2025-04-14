@@ -7,6 +7,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 
 #include <string_view>
 
@@ -23,18 +24,18 @@ namespace VCL {
     class ModuleContext {
     public:
         ModuleContext() = delete;
-        ModuleContext(std::string_view name, llvm::LLVMContext* context, std::shared_ptr<Logger> logger);
+        ModuleContext(std::string_view name, llvm::orc::ThreadSafeContext context, std::shared_ptr<Logger> logger);
         ~ModuleContext();
 
         /**
-         * @brief Get the LLVMContext that own this module.
+         * @brief Get the thread safe LLVMContext that own this module.
          */
-        llvm::LLVMContext& GetContext();
+        llvm::orc::ThreadSafeContext GetTSContext();
 
         /**
-         * @brief Get the underlying LLVM Module.
+         * @brief Get the underlying thread safe LLVM Module.
          */
-        llvm::Module& GetModule();
+        llvm::orc::ThreadSafeModule& GetTSModule();
 
         /**
          * @brief Get the underlying LLVM IRBuilder<> module.
@@ -52,8 +53,7 @@ namespace VCL {
         std::shared_ptr<Logger> GetLogger();
 
     private:
-        llvm::LLVMContext* context;
-        llvm::Module module;
+        llvm::orc::ThreadSafeModule module;
         llvm::IRBuilder<> irBuilder;
         ScopeManager sm;
         std::shared_ptr<Logger> logger;

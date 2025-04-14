@@ -2,6 +2,7 @@
 
 #include "ModuleContext.hpp"
 #include "Utility.hpp"
+#include "NativeTarget.hpp"
 
 #include <iostream>
 
@@ -29,6 +30,27 @@ bool VCL::Value::IsAssignableFrom(Handle<Value> value) const {
     return value->GetType().GetTypeInfo().type == type.GetTypeInfo().type && !type.GetTypeInfo().IsConst();
 }
 
+std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Splat() {
+    if (value->getType()->isPointerTy())
+        std::unexpected(Error{ "Cannot splat pointer type" });
+    
+    switch (type.GetTypeInfo().type) {
+        case TypeInfo::TypeName::FLOAT:
+        case TypeInfo::TypeName::BOOLEAN:
+        case TypeInfo::TypeName::INT:
+            break;
+        default:
+            return Value::Create(value, type, context);
+    }
+    
+    llvm::Value* v = context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), value);
+    if (auto t = Type::CreateFromLLVMType(v->getType(), context); t.has_value()) {
+        return Value::Create(v, *t, context);
+    } else {
+        return std::unexpected(t.error());
+    }
+}
+
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Cast(Type type) {
     if (this->type == type)
         return Value::Create(value, type, context);
@@ -42,7 +64,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Cast(Type type) {
         if (type.GetTypeInfo().type == TypeInfo::TypeName::INT)
             return Value::Create(context->GetIRBuilder().CreateFPToSI(value, type.GetLLVMType()), type, context);
         if (type.GetTypeInfo().type == TypeInfo::TypeName::VFLOAT)
-            return Value::Create(context->GetIRBuilder().CreateVectorSplat(GetMaxVectorElementWidth(sizeof(float)), value), type, context);
+            return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), value), type, context);
     }
 
     if (this->type.GetTypeInfo().type == TypeInfo::TypeName::BOOLEAN) {
@@ -51,7 +73,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Cast(Type type) {
         if (type.GetTypeInfo().type == TypeInfo::TypeName::INT)
             return Value::Create(context->GetIRBuilder().CreateZExt(value, type.GetLLVMType()), type, context);
         if (type.GetTypeInfo().type == TypeInfo::TypeName::VFLOAT)
-            return Value::Create(context->GetIRBuilder().CreateVectorSplat(GetMaxVectorElementWidth(sizeof(float)), 
+            return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), 
                 context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType())), type, context);
     }
 
@@ -61,7 +83,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Cast(Type type) {
         if (type.GetTypeInfo().type == TypeInfo::TypeName::BOOLEAN)
             return Value::Create(context->GetIRBuilder().CreateTrunc(value, type.GetLLVMType()), type, context);
         if (type.GetTypeInfo().type == TypeInfo::TypeName::VFLOAT)
-            return Value::Create(context->GetIRBuilder().CreateVectorSplat(GetMaxVectorElementWidth(sizeof(float)), 
+            return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), 
                 context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType())), type, context);
     }
 
@@ -102,7 +124,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
     isExtern = type.GetTypeInfo().IsExtern() || !initializer;
     
     llvm::GlobalVariable* value = new llvm::GlobalVariable{
-        context->GetModule(),
+        *context->GetTSModule().getModuleUnlocked(),
         type.GetLLVMType(),
         type.GetTypeInfo().IsConst() || type.GetTypeInfo().IsInput(),
         isExtern ? llvm::GlobalValue::ExternalLinkage : llvm::GlobalValue::PrivateLinkage,

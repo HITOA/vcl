@@ -26,6 +26,8 @@ namespace VCL {
         std::string Dump();
 
     private:
+        friend class ExecutionSession;
+
         std::unique_ptr<ModuleContext> context;
         std::unique_ptr<ASTProgram> program;
     };

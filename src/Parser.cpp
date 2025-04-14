@@ -107,6 +107,8 @@ bool IsTypeInfoToken(VCL::Token token) {
     case VCL::TokenType::INT:
     case VCL::TokenType::VOID:
     case VCL::TokenType::VFLOAT:
+    case VCL::TokenType::VBOOL:
+    case VCL::TokenType::VINT:
         return true;
     default:
         return false;
@@ -184,6 +186,8 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer)
         else statement = ParseVariableAssignment(lexer);
     } else if (currentToken.type == TokenType::RETURN) {
         statement = ParseReturnStatement(lexer);
+    } else {
+        throw Exception{ std::format("Unexpected token \'{}\'.", currentToken.name), currentToken.location };
     }
 
     if (statement == nullptr) {
@@ -461,6 +465,14 @@ VCL::TypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
                 break;
             case TokenType::VFLOAT:
                 typeInfo.type = TypeInfo::TypeName::VFLOAT;
+                complete = true;
+                break;
+            case TokenType::VBOOL:
+                typeInfo.type = TypeInfo::TypeName::VBOOL;
+                complete = true;
+                break;
+            case TokenType::VINT:
+                typeInfo.type = TypeInfo::TypeName::VINT;
                 complete = true;
                 break;
             default:

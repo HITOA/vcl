@@ -2,8 +2,7 @@
 
 #include "ModuleContext.hpp"
 #include "Utility.hpp"
-
-#include <iostream>
+#include "NativeTarget.hpp"
 
 
 VCL::Type::Type() :
@@ -33,20 +32,32 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(TypeInfo typeInfo, Module
     llvm::Type* type;
     switch (typeInfo.type)
     {
+    case TypeInfo::TypeName::CALLABLE:
+        type = nullptr;
+        break;
     case TypeInfo::TypeName::FLOAT:
-        type = llvm::Type::getFloatTy(context->GetContext());
+        type = llvm::Type::getFloatTy(*context->GetTSContext().getContext());
         break;
     case TypeInfo::TypeName::BOOLEAN:
-        type = llvm::Type::getInt1Ty(context->GetContext());
+        type = llvm::Type::getInt1Ty(*context->GetTSContext().getContext());
         break;
     case TypeInfo::TypeName::INT:
-        type = llvm::Type::getInt32Ty(context->GetContext());
+        type = llvm::Type::getInt32Ty(*context->GetTSContext().getContext());
         break;
     case TypeInfo::TypeName::VOID:
-        type = llvm::Type::getVoidTy(context->GetContext());
+        type = llvm::Type::getVoidTy(*context->GetTSContext().getContext());
         break;
     case TypeInfo::TypeName::VFLOAT:
-        type = llvm::FixedVectorType::get(llvm::Type::getFloatTy(context->GetContext()), GetMaxVectorElementWidth(sizeof(float)));
+        type = llvm::FixedVectorType::get(llvm::Type::getFloatTy(*context->GetTSContext().getContext()), 
+            NativeTarget::GetInstance()->GetMaxVectorElementWidth());
+        break;
+    case TypeInfo::TypeName::VBOOL:
+        type = llvm::FixedVectorType::get(llvm::Type::getInt1Ty(*context->GetTSContext().getContext()), 
+            NativeTarget::GetInstance()->GetMaxVectorElementWidth());
+        break;
+    case TypeInfo::TypeName::VINT:
+        type = llvm::FixedVectorType::get(llvm::Type::getInt32Ty(*context->GetTSContext().getContext()), 
+            NativeTarget::GetInstance()->GetMaxVectorElementWidth());
         break;
     default:
         return std::unexpected(Error{ "Invalid typename while parsing type" });

@@ -14,7 +14,9 @@
     DEF(BOOLEAN,            "bool") \
     DEF(INT,                "int") \
     DEF(VOID,               "void") \
-    DEF(VFLOAT,             "vfloat")
+    DEF(VFLOAT,             "vfloat") \
+    DEF(VBOOL,              "vbool") \
+    DEF(VINT,               "vint")
 
 #undef TYPE_QUALIFIER_DEF
 #define TYPE_QUALIFIER_DEF \
@@ -127,12 +129,12 @@ namespace VCL {
             return qualifiers & QualifierFlag::IN;
         }
 
-        inline bool IsOutpout() const {
+        inline bool IsOutput() const {
             return qualifiers & QualifierFlag::OUT;
         }
 
         inline bool IsExtern() const {
-            return IsInput() || IsOutpout();
+            return IsInput() || IsOutput();
         }
 
         inline bool IsConst() const {

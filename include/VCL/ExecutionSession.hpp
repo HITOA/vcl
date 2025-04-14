@@ -15,7 +15,30 @@ namespace VCL {
         ExecutionSession();
         ~ExecutionSession();
 
+        /**
+         * @brief Create a VCL Module for compilation
+         */
         std::unique_ptr<Module> CreateModule(std::unique_ptr<ASTProgram> program);
+
+        /**
+         * @brief Submit a VCL Module for compilation
+         */
+        void SubmitModule(std::unique_ptr<Module> module);
+
+        /**
+         * @brief Bind memory address to a input or output global vcl variable
+         */
+        void BindGlobalVariable(std::string_view name, void* buffer);
+
+        /**
+         * @brief Lookup compiled vcl function's address by name and returns it.
+         */
+        void* Lookup(std::string_view name);
+
+        /**
+         * @brief Dump compiled object to given directory
+         */
+        void SetDumpObject(std::filesystem::path directory, std::string_view identifier);
 
         /**
          * @brief Set the logger class instance the parser will use to send error warning info and debug messages. 

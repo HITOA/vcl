@@ -5,6 +5,8 @@
 #include "Value.hpp"
 #include "ModuleContext.hpp"
 
+#include <llvm/ExecutionEngine/Orc/Core.h>
+
 
 namespace VCL {
 
