@@ -30,6 +30,7 @@ namespace VCL {
         void VisitIfStatement(ASTIfStatement* node) override;
         void VisitWhileStatement(ASTWhileStatement* node) override;
         void VisitForStatement(ASTForStatement* node) override;
+        void VisitBreakStatement(ASTBreakStatement* node) override;
         void VisitUnaryExpression(ASTUnaryExpression* node) override;
         void VisitBinaryExpression(ASTBinaryExpression* node) override;
         void VisitLiteralExpression(ASTLiteralExpression* node) override;

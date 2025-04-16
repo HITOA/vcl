@@ -180,6 +180,16 @@ namespace VCL {
         std::unique_ptr<ASTStatement> thenStmt;
     };
 
+     /**
+     * @brief represents a break instruction.
+     */
+    class ASTBreakStatement : public ASTStatement {
+    public:
+        ASTBreakStatement() {};
+
+        void Accept(ASTVisitor* visitor) override;
+    };
+
     /**
      * @brief represents a unary expression operation.
      */
@@ -298,6 +308,7 @@ namespace VCL {
         virtual void VisitIfStatement(ASTIfStatement* node) {};
         virtual void VisitWhileStatement(ASTWhileStatement* node) {};
         virtual void VisitForStatement(ASTForStatement* node) {};
+        virtual void VisitBreakStatement(ASTBreakStatement* node) {};
         virtual void VisitUnaryExpression(ASTUnaryExpression* node) {};
         virtual void VisitBinaryExpression(ASTBinaryExpression* node) {};
         virtual void VisitLiteralExpression(ASTLiteralExpression* node) {};

@@ -35,7 +35,11 @@ bool VCL::ScopeManager::PushNamedValue(std::string_view name, Handle<Value> valu
 }
 
 llvm::BasicBlock* VCL::ScopeManager::GetTransferControlBasicBlock() const {
-    return scopes.front().bb;
+    for (const Scope& scope : scopes) {
+        if (scope.bb != nullptr)
+            return scope.bb;
+    }
+    return nullptr;
 }
 
 bool VCL::ScopeManager::IsCurrentScopeGlobal() const {

@@ -10,6 +10,7 @@ void VCL::ASTReturnStatement::Accept(ASTVisitor* visitor) { visitor->VisitReturn
 void VCL::ASTIfStatement::Accept(ASTVisitor* visitor) { visitor->VisitIfStatement(this); }
 void VCL::ASTWhileStatement::Accept(ASTVisitor* visitor) { visitor->VisitWhileStatement(this); }
 void VCL::ASTForStatement::Accept(ASTVisitor* visitor) { visitor->VisitForStatement(this); }
+void VCL::ASTBreakStatement::Accept(ASTVisitor* visitor) { visitor->VisitBreakStatement(this); }
 void VCL::ASTUnaryExpression::Accept(ASTVisitor* visitor) { visitor->VisitUnaryExpression(this); }
 void VCL::ASTBinaryExpression::Accept(ASTVisitor* visitor) { visitor->VisitBinaryExpression(this); }
 void VCL::ASTLiteralExpression::Accept(ASTVisitor* visitor) { visitor->VisitLiteralExpression(this); }

@@ -35,7 +35,8 @@
     DEF(IF,                 "if") \
     DEF(ELSE,               "else") \
     DEF(WHILE,              "while") \
-    DEF(FOR,                "for")
+    DEF(FOR,                "for") \
+    DEF(BREAK,              "break") 
 
 #undef UNARY_OPERATOR_DEF
 #define UNARY_OPERATOR_DEF \

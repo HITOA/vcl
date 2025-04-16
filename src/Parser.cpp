@@ -148,7 +148,7 @@ void VCL::Parser::SetLogger(std::shared_ptr<Logger> logger)
     this->logger = logger;
 }
 
-std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer)
+std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, bool ignoreTerminator)
 {
     Token currentToken = lexer.Peek();
     
@@ -160,9 +160,10 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer)
      * - Function Call (semicolon) [X]
      * - Variable Assignment (semicolon) [X]
      * - Return (semicolon) [X]
-     * - If Block (none)
-     * - While Block (none)
-     * - For Block (none)
+     * - If Block (none) [X]
+     * - While Block (none) [X]
+     * - For Block (none) [X]
+     * - Break (semicolon) [X]
      * Statement either end with semicolon or none
      */
 
@@ -186,6 +187,17 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer)
         else statement = ParseVariableAssignment(lexer);
     } else if (currentToken.type == TokenType::RETURN) {
         statement = ParseReturnStatement(lexer);
+    } else if (currentToken.type == TokenType::IF) {
+        statement = ParseIfStatement(lexer);
+        expectedTerminatorTokenType = TokenType::UNDEFINED;
+    } else if (currentToken.type == TokenType::FOR) {
+        statement = ParseForStatement(lexer);
+        expectedTerminatorTokenType = TokenType::UNDEFINED;
+    } else if (currentToken.type == TokenType::WHILE) {
+        statement = ParseWhileStatement(lexer);
+        expectedTerminatorTokenType = TokenType::UNDEFINED;
+    } else if (currentToken.type == TokenType::BREAK) {
+        statement = ParseBreakStatement(lexer);
     } else {
         throw Exception{ std::format("Unexpected token \'{}\'.", currentToken.name), currentToken.location };
     }
@@ -198,7 +210,7 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer)
         return statement;
     }
 
-    if (expectedTerminatorTokenType != TokenType::UNDEFINED) {
+    if (expectedTerminatorTokenType != TokenType::UNDEFINED && !ignoreTerminator) {
         Token terminator = lexer.Consume();
         if (terminator.type != expectedTerminatorTokenType)
             throw Exception{ std::format("Unexpected token \'{}\'. Expecting semicolon.", terminator.name), terminator.location };
@@ -322,6 +334,93 @@ std::unique_ptr<VCL::ASTReturnStatement> VCL::Parser::ParseReturnStatement(Lexer
     Token returnToken = lexer.Consume(); //RETURN
     std::unique_ptr<ASTExpression> expression = ParseExpression(lexer);
     return FillASTStatementDebugInformation(std::make_unique<ASTReturnStatement>(std::move(expression)), returnToken);
+}
+
+std::unique_ptr<VCL::ASTIfStatement> VCL::Parser::ParseIfStatement(Lexer& lexer) {
+    Token ifToken = lexer.Consume(); //Consume if token
+
+    if (Token token = lexer.Consume(); token.type != TokenType::LPAR)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting opening parenthesis", token.name), token.location };
+
+    std::unique_ptr<ASTExpression> condition = ParseExpression(lexer);
+
+    if (Token token = lexer.Consume(); token.type != TokenType::RPAR)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting closing parenthesis", token.name), token.location };
+
+    std::unique_ptr<ASTStatement> thenStatement = nullptr;
+
+    if (lexer.Peek().type == TokenType::LBRACKET)
+        thenStatement = ParseCompoundStatement(lexer);
+    else
+        thenStatement = ParseStatement(lexer);
+
+    std::unique_ptr<ASTStatement> elseStatement = nullptr;
+
+    if (lexer.Peek().type == TokenType::ELSE) {
+        lexer.Consume();
+        if (lexer.Peek().type == TokenType::LBRACKET)
+            elseStatement = ParseCompoundStatement(lexer);
+        else
+            elseStatement = ParseStatement(lexer);
+    }
+
+    return FillASTStatementDebugInformation(std::make_unique<ASTIfStatement>(std::move(condition), 
+        std::move(thenStatement), std::move(elseStatement)), ifToken);
+}
+
+std::unique_ptr<VCL::ASTForStatement> VCL::Parser::ParseForStatement(Lexer& lexer) {
+    Token forToken = lexer.Consume(); //Consume for token
+
+    if (Token token = lexer.Consume(); token.type != TokenType::LPAR)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting opening parenthesis", token.name), token.location };
+
+    std::unique_ptr<ASTStatement> start = ParseStatement(lexer);
+    std::unique_ptr<ASTExpression> condition = ParseExpression(lexer);
+
+    if (Token token = lexer.Consume(); token.type != TokenType::SEMICOLON)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting semicolon", token.name), token.location };
+
+    std::unique_ptr<ASTStatement> end = ParseStatement(lexer, true);
+
+    if (Token token = lexer.Consume(); token.type != TokenType::RPAR)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting closing parenthesis", token.name), token.location };
+
+    std::unique_ptr<ASTStatement> thenStatement = nullptr;
+
+    if (lexer.Peek().type == TokenType::LBRACKET)
+        thenStatement = ParseCompoundStatement(lexer);
+    else
+        thenStatement = ParseStatement(lexer);
+
+    return FillASTStatementDebugInformation(std::make_unique<ASTForStatement>(std::move(start), 
+        std::move(condition), std::move(end), std::move(thenStatement)), forToken);
+}
+
+std::unique_ptr<VCL::ASTWhileStatement> VCL::Parser::ParseWhileStatement(Lexer& lexer) {
+    Token whileToken = lexer.Consume(); //Consume while token
+
+    if (Token token = lexer.Consume(); token.type != TokenType::LPAR)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting opening parenthesis", token.name), token.location };
+
+    std::unique_ptr<ASTExpression> condition = ParseExpression(lexer);
+
+    if (Token token = lexer.Consume(); token.type != TokenType::RPAR)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting closing parenthesis", token.name), token.location };
+    
+    std::unique_ptr<ASTStatement> thenStatement = nullptr;
+
+    if (lexer.Peek().type == TokenType::LBRACKET)
+        thenStatement = ParseCompoundStatement(lexer);
+    else
+        thenStatement = ParseStatement(lexer);
+
+    return FillASTStatementDebugInformation(std::make_unique<ASTWhileStatement>(std::move(condition), 
+        std::move(thenStatement)), whileToken);
+}
+
+std::unique_ptr<VCL::ASTBreakStatement> VCL::Parser::ParseBreakStatement(Lexer& lexer) {
+    Token breakToken = lexer.Consume(); //Consume break token
+    return FillASTStatementDebugInformation(std::make_unique<ASTBreakStatement>(), breakToken);
 }
 
 std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParseBinaryOperationExpression(Lexer& lexer, int precedence, std::unique_ptr<ASTExpression> lhs) {

@@ -98,15 +98,119 @@ void VCL::ModuleBuilder::VisitReturnStatement(ASTReturnStatement* node) {
 }
 
 void VCL::ModuleBuilder::VisitIfStatement(ASTIfStatement* node) {
+    node->condition->Accept(this);
+    TypeInfo typeInfo{};
+    typeInfo.type = TypeInfo::TypeName::BOOLEAN;
+    Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
+    Handle<Value> conditionValue = ThrowOnError(lastReturnedValue->Cast(type), node->condition->location);
+    
+    llvm::Value* r = context->GetIRBuilder().CreateICmpNE(conditionValue->GetLLVMValue(), 
+        llvm::ConstantInt::get(llvm::Type::getInt1Ty(*context->GetTSContext().getContext()), 0));
 
+    llvm::Function* function = context->GetIRBuilder().GetInsertBlock()->getParent();
+
+    if (!function)
+        throw Exception{ "A if statement may only be used withing a function's body.", node->location };
+
+    llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "then", function);
+    llvm::BasicBlock* elseBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "else", function);
+    llvm::BasicBlock* endBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "end", function);
+
+    context->GetIRBuilder().CreateCondBr(r, thenBB, elseBB);
+
+    context->GetIRBuilder().SetInsertPoint(thenBB);
+    node->thenStmt->Accept(this);
+    if (!context->GetIRBuilder().GetInsertBlock()->getTerminator())
+        context->GetIRBuilder().CreateBr(endBB);
+
+    context->GetIRBuilder().SetInsertPoint(elseBB);
+    if (node->elseStmt)
+        node->elseStmt->Accept(this);
+    context->GetIRBuilder().CreateBr(endBB);
+
+    context->GetIRBuilder().SetInsertPoint(endBB);
 }
 
 void VCL::ModuleBuilder::VisitWhileStatement(ASTWhileStatement* node) {
+    llvm::Function* function = context->GetIRBuilder().GetInsertBlock()->getParent();
 
+    if (!function)
+        throw Exception{ "A while loop may only be used withing a function's body.", node->location };
+
+    llvm::BasicBlock* conditionBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "condition", function);
+    llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "loop", function);
+    llvm::BasicBlock* endBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "end", function);
+
+    ScopeGuard scopeGuard{ &context->GetScopeManager(), endBB };
+
+    context->GetIRBuilder().CreateBr(conditionBB);
+
+    context->GetIRBuilder().SetInsertPoint(conditionBB);
+    node->condition->Accept(this);
+    TypeInfo typeInfo{};
+    typeInfo.type = TypeInfo::TypeName::BOOLEAN;
+    Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
+    Handle<Value> conditionValue = ThrowOnError(lastReturnedValue->Cast(type), node->condition->location);
+    
+    llvm::Value* r = context->GetIRBuilder().CreateICmpNE(conditionValue->GetLLVMValue(), 
+        llvm::ConstantInt::get(llvm::Type::getInt1Ty(*context->GetTSContext().getContext()), 0));
+
+    context->GetIRBuilder().CreateCondBr(r, thenBB, endBB);
+
+    context->GetIRBuilder().SetInsertPoint(thenBB);
+    node->thenStmt->Accept(this);
+    if (!context->GetIRBuilder().GetInsertBlock()->getTerminator())
+        context->GetIRBuilder().CreateBr(conditionBB);
+
+    context->GetIRBuilder().SetInsertPoint(endBB);
+
+    scopeGuard.Release();
 }
 
 void VCL::ModuleBuilder::VisitForStatement(ASTForStatement* node) {
+    llvm::Function* function = context->GetIRBuilder().GetInsertBlock()->getParent();
 
+    if (!function)
+        throw Exception{ "A for loop may only be used withing a function's body.", node->location };
+
+    llvm::BasicBlock* conditionBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "condition", function);
+    llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "loop", function);
+    llvm::BasicBlock* endBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "end", function);
+
+    ScopeGuard scopeGuard{ &context->GetScopeManager(), endBB };
+
+    node->start->Accept(this);
+    context->GetIRBuilder().CreateBr(conditionBB);
+    
+    context->GetIRBuilder().SetInsertPoint(conditionBB);
+    node->condition->Accept(this);
+    TypeInfo typeInfo{};
+    typeInfo.type = TypeInfo::TypeName::BOOLEAN;
+    Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
+    Handle<Value> conditionValue = ThrowOnError(lastReturnedValue->Cast(type), node->condition->location);
+    
+    llvm::Value* r = context->GetIRBuilder().CreateICmpNE(conditionValue->GetLLVMValue(), 
+        llvm::ConstantInt::get(llvm::Type::getInt1Ty(*context->GetTSContext().getContext()), 0));
+
+    context->GetIRBuilder().CreateCondBr(r, thenBB, endBB);
+
+    context->GetIRBuilder().SetInsertPoint(thenBB);
+    node->thenStmt->Accept(this);
+    node->end->Accept(this);
+    if (!context->GetIRBuilder().GetInsertBlock()->getTerminator())
+        context->GetIRBuilder().CreateBr(conditionBB);
+
+    context->GetIRBuilder().SetInsertPoint(endBB);
+
+    scopeGuard.Release();
+}
+
+void VCL::ModuleBuilder::VisitBreakStatement(ASTBreakStatement* node) {
+    llvm::BasicBlock* dest = context->GetScopeManager().GetTransferControlBasicBlock();
+    if (dest == nullptr)
+        throw Exception{ "A break statement may only be used within a loop.", node->location };
+
+    context->GetIRBuilder().CreateBr(dest);
 }
 
 void VCL::ModuleBuilder::VisitUnaryExpression(ASTUnaryExpression* node) {

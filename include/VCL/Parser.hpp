@@ -37,7 +37,7 @@ namespace VCL {
         static std::unique_ptr<Parser> Create(std::shared_ptr<Logger> logger = nullptr);
 
     private:
-        std::unique_ptr<ASTStatement> ParseStatement(Lexer& lexer);
+        std::unique_ptr<ASTStatement> ParseStatement(Lexer& lexer, bool ignoreTerminator = false);
         std::unique_ptr<ASTStatement> ParseCompoundStatement(Lexer& lexer);
         std::unique_ptr<ASTExpression> ParseExpression(Lexer& lexer);
         std::unique_ptr<ASTExpression> ParsePrimaryExpression(Lexer& lexer);
@@ -47,6 +47,10 @@ namespace VCL {
         std::unique_ptr<ASTFunctionPrototype> ParseFunctionPrototype(Lexer& lexer, TypeInfo& typeInfo);
         std::unique_ptr<ASTFunctionDeclaration> ParseFunctionDeclaration(Lexer& lexer, std::unique_ptr<ASTFunctionPrototype> prototype);
         std::unique_ptr<ASTReturnStatement> ParseReturnStatement(Lexer& lexer);
+        std::unique_ptr<ASTIfStatement> ParseIfStatement(Lexer& lexer);
+        std::unique_ptr<ASTForStatement> ParseForStatement(Lexer& lexer);
+        std::unique_ptr<ASTWhileStatement> ParseWhileStatement(Lexer& lexer);
+        std::unique_ptr<ASTBreakStatement> ParseBreakStatement(Lexer& lexer);
 
         std::unique_ptr<ASTExpression> ParseBinaryOperationExpression(Lexer& lexer, int precedence, std::unique_ptr<ASTExpression> lhs);
         std::unique_ptr<ASTUnaryExpression> ParseUnaryOperationExpression(Lexer& lexer);
