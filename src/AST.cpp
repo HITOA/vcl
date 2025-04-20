@@ -6,6 +6,8 @@ void VCL::ASTCompoundStatement::Accept(ASTVisitor* visitor) { visitor->VisitComp
 void VCL::ASTFunctionArgument::Accept(ASTVisitor* visitor) { visitor->VisitFunctionArgument(this); }
 void VCL::ASTFunctionPrototype::Accept(ASTVisitor* visitor) { visitor->VisitFunctionPrototype(this); }
 void VCL::ASTFunctionDeclaration::Accept(ASTVisitor* visitor) { visitor->VisitFunctionDeclaration(this); }
+void VCL::ASTStructureFieldDeclaration::Accept(ASTVisitor* visitor) { visitor->VisitStructureFieldDeclaration(this); }
+void VCL::ASTStructureDeclaration::Accept(ASTVisitor* visitor) { visitor->VisitStructureDeclaration(this); }
 void VCL::ASTReturnStatement::Accept(ASTVisitor* visitor) { visitor->VisitReturnStatement(this); }
 void VCL::ASTIfStatement::Accept(ASTVisitor* visitor) { visitor->VisitIfStatement(this); }
 void VCL::ASTWhileStatement::Accept(ASTVisitor* visitor) { visitor->VisitWhileStatement(this); }

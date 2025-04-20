@@ -10,9 +10,6 @@ namespace VCL {
     bool IntrinsicArgumentPolicy::operator()(Type type) {
         TypeInfo typeInfo = type.GetTypeInfo();
 
-        if (typeInfo.compositeType != TypeInfo::CompositeType::NONE)
-            return false;
-
         if (policy & Numeric) {
             switch (typeInfo.type) {
             case TypeInfo::TypeName::FLOAT:

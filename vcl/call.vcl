@@ -1,4 +1,4 @@
-/*
+/**
 *   Simple function call test
 */
 

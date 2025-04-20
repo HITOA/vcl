@@ -113,6 +113,34 @@ namespace VCL {
     };
 
     /**
+     * @brief represents a structure field declaration.
+     */
+    class ASTStructureFieldDeclaration : public ASTStatement {
+    public:
+        ASTStructureFieldDeclaration(ASTTypeInfo type, std::string_view name) : 
+            type{ type }, name{ name } {};
+
+        void Accept(ASTVisitor* visitor) override;
+    public:
+        ASTTypeInfo type;
+        std::string_view name;
+    };
+
+    /**
+     * @brief represents a structure declaration.
+     */
+    class ASTStructureDeclaration : public ASTStatement {
+    public:
+        ASTStructureDeclaration(std::string_view name, std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields) :
+            name{ name }, fields{ std::move(fields) } {};
+
+        void Accept(ASTVisitor* visitor) override;
+    public:
+        std::string_view name;
+        std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields;
+    };
+
+    /**
      * @brief represents a return statement.
      */
     class ASTReturnStatement : public ASTStatement {
@@ -304,6 +332,8 @@ namespace VCL {
         virtual void VisitFunctionArgument(ASTFunctionArgument* node) {};
         virtual void VisitFunctionPrototype(ASTFunctionPrototype* node) {};
         virtual void VisitFunctionDeclaration(ASTFunctionDeclaration* node) {};
+        virtual void VisitStructureFieldDeclaration(ASTStructureFieldDeclaration* node) {};
+        virtual void VisitStructureDeclaration(ASTStructureDeclaration* node) {};
         virtual void VisitReturnStatement(ASTReturnStatement* node) {};
         virtual void VisitIfStatement(ASTIfStatement* node) {};
         virtual void VisitWhileStatement(ASTWhileStatement* node) {};

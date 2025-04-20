@@ -46,6 +46,8 @@ namespace VCL {
         std::unique_ptr<ASTFunctionArgument> ParseFunctionArgument(Lexer& lexer);
         std::unique_ptr<ASTFunctionPrototype> ParseFunctionPrototype(Lexer& lexer, TypeInfo& typeInfo);
         std::unique_ptr<ASTFunctionDeclaration> ParseFunctionDeclaration(Lexer& lexer, std::unique_ptr<ASTFunctionPrototype> prototype);
+        std::unique_ptr<ASTStructureFieldDeclaration> ParseStructureFieldDeclaration(Lexer& lexer);
+        std::unique_ptr<ASTStructureDeclaration> ParseStructureDeclaration(Lexer& lexer);
         std::unique_ptr<ASTReturnStatement> ParseReturnStatement(Lexer& lexer);
         std::unique_ptr<ASTIfStatement> ParseIfStatement(Lexer& lexer);
         std::unique_ptr<ASTForStatement> ParseForStatement(Lexer& lexer);
@@ -60,7 +62,7 @@ namespace VCL {
         std::unique_ptr<ASTVariableAssignment> ParseVariableAssignment(Lexer& lexer);
         std::unique_ptr<ASTFunctionCall> ParseFunctionCall(Lexer& lexer);
 
-        TypeInfo  ParseTypeInfo(Lexer& lexer);
+        TypeInfo ParseTypeInfo(Lexer& lexer);
 
     private:
         std::shared_ptr<Logger> logger = nullptr;

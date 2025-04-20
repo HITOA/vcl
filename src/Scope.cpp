@@ -34,6 +34,23 @@ bool VCL::ScopeManager::PushNamedValue(std::string_view name, Handle<Value> valu
     return true;
 }
 
+std::expected<llvm::Type*, VCL::Error> VCL::ScopeManager::GetNamedType(std::string_view name) const {
+    std::string nameStr{ name };
+    for (const Scope& scope : scopes) {
+        if (scope.namedType.count(nameStr))
+            return scope.namedType.at(nameStr);
+    }
+    return std::unexpected(Error{ std::format("Undefined named type \'{}\'", name) });
+}
+
+bool VCL::ScopeManager::PushNamedType(std::string_view name, llvm::Type* type) {
+    std::string nameStr{ name };
+    if (scopes.front().namedType.count(nameStr))
+        return false;
+    scopes.front().namedType.emplace(nameStr, type);
+    return true;
+}
+
 llvm::BasicBlock* VCL::ScopeManager::GetTransferControlBasicBlock() const {
     for (const Scope& scope : scopes) {
         if (scope.bb != nullptr)

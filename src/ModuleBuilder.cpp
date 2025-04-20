@@ -88,6 +88,19 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
     function->Verify();
 }
 
+void VCL::ModuleBuilder::VisitStructureDeclaration(ASTStructureDeclaration* node) {
+    std::vector<llvm::Type*> elements(node->fields.size());
+
+    for (size_t i = 0; i < node->fields.size(); ++i) {
+        Type type = ThrowOnError(Type::Create(node->fields[i]->type, context), node->fields[i]->location);
+        elements[i] = type.GetLLVMType();
+    }
+
+    llvm::StructType* type = llvm::StructType::create(*context->GetTSContext().getContext(), elements);
+    if (!context->GetScopeManager().PushNamedType(node->name, type))
+        throw Exception{ std::format("redefinition of `{}`", node->name), node->location };
+}
+
 void VCL::ModuleBuilder::VisitReturnStatement(ASTReturnStatement* node) {
     if (node->expression) {
         node->expression->Accept(this);
@@ -413,7 +426,9 @@ void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) 
     else
         variable = ThrowOnError(Value::CreateLocalVariable(type, initializer, context, name.c_str()), node->location);
 
-    context->GetScopeManager().PushNamedValue(node->name, variable);
+    if (!context->GetScopeManager().PushNamedValue(node->name, variable))
+        throw Exception{ std::format("redefinition of `{}`", node->name), node->location };
+
     lastReturnedValue = variable;
 }
 

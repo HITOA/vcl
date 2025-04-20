@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 #define FLAG(x) (1<<x)
 
@@ -24,11 +25,6 @@
     DEF(OUT,                "out",      FLAG(1)) \
     DEF(IN,                 "in",       FLAG(2))
 
-#undef TYPE_COMPOSITE_DEF
-#define TYPE_COMPOSITE_DEF \
-    DEF(BUFFER,             "ring") \
-    DEF(ARRAY,              "array")
-
 #undef KEYWORD_DEF
 #define KEYWORD_DEF \
     DEF(RETURN,             "return") \
@@ -36,7 +32,8 @@
     DEF(ELSE,               "else") \
     DEF(WHILE,              "while") \
     DEF(FOR,                "for") \
-    DEF(BREAK,              "break") 
+    DEF(BREAK,              "break") \
+    DEF(STRUCT,             "struct")
 
 #undef UNARY_OPERATOR_DEF
 #define UNARY_OPERATOR_DEF \
@@ -46,6 +43,7 @@
 
 #undef BINARY_OPERATOR_DEF
 #define BINARY_OPERATOR_DEF \
+    DEF(ACCESS,             ".",        1) \
     DEF(MULTIPLICATION,     "*",        3) \
     DEF(DIVISION,           "/",        3) \
     DEF(ADDITION,           "+",        4) \
@@ -82,18 +80,24 @@ namespace VCL {
         BINARY_OPERATOR_DEF
     };
 
+    struct TemplateArgument {
+        union ValueUnion {
+            int intValue;
+            enum class TypeName {
+                NONE,
+                TYPE_DEF
+            } typeValue = TypeName::NONE;
+        } value;
+        enum class TemplateValueType {
+            INT,
+            TYPENAME
+        } type = TemplateValueType::TYPENAME;
+    };
 
     /**
      * @brief The TypeInfo class contain all the needed information to debug and build a proper LLVM Type for JIT compilation.
      */
     struct TypeInfo {
-#undef DEF
-#define DEF(name, symbol, ...) name,
-        enum class CompositeType {
-            NONE = 0,
-            TYPE_COMPOSITE_DEF
-        } compositeType = CompositeType::NONE;
-
 #undef DEF
 #define DEF(name, symbol, ...) name = __VA_ARGS__,
         enum class QualifierFlag {
@@ -105,11 +109,14 @@ namespace VCL {
 #define DEF(name, symbol, ...) name,
         enum class TypeName {
             NONE,
+            CUSTOM,
             CALLABLE,
             TYPE_DEF
         } type = TypeName::NONE;
 
-        size_t bufferSize = 0;
+        std::string_view name = "";
+        TemplateArgument arguments[8] = {};
+        uint32_t templateArgsCount = 0;
 
 
         friend inline TypeInfo::QualifierFlag operator|(TypeInfo::QualifierFlag a, TypeInfo::QualifierFlag b) {
@@ -146,5 +153,4 @@ namespace VCL {
             return type == TypeName::CALLABLE;
         }
     };
-
 }

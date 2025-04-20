@@ -18,6 +18,7 @@ namespace VCL {
     struct Scope {
         llvm::BasicBlock* bb;
         std::unordered_map<std::string, Handle<Value>> namedValue;
+        std::unordered_map<std::string, llvm::Type*> namedType;
 
         Scope() = delete;
         Scope(llvm::BasicBlock* bb) : bb{ bb }, namedValue{} {};
@@ -56,6 +57,20 @@ namespace VCL {
          * @return true on success or false if a value already exist with this name in the current scope.
          */
         bool PushNamedValue(std::string_view name, Handle<Value> value);
+
+        /**
+         * @brief Get a named type by name from the current or upper scope.
+         * 
+         * @return Either the correct type or an error if the name doesn't match any.
+         */
+        std::expected<llvm::Type*, Error> GetNamedType(std::string_view name) const;
+
+        /**
+         * @brief Add a named type to the current scope.
+         * 
+         * @return true on success or false if a type already exist with this name in the current scope.
+         */
+        bool PushNamedType(std::string_view name, llvm::Type* type);
 
         /**
          * @brief Get BasicBlock for transfer control if any exist.

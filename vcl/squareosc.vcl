@@ -1,4 +1,4 @@
-/*
+/**
 *   Square wave generator with PolyBLEP
 */
 

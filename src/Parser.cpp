@@ -2,6 +2,7 @@
 #include <VCL/Error.hpp>
 
 #include <expected>
+#include <iostream>
 
 template<typename T>
 std::unique_ptr<T> FillASTStatementDebugInformation(std::unique_ptr<T>&& node, VCL::Token token) {
@@ -94,8 +95,9 @@ bool IsAssignmentOperatorToken(VCL::Token token) {
     return token.type == VCL::TokenType::ASSIGNMENT;
 }
 
-bool IsTypeInfoToken(VCL::Token token) {
-    switch (token.type)
+bool IsTypeInfoToken(VCL::Lexer& lexer) {
+    VCL::Token currentToken = lexer.Peek();
+    switch (currentToken.type)
     {
     //Qualifier(s)
     case VCL::TokenType::IN:
@@ -110,6 +112,10 @@ bool IsTypeInfoToken(VCL::Token token) {
     case VCL::TokenType::VBOOL:
     case VCL::TokenType::VINT:
         return true;
+    case VCL::TokenType::IDENTIFIER:
+        if (lexer.Peek(1).type == VCL::TokenType::IDENTIFIER)
+            return true;
+        return false;
     default:
         return false;
     }
@@ -170,7 +176,7 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, boo
     TokenType expectedTerminatorTokenType = TokenType::SEMICOLON;
     std::unique_ptr<ASTStatement> statement = nullptr;
 
-    if (IsTypeInfoToken(currentToken)) { //Declaration
+    if (IsTypeInfoToken(lexer)) { //Declaration
         TypeInfo typeInfo = ParseTypeInfo(lexer);
         if (lexer.Peek(1).type == TokenType::LPAR) { 
             std::unique_ptr<ASTFunctionPrototype> prototype = ParseFunctionPrototype(lexer, typeInfo);
@@ -185,6 +191,9 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, boo
     } else if (currentToken.type == TokenType::IDENTIFIER) { //Assignment or Call
         if (lexer.Peek(1).type == TokenType::LPAR) statement = ParseFunctionCall(lexer);
         else statement = ParseVariableAssignment(lexer);
+    } else if (currentToken.type == TokenType::STRUCT) {
+        statement = ParseStructureDeclaration(lexer);
+        expectedTerminatorTokenType = TokenType::UNDEFINED;
     } else if (currentToken.type == TokenType::RETURN) {
         statement = ParseReturnStatement(lexer);
     } else if (currentToken.type == TokenType::IF) {
@@ -256,7 +265,7 @@ std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePrimaryExpression(Lexer& l
 
     if (GetTokenPrecedence(currentToken) != -1) {
         expression = ParseUnaryOperationExpression(lexer);
-    } else if (IsTypeInfoToken(currentToken)) {
+    } else if (IsTypeInfoToken(lexer)) {
         TypeInfo typeInfo = ParseTypeInfo(lexer);
         expression = ParseVariableDeclaration(lexer, typeInfo);
     } else if (currentToken.type == TokenType::IDENTIFIER) {
@@ -328,6 +337,40 @@ std::unique_ptr<VCL::ASTFunctionDeclaration> VCL::Parser::ParseFunctionDeclarati
         return nullptr;
     std::unique_ptr<ASTStatement> body = ParseCompoundStatement(lexer);
     return std::make_unique<ASTFunctionDeclaration>(std::move(prototype), std::move(body));
+}
+
+std::unique_ptr<VCL::ASTStructureFieldDeclaration> VCL::Parser::ParseStructureFieldDeclaration(Lexer& lexer) {
+    if (!IsTypeInfoToken(lexer))
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting type.", lexer.Peek().name), lexer.Peek().location};
+
+    TypeInfo typeInfo = ParseTypeInfo(lexer);
+    Token fieldIdentifierToken = lexer.Consume();
+
+    if (fieldIdentifierToken.type != TokenType::IDENTIFIER)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", fieldIdentifierToken.name), fieldIdentifierToken.location};
+
+    if (Token token = lexer.Consume(); token.type != TokenType::SEMICOLON)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting semicolon.", token.name), token.location };
+
+    return FillASTStatementDebugInformation(std::make_unique<ASTStructureFieldDeclaration>(typeInfo, fieldIdentifierToken.name), fieldIdentifierToken);
+}
+
+std::unique_ptr<VCL::ASTStructureDeclaration> VCL::Parser::ParseStructureDeclaration(Lexer& lexer) {
+    Token structToken = lexer.Consume(); //Consume struct token
+    Token structIdentifierToken = lexer.Consume();
+
+    if (structIdentifierToken.type != TokenType::IDENTIFIER)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", structIdentifierToken.name), structIdentifierToken.location};
+
+    if (Token token = lexer.Consume(); token.type != TokenType::LBRACKET)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting bracket.", token.name), token.location };
+
+    std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields{};
+
+    while (!lexer.ConsumeIf(TokenType::RBRACKET))
+        fields.emplace_back(std::move(ParseStructureFieldDeclaration(lexer)));
+
+    return FillASTStatementDebugInformation(std::make_unique<ASTStructureDeclaration>(structIdentifierToken.name, std::move(fields)), structToken);
 }
 
 std::unique_ptr<VCL::ASTReturnStatement> VCL::Parser::ParseReturnStatement(Lexer& lexer) {
@@ -572,6 +615,11 @@ VCL::TypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
                 break;
             case TokenType::VINT:
                 typeInfo.type = TypeInfo::TypeName::VINT;
+                complete = true;
+                break;
+            case TokenType::IDENTIFIER:
+                typeInfo.type = TypeInfo::TypeName::CUSTOM;
+                typeInfo.name = currentTypeInfoToken.name;
                 complete = true;
                 break;
             default:

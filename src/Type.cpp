@@ -20,8 +20,7 @@ llvm::Type* VCL::Type::GetLLVMType() const {
 }
 
 bool VCL::Type::operator==(Type& rhs) const {
-    return this->typeInfo.type == rhs.typeInfo.type && 
-        this->typeInfo.compositeType == rhs.typeInfo.compositeType;
+    return this->typeInfo.type == rhs.typeInfo.type;
 }
 
 bool VCL::Type::operator!=(Type& rhs) const {
@@ -58,6 +57,12 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(TypeInfo typeInfo, Module
     case TypeInfo::TypeName::VINT:
         type = llvm::FixedVectorType::get(llvm::Type::getInt32Ty(*context->GetTSContext().getContext()), 
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
+        break;
+    case TypeInfo::TypeName::CUSTOM:
+        if (auto t = context->GetScopeManager().GetNamedType(typeInfo.name); t.has_value())
+            type = *t;
+        else
+            return std::unexpected(t.error());
         break;
     default:
         return std::unexpected(Error{ "Invalid typename while parsing type" });

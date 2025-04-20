@@ -59,7 +59,7 @@ target_include_directories(vcl PRIVATE ${LLVM_INCLUDE_DIRS})
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/examples)
 
-option(VCL_BUILD_DOC "Build VCL documentation" ON)
+option(VCL_BUILD_DOC "Build VCL documentation" OFF)
 
 if (VCL_BUILD_DOC)
     find_package(Doxygen)
