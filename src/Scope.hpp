@@ -3,6 +3,7 @@
 #include <VCL/Error.hpp>
 
 #include "Value.hpp"
+#include "StructDefinition.hpp"
 
 #include <deque>
 #include <unordered_map>
@@ -18,7 +19,7 @@ namespace VCL {
     struct Scope {
         llvm::BasicBlock* bb;
         std::unordered_map<std::string, Handle<Value>> namedValue;
-        std::unordered_map<std::string, llvm::Type*> namedType;
+        std::unordered_map<std::string, std::shared_ptr<StructDefinition>> namedType;
 
         Scope() = delete;
         Scope(llvm::BasicBlock* bb) : bb{ bb }, namedValue{} {};
@@ -63,14 +64,14 @@ namespace VCL {
          * 
          * @return Either the correct type or an error if the name doesn't match any.
          */
-        std::expected<llvm::Type*, Error> GetNamedType(std::string_view name) const;
+        std::expected<std::shared_ptr<StructDefinition>, Error> GetNamedType(std::string_view name) const;
 
         /**
          * @brief Add a named type to the current scope.
          * 
          * @return true on success or false if a type already exist with this name in the current scope.
          */
-        bool PushNamedType(std::string_view name, llvm::Type* type);
+        bool PushNamedType(std::string_view name, std::shared_ptr<StructDefinition> type);
 
         /**
          * @brief Get BasicBlock for transfer control if any exist.

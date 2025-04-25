@@ -12,16 +12,16 @@ namespace VCL {
 
         if (policy & Numeric) {
             switch (typeInfo.type) {
-            case TypeInfo::TypeName::FLOAT:
-            case TypeInfo::TypeName::INT:
+            case TypeInfo::TypeName::Float:
+            case TypeInfo::TypeName::Int:
                 return true;
             }
         }
 
         if (policy & Vector) {
             switch (typeInfo.type) {
-            case TypeInfo::TypeName::VFLOAT:
-            case TypeInfo::TypeName::VINT:
+            case TypeInfo::TypeName::VectorFloat:
+            case TypeInfo::TypeName::VectorInt:
                 return true;
             }
         }
@@ -29,7 +29,7 @@ namespace VCL {
         if (policy & Condition) {
             switch (typeInfo.type)
             {
-            case TypeInfo::TypeName::BOOLEAN:
+            case TypeInfo::TypeName::Bool:
                 return true;
             }
         }
@@ -37,7 +37,7 @@ namespace VCL {
         if (policy & Mask) {
             switch (typeInfo.type)
             {
-            case TypeInfo::TypeName::VBOOL:
+            case TypeInfo::TypeName::VectorBool:
                 return true;
             }
         }
@@ -156,7 +156,7 @@ VCL::CallableType VCL::Intrinsic::GetCallableType() {
 
 std::expected<VCL::Handle<VCL::Intrinsic>, VCL::Error> VCL::Intrinsic::Create(std::unique_ptr<IntrinsicImpl> impl, ModuleContext* context) {
     TypeInfo callableTypeInfo{};
-    callableTypeInfo.type = TypeInfo::TypeName::CALLABLE;
+    callableTypeInfo.type = TypeInfo::TypeName::Callable;
     if (auto type = Type::Create(callableTypeInfo, context); type.has_value())
         return MakeHandle<Intrinsic>(std::move(impl), *type, context);
     else

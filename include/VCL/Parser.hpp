@@ -39,9 +39,6 @@ namespace VCL {
     private:
         std::unique_ptr<ASTStatement> ParseStatement(Lexer& lexer, bool ignoreTerminator = false);
         std::unique_ptr<ASTStatement> ParseCompoundStatement(Lexer& lexer);
-        std::unique_ptr<ASTExpression> ParseExpression(Lexer& lexer);
-        std::unique_ptr<ASTExpression> ParsePrimaryExpression(Lexer& lexer);
-        std::unique_ptr<ASTExpression> ParseParentExpression(Lexer& lexer);
 
         std::unique_ptr<ASTFunctionArgument> ParseFunctionArgument(Lexer& lexer);
         std::unique_ptr<ASTFunctionPrototype> ParseFunctionPrototype(Lexer& lexer, TypeInfo& typeInfo);
@@ -54,12 +51,16 @@ namespace VCL {
         std::unique_ptr<ASTWhileStatement> ParseWhileStatement(Lexer& lexer);
         std::unique_ptr<ASTBreakStatement> ParseBreakStatement(Lexer& lexer);
 
-        std::unique_ptr<ASTExpression> ParseBinaryOperationExpression(Lexer& lexer, int precedence, std::unique_ptr<ASTExpression> lhs);
-        std::unique_ptr<ASTUnaryExpression> ParseUnaryOperationExpression(Lexer& lexer);
+        std::unique_ptr<ASTExpression> ParseExpression(Lexer& lexer);
+        std::unique_ptr<ASTExpression> ParseBinaryExpression(Lexer& lexer, std::unique_ptr<ASTExpression> lhs, int precedence);
+        std::unique_ptr<ASTExpression> ParsePrefixExpression(Lexer& lexer);
+        std::unique_ptr<ASTExpression> ParsePostfixExpression(Lexer& lexer);
+        std::unique_ptr<ASTExpression> ParsePrimaryExpression(Lexer& lexer);
+        
+        std::unique_ptr<ASTExpression> ParseParentExpression(Lexer& lexer);
         std::unique_ptr<ASTLiteralExpression> ParseLiteralExpression(Lexer& lexer);
         std::unique_ptr<ASTVariableExpression> ParseVariableExpression(Lexer& lexer);
         std::unique_ptr<ASTVariableDeclaration> ParseVariableDeclaration(Lexer& lexer, TypeInfo& typeInfo);
-        std::unique_ptr<ASTVariableAssignment> ParseVariableAssignment(Lexer& lexer);
         std::unique_ptr<ASTFunctionCall> ParseFunctionCall(Lexer& lexer);
 
         TypeInfo ParseTypeInfo(Lexer& lexer);

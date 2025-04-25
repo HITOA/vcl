@@ -11,6 +11,64 @@
 namespace VCL {
     using ASTTypeInfo = TypeInfo;
 
+    class ASTProgram;
+    class ASTCompoundStatement;
+    class ASTFunctionArgument;
+    class ASTFunctionPrototype;
+    class ASTFunctionDeclaration;
+    class ASTStructureFieldDeclaration;
+    class ASTStructureDeclaration;
+    class ASTReturnStatement;
+    class ASTIfStatement;
+    class ASTWhileStatement;
+    class ASTForStatement;
+    class ASTBreakStatement;
+    class ASTBinaryArithmeticExpression;
+    class ASTBinaryLogicalExpression;
+    class ASTBinaryComparisonExpression;
+    class ASTAssignmentExpression;
+    class ASTPrefixArithmeticExpression;
+    class ASTPrefixLogicalExpression;
+    class ASTPostfixArithmeticExpression;
+    class ASTFieldAccessExpression;
+    class ASTLiteralExpression;
+    class ASTVariableExpression;
+    class ASTVariableDeclaration;
+    class ASTFunctionCall;
+
+    /**
+     * @brief This is the base class to visite a whole AST from top to bottom.
+     */
+    class ASTVisitor {
+    public:
+        virtual ~ASTVisitor() = default;
+
+        virtual void VisitProgram(ASTProgram* node) {};
+        virtual void VisitCompoundStatement(ASTCompoundStatement* node) {};
+        virtual void VisitFunctionArgument(ASTFunctionArgument* node) {};
+        virtual void VisitFunctionPrototype(ASTFunctionPrototype* node) {};
+        virtual void VisitFunctionDeclaration(ASTFunctionDeclaration* node) {};
+        virtual void VisitStructureFieldDeclaration(ASTStructureFieldDeclaration* node) {};
+        virtual void VisitStructureDeclaration(ASTStructureDeclaration* node) {};
+        virtual void VisitReturnStatement(ASTReturnStatement* node) {};
+        virtual void VisitIfStatement(ASTIfStatement* node) {};
+        virtual void VisitWhileStatement(ASTWhileStatement* node) {};
+        virtual void VisitForStatement(ASTForStatement* node) {};
+        virtual void VisitBreakStatement(ASTBreakStatement* node) {};
+        virtual void VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpression* node) {};
+        virtual void VisitBinaryLogicalExpression(ASTBinaryLogicalExpression* node) {};
+        virtual void VisitBinaryComparisonExpression(ASTBinaryComparisonExpression* node) {};
+        virtual void VisitAssignmentExpression(ASTAssignmentExpression* node) {};
+        virtual void VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpression* node) {};
+        virtual void VisitPrefixLogicalExpression(ASTPrefixLogicalExpression* node) {};
+        virtual void VisitPostfixArithmeticExpression(ASTPostfixArithmeticExpression* node) {};
+        virtual void VisitFieldAccessExpression(ASTFieldAccessExpression* node) {};
+        virtual void VisitLiteralExpression(ASTLiteralExpression* node) {};
+        virtual void VisitVariableExpression(ASTVariableExpression* node) {};
+        virtual void VisitVariableDeclaration(ASTVariableDeclaration* node) {};
+        virtual void VisitFunctionCall(ASTFunctionCall* node) {};
+    };
+
     class ASTVisitor;
 
     /**
@@ -40,6 +98,8 @@ namespace VCL {
     class ASTExpression : public ASTStatement {
     public:
         virtual ~ASTExpression() = default;
+
+        virtual bool IsLValue() const { return false; }
     };
 
     /**
@@ -50,7 +110,7 @@ namespace VCL {
         ASTProgram(std::vector<std::unique_ptr<ASTStatement>> statements, std::shared_ptr<Source> source) :
             statements{ std::move(statements) }, source{ source } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitProgram(this); }
     public:
         std::vector<std::unique_ptr<ASTStatement>> statements;
         std::shared_ptr<Source> source;
@@ -64,7 +124,7 @@ namespace VCL {
         ASTCompoundStatement(std::vector<std::unique_ptr<ASTStatement>> statements) :
             statements{ std::move(statements) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitCompoundStatement(this); }
     public:
         std::vector<std::unique_ptr<ASTStatement>> statements;
     };
@@ -77,7 +137,7 @@ namespace VCL {
         ASTFunctionArgument(ASTTypeInfo type, std::string_view name) :
             type{ type }, name{ name } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitFunctionArgument(this); }
     public:
         ASTTypeInfo type;
         std::string_view name;
@@ -91,7 +151,7 @@ namespace VCL {
         ASTFunctionPrototype(ASTTypeInfo type, std::string_view name, std::vector<std::unique_ptr<ASTFunctionArgument>> arguments) :
             type{ type }, name{ name }, arguments{ std::move(arguments) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitFunctionPrototype(this); }
     public:
         ASTTypeInfo type;
         std::string_view name;
@@ -106,7 +166,7 @@ namespace VCL {
         ASTFunctionDeclaration(std::unique_ptr<ASTFunctionPrototype> prototype, std::unique_ptr<ASTNode> body) :
             prototype{ std::move(prototype) }, body{ std::move(body) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitFunctionDeclaration(this); }
     public:
         std::unique_ptr<ASTFunctionPrototype> prototype;
         std::unique_ptr<ASTNode> body;
@@ -120,7 +180,7 @@ namespace VCL {
         ASTStructureFieldDeclaration(ASTTypeInfo type, std::string_view name) : 
             type{ type }, name{ name } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitStructureFieldDeclaration(this); }
     public:
         ASTTypeInfo type;
         std::string_view name;
@@ -134,7 +194,7 @@ namespace VCL {
         ASTStructureDeclaration(std::string_view name, std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields) :
             name{ name }, fields{ std::move(fields) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitStructureDeclaration(this); }
     public:
         std::string_view name;
         std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields;
@@ -148,7 +208,7 @@ namespace VCL {
         ASTReturnStatement(std::unique_ptr<ASTExpression> expression) :
             expression{ std::move(expression) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitReturnStatement(this); }
     public:
         std::unique_ptr<ASTExpression> expression;
     };
@@ -165,7 +225,7 @@ namespace VCL {
             thenStmt{ std::move(thenStmt) },
             elseStmt{ std::move(elseStmt) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitIfStatement(this); }
     public:
         std::unique_ptr<ASTExpression> condition;
         std::unique_ptr<ASTStatement> thenStmt;
@@ -182,7 +242,7 @@ namespace VCL {
             condition{ std::move(condition) },
             thenStmt{ std::move(thenStmt) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitWhileStatement(this); }
     public:
         std::unique_ptr<ASTExpression> condition;
         std::unique_ptr<ASTStatement> thenStmt;
@@ -200,7 +260,7 @@ namespace VCL {
             start{ std::move(start) }, condition{ std::move(condition) }, 
             end{ std::move(end) }, thenStmt{ std::move(thenStmt) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitForStatement(this); }
     public:
         std::unique_ptr<ASTStatement> start;
         std::unique_ptr<ASTExpression> condition;
@@ -215,36 +275,99 @@ namespace VCL {
     public:
         ASTBreakStatement() {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitBreakStatement(this); }
     };
 
-    /**
-     * @brief represents a unary expression operation.
-     */
-    class ASTUnaryExpression : public ASTExpression {
+    class ASTBinaryArithmeticExpression : public ASTExpression {
     public:
-        ASTUnaryExpression(UnaryOpType op, std::unique_ptr<ASTExpression> expression) :
+        ASTBinaryArithmeticExpression(Operator::ID op, std::unique_ptr<ASTExpression> lhs, std::unique_ptr<ASTExpression> rhs) :
+            op{ op }, lhs{ std::move(lhs) }, rhs{ std::move(rhs) } {};
+            
+        void Accept(ASTVisitor* visitor) override { visitor->VisitBinaryArithmeticExpression(this); }
+    public:
+        Operator::ID op;
+        std::unique_ptr<ASTExpression> lhs;
+        std::unique_ptr<ASTExpression> rhs;
+    };
+
+    class ASTBinaryLogicalExpression : public ASTExpression {
+    public:
+        ASTBinaryLogicalExpression(Operator::ID op, std::unique_ptr<ASTExpression> lhs, std::unique_ptr<ASTExpression> rhs) :
+            op{ op }, lhs{ std::move(lhs) }, rhs{ std::move(rhs) } {};
+            
+        void Accept(ASTVisitor* visitor) override { visitor->VisitBinaryLogicalExpression(this); }
+    public:
+        Operator::ID op;
+        std::unique_ptr<ASTExpression> lhs;
+        std::unique_ptr<ASTExpression> rhs;
+    };
+
+    class ASTBinaryComparisonExpression : public ASTExpression {
+    public:
+        ASTBinaryComparisonExpression(Operator::ID op, std::unique_ptr<ASTExpression> lhs, std::unique_ptr<ASTExpression> rhs) :
+            op{ op }, lhs{ std::move(lhs) }, rhs{ std::move(rhs) } {};
+            
+        void Accept(ASTVisitor* visitor) override { visitor->VisitBinaryComparisonExpression(this); }
+    public:
+        Operator::ID op;
+        std::unique_ptr<ASTExpression> lhs;
+        std::unique_ptr<ASTExpression> rhs;
+    };
+
+    class ASTAssignmentExpression : public ASTExpression {
+    public:
+        ASTAssignmentExpression(Operator::ID op, std::unique_ptr<ASTExpression> lhs, std::unique_ptr<ASTExpression> rhs) :
+            op{ op }, lhs{ std::move(lhs) }, rhs{ std::move(rhs) } {};
+            
+        void Accept(ASTVisitor* visitor) override { visitor->VisitAssignmentExpression(this); }
+    public:
+        Operator::ID op;
+        std::unique_ptr<ASTExpression> lhs;
+        std::unique_ptr<ASTExpression> rhs;
+    };
+
+    class ASTPrefixArithmeticExpression : public ASTExpression {
+    public:
+        ASTPrefixArithmeticExpression(Operator::ID op, std::unique_ptr<ASTExpression> expression) :
             op{ op }, expression{ std::move(expression) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitPrefixArithmeticExpression(this); }
     public:
-        UnaryOpType op;
+        Operator::ID op;
         std::unique_ptr<ASTExpression> expression;
     };
 
-    /**
-     * @brief represents a binary expression operation.
-     */
-    class ASTBinaryExpression : public ASTExpression {
+    class ASTPrefixLogicalExpression : public ASTExpression {
     public:
-        ASTBinaryExpression(BinaryOpType op, std::unique_ptr<ASTExpression> lhs, std::unique_ptr<ASTExpression> rhs) :
-            op{ op }, lhs{ std::move(lhs) }, rhs{ std::move(rhs) } {};
+        ASTPrefixLogicalExpression(Operator::ID op, std::unique_ptr<ASTExpression> expression) :
+            op{ op }, expression{ std::move(expression) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitPrefixLogicalExpression(this); }
     public:
-        BinaryOpType op;
-        std::unique_ptr<ASTExpression> lhs;
-        std::unique_ptr<ASTExpression> rhs;
+        Operator::ID op;
+        std::unique_ptr<ASTExpression> expression;
+    };
+
+    class ASTPostfixArithmeticExpression : public ASTExpression {
+    public:
+        ASTPostfixArithmeticExpression(Operator::ID op, std::unique_ptr<ASTExpression> expression) :
+            op{ op }, expression{ std::move(expression) } {};
+
+        void Accept(ASTVisitor* visitor) override { visitor->VisitPostfixArithmeticExpression(this); }
+    public:
+        Operator::ID op;
+        std::unique_ptr<ASTExpression> expression;
+    };
+
+    class ASTFieldAccessExpression : public ASTExpression {
+    public:
+        ASTFieldAccessExpression(std::unique_ptr<ASTExpression> expression, std::string_view fieldName) :
+            expression{ std::move(expression) }, fieldName{ fieldName } {};
+
+        void Accept(ASTVisitor* visitor) override { visitor->VisitFieldAccessExpression(this); }
+    public:
+        std::unique_ptr<ASTExpression> expression;
+        std::string_view fieldName;
     };
 
     /**
@@ -252,9 +375,9 @@ namespace VCL {
      */
     class ASTLiteralExpression : public ASTExpression {
     public:
-        ASTLiteralExpression(float value) : type{ ASTTypeInfo::TypeName::FLOAT }, fValue{ value } {};
+        ASTLiteralExpression(float value) : type{ ASTTypeInfo::TypeName::Float }, fValue{ value } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitLiteralExpression(this); }
     public:
         ASTTypeInfo::TypeName type;
         union {
@@ -270,23 +393,10 @@ namespace VCL {
     public:
         ASTVariableExpression(std::string_view name) : name{ name } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitVariableExpression(this); }
+        bool IsLValue() const override { return true; }
     public:
         std::string_view name;
-    };
-
-    /**
-     * @brief represents a variable assignment.
-     */
-    class ASTVariableAssignment : public ASTExpression {
-    public:
-        ASTVariableAssignment(std::string_view name, std::unique_ptr<ASTExpression> expression) :
-            name{ name }, expression{ std::move(expression) } {};
-
-        void Accept(ASTVisitor* visitor) override;
-    public:
-        std::string_view name;
-        std::unique_ptr<ASTExpression> expression;
     };
 
     /**
@@ -297,7 +407,8 @@ namespace VCL {
         ASTVariableDeclaration(ASTTypeInfo type, std::string_view name, std::unique_ptr<ASTExpression> expression) :
             type{ type }, name{ name }, expression{ std::move(expression) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitVariableDeclaration(this); }
+        bool IsLValue() const override { return true; }
     public:
         ASTTypeInfo type;
         std::string_view name;
@@ -312,39 +423,9 @@ namespace VCL {
         ASTFunctionCall(std::string_view name, std::vector<std::unique_ptr<ASTExpression>> arguments) :
             name{ name }, arguments{ std::move(arguments) } {};
 
-        void Accept(ASTVisitor* visitor) override;
+        void Accept(ASTVisitor* visitor) override { visitor->VisitFunctionCall(this); }
     public:
         std::string_view name;
         std::vector<std::unique_ptr<ASTExpression>> arguments;
-    };
-
-    // Visitor
-
-    /**
-     * @brief This is the base class to visite a whole AST from top to bottom.
-     */
-    class ASTVisitor {
-    public:
-        virtual ~ASTVisitor() = default;
-
-        virtual void VisitProgram(ASTProgram* node) {};
-        virtual void VisitCompoundStatement(ASTCompoundStatement* node) {};
-        virtual void VisitFunctionArgument(ASTFunctionArgument* node) {};
-        virtual void VisitFunctionPrototype(ASTFunctionPrototype* node) {};
-        virtual void VisitFunctionDeclaration(ASTFunctionDeclaration* node) {};
-        virtual void VisitStructureFieldDeclaration(ASTStructureFieldDeclaration* node) {};
-        virtual void VisitStructureDeclaration(ASTStructureDeclaration* node) {};
-        virtual void VisitReturnStatement(ASTReturnStatement* node) {};
-        virtual void VisitIfStatement(ASTIfStatement* node) {};
-        virtual void VisitWhileStatement(ASTWhileStatement* node) {};
-        virtual void VisitForStatement(ASTForStatement* node) {};
-        virtual void VisitBreakStatement(ASTBreakStatement* node) {};
-        virtual void VisitUnaryExpression(ASTUnaryExpression* node) {};
-        virtual void VisitBinaryExpression(ASTBinaryExpression* node) {};
-        virtual void VisitLiteralExpression(ASTLiteralExpression* node) {};
-        virtual void VisitVariableExpression(ASTVariableExpression* node) {};
-        virtual void VisitVariableAssignment(ASTVariableAssignment* node) {};
-        virtual void VisitVariableDeclaration(ASTVariableDeclaration* node) {};
-        virtual void VisitFunctionCall(ASTFunctionCall* node) {};
     };
 }

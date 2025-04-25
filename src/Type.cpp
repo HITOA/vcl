@@ -20,7 +20,7 @@ llvm::Type* VCL::Type::GetLLVMType() const {
 }
 
 bool VCL::Type::operator==(Type& rhs) const {
-    return this->typeInfo.type == rhs.typeInfo.type;
+    return this->typeInfo.type == rhs.typeInfo.type && this->typeInfo.name == rhs.typeInfo.name;
 }
 
 bool VCL::Type::operator!=(Type& rhs) const {
@@ -31,36 +31,36 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(TypeInfo typeInfo, Module
     llvm::Type* type;
     switch (typeInfo.type)
     {
-    case TypeInfo::TypeName::CALLABLE:
+    case TypeInfo::TypeName::Callable:
         type = nullptr;
         break;
-    case TypeInfo::TypeName::FLOAT:
+    case TypeInfo::TypeName::Float:
         type = llvm::Type::getFloatTy(*context->GetTSContext().getContext());
         break;
-    case TypeInfo::TypeName::BOOLEAN:
+    case TypeInfo::TypeName::Bool:
         type = llvm::Type::getInt1Ty(*context->GetTSContext().getContext());
         break;
-    case TypeInfo::TypeName::INT:
+    case TypeInfo::TypeName::Int:
         type = llvm::Type::getInt32Ty(*context->GetTSContext().getContext());
         break;
-    case TypeInfo::TypeName::VOID:
+    case TypeInfo::TypeName::Void:
         type = llvm::Type::getVoidTy(*context->GetTSContext().getContext());
         break;
-    case TypeInfo::TypeName::VFLOAT:
+    case TypeInfo::TypeName::VectorFloat:
         type = llvm::FixedVectorType::get(llvm::Type::getFloatTy(*context->GetTSContext().getContext()), 
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
         break;
-    case TypeInfo::TypeName::VBOOL:
+    case TypeInfo::TypeName::VectorBool:
         type = llvm::FixedVectorType::get(llvm::Type::getInt1Ty(*context->GetTSContext().getContext()), 
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
         break;
-    case TypeInfo::TypeName::VINT:
+    case TypeInfo::TypeName::VectorInt:
         type = llvm::FixedVectorType::get(llvm::Type::getInt32Ty(*context->GetTSContext().getContext()), 
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
         break;
-    case TypeInfo::TypeName::CUSTOM:
+    case TypeInfo::TypeName::Custom:
         if (auto t = context->GetScopeManager().GetNamedType(typeInfo.name); t.has_value())
-            type = *t;
+            type = (*t)->type;
         else
             return std::unexpected(t.error());
         break;
@@ -72,35 +72,41 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(TypeInfo typeInfo, Module
 }
 
 std::expected<VCL::Type, VCL::Error> VCL::Type::CreateFromLLVMType(llvm::Type* type, ModuleContext* context) {
-    llvm::Type* scalarType = type;
+    llvm::Type* trueType = type;
     if (type->isVectorTy())
-        scalarType = type->getScalarType();
+        trueType = type->getScalarType();
 
     TypeInfo typeInfo;
+
+    if (trueType->isStructTy()) {
+        typeInfo.type = TypeInfo::TypeName::Custom;
+        typeInfo.name = trueType->getStructName();
+        return Type{ typeInfo, type, context };
+    }
     
-    if (type->isFunctionTy()) {
-        typeInfo.type = TypeInfo::TypeName::CALLABLE;
+    if (trueType->isFunctionTy()) {
+        typeInfo.type = TypeInfo::TypeName::Callable;
         return Type{ typeInfo, type, context };
     }
 
-    if (scalarType->isFloatTy())
-        typeInfo.type = TypeInfo::TypeName::FLOAT;
-    else if (scalarType->isIntegerTy()) {
-        uint32_t width = scalarType->getIntegerBitWidth();
+    if (trueType->isFloatTy())
+        typeInfo.type = TypeInfo::TypeName::Float;
+    else if (trueType->isIntegerTy()) {
+        uint32_t width = trueType->getIntegerBitWidth();
         if (width == 1)
-            typeInfo.type = TypeInfo::TypeName::BOOLEAN;
+            typeInfo.type = TypeInfo::TypeName::Bool;
         else if (width == 32)
-            typeInfo.type = TypeInfo::TypeName::INT;
+            typeInfo.type = TypeInfo::TypeName::Int;
         else
             return std::unexpected(Error{ "Unsupported integer bit width" });
-    } else if (scalarType->isVoidTy())
-        typeInfo.type = TypeInfo::TypeName::VOID;
+    } else if (trueType->isVoidTy())
+        typeInfo.type = TypeInfo::TypeName::Void;
     else
         return std::unexpected(Error{ "Unsupported LLVM type" });
 
     if (type->isVectorTy())
         typeInfo.type = (TypeInfo::TypeName)((uint32_t)typeInfo.type + 
-            (uint32_t)TypeInfo::TypeName::VFLOAT - (uint32_t)TypeInfo::TypeName::FLOAT);
+            (uint32_t)TypeInfo::TypeName::VectorFloat - (uint32_t)TypeInfo::TypeName::Float);
     
     return Type{ typeInfo, type, context };
 }

@@ -24,5 +24,6 @@ namespace VCL {
 
         std::string ToString();
         std::string ToStringDetailed();
+        SourceLocation Combine(SourceLocation location);
     };
 }

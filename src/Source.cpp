@@ -65,3 +65,56 @@ std::string VCL::SourceLocation::ToStringDetailed() {
         padding[i] = ' ';
     return std::format("\t{} | {}\n\t{} | {}", line + 1, error_line, padding, pointer_message);
 }
+
+uint32_t GetIndexStartFromLocation(VCL::SourceLocation* location) {
+
+    uint32_t currentLine = 0;
+    uint32_t currentPosition = 0;
+    for (uint32_t i = 0; i < location->source->source.size(); ++i) {
+        ++currentPosition;
+
+        if (location->source->source[i] == '\n') {
+            ++currentLine;
+            currentPosition = 0;
+        }
+
+        if (currentLine == location->line && currentPosition == location->position)
+            return i;
+    }
+    return location->source->source.size();
+}
+
+VCL::SourceLocation VCL::SourceLocation::Combine(SourceLocation location) {
+    SourceLocation newLocation{};
+
+    newLocation.source = source;
+    newLocation.position = position < location.position ? position : location.position;
+    newLocation.line = line < location.line ? line : location.line;
+    newLocation.length = 0;
+
+    uint32_t oa = GetIndexStartFromLocation(this) + length;
+    uint32_t ob = GetIndexStartFromLocation(&location) + location.length;
+    uint32_t offsetLimit = oa >= ob ? oa : ob;
+
+    uint32_t currentLine = 0;
+    uint32_t currentPosition = 0;
+
+    for (uint32_t i = 0; i < source->source.size(); ++i) {
+        if (i >= offsetLimit)
+            break;
+            
+        ++currentPosition;
+
+        if (source->source[i] == '\n') {
+            ++currentLine;
+            currentPosition = 0;
+        }
+
+        if (currentLine == newLocation.line && currentPosition >= newLocation.position)
+            ++newLocation.length;
+        if (currentLine > newLocation.line)
+            ++newLocation.length;
+    }
+
+    return newLocation;
+}

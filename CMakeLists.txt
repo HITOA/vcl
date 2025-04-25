@@ -26,12 +26,13 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/NativeTarget.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/StructDefinition.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utility.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.hpp
 
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/AST.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Debug.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionSession.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsic.cpp

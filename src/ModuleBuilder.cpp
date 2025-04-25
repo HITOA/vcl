@@ -2,6 +2,10 @@
 
 #include "Utility.hpp"
 #include "Callable.hpp"
+#include "Intrinsic.hpp"
+#include "StructDefinition.hpp"
+
+#include <VCL/Debug.hpp>
 
 #include <iostream>
 
@@ -89,15 +93,19 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
 }
 
 void VCL::ModuleBuilder::VisitStructureDeclaration(ASTStructureDeclaration* node) {
+    std::shared_ptr<StructDefinition> structDefinition = std::make_shared<StructDefinition>();
     std::vector<llvm::Type*> elements(node->fields.size());
 
     for (size_t i = 0; i < node->fields.size(); ++i) {
         Type type = ThrowOnError(Type::Create(node->fields[i]->type, context), node->fields[i]->location);
         elements[i] = type.GetLLVMType();
+        structDefinition->fields[std::string{ node->fields[i]->name }] = (uint32_t)i;
     }
+    
+    structDefinition->type = llvm::StructType::create(*context->GetTSContext().getContext(), elements);
+    structDefinition->type->setName(node->name);
 
-    llvm::StructType* type = llvm::StructType::create(*context->GetTSContext().getContext(), elements);
-    if (!context->GetScopeManager().PushNamedType(node->name, type))
+    if (!context->GetScopeManager().PushNamedType(node->name, structDefinition))
         throw Exception{ std::format("redefinition of `{}`", node->name), node->location };
 }
 
@@ -113,7 +121,7 @@ void VCL::ModuleBuilder::VisitReturnStatement(ASTReturnStatement* node) {
 void VCL::ModuleBuilder::VisitIfStatement(ASTIfStatement* node) {
     node->condition->Accept(this);
     TypeInfo typeInfo{};
-    typeInfo.type = TypeInfo::TypeName::BOOLEAN;
+    typeInfo.type = TypeInfo::TypeName::Bool;
     Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
     Handle<Value> conditionValue = ThrowOnError(lastReturnedValue->Cast(type), node->condition->location);
     
@@ -161,7 +169,7 @@ void VCL::ModuleBuilder::VisitWhileStatement(ASTWhileStatement* node) {
     context->GetIRBuilder().SetInsertPoint(conditionBB);
     node->condition->Accept(this);
     TypeInfo typeInfo{};
-    typeInfo.type = TypeInfo::TypeName::BOOLEAN;
+    typeInfo.type = TypeInfo::TypeName::Bool;
     Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
     Handle<Value> conditionValue = ThrowOnError(lastReturnedValue->Cast(type), node->condition->location);
     
@@ -198,7 +206,7 @@ void VCL::ModuleBuilder::VisitForStatement(ASTForStatement* node) {
     context->GetIRBuilder().SetInsertPoint(conditionBB);
     node->condition->Accept(this);
     TypeInfo typeInfo{};
-    typeInfo.type = TypeInfo::TypeName::BOOLEAN;
+    typeInfo.type = TypeInfo::TypeName::Bool;
     Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
     Handle<Value> conditionValue = ThrowOnError(lastReturnedValue->Cast(type), node->condition->location);
     
@@ -226,166 +234,382 @@ void VCL::ModuleBuilder::VisitBreakStatement(ASTBreakStatement* node) {
     context->GetIRBuilder().CreateBr(dest);
 }
 
-void VCL::ModuleBuilder::VisitUnaryExpression(ASTUnaryExpression* node) {
-    node->expression->Accept(this);
+void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpression* node) {
+    IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Numeric | IntrinsicArgumentPolicy::Vector };
 
-    Handle<Value> value = ThrowOnError(lastReturnedValue->Load(), node->location);
+    node->lhs->Accept(this);
+    Handle<Value> lhs = ThrowOnError(lastReturnedValue->Load(), node->location);
+
+    node->rhs->Accept(this);
+    Handle<Value> rhs = ThrowOnError(lastReturnedValue->Load(), node->location);
+
+    rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
+
+    if (!policy(lhs->GetType()) || !policy(rhs->GetType()))
+        throw Exception{ std::format("Invalid operands to arithmetic operator `{}`: left operand is `{}`, right operand is `{}`.",
+            ToString(node->op), ToString(lhs->GetType().GetTypeInfo()), ToString(rhs->GetType().GetTypeInfo())), node->location };
+
     llvm::Value* result;
-    
+
     switch (node->op) {
-        case UnaryOpType::PLUS:
-            result = value->GetLLVMValue();
+        case Operator::ID::Add:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFAdd),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
+                BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
-        case UnaryOpType::MINUS:
-            result = ThrowOnError(DISPATCH_UNARY(
-                UNARY_DISPATCH_FUNCTION(FLOAT, CreateFNeg),
-                UNARY_DISPATCH_FUNCTION(VFLOAT, CreateFNeg),
-                UNARY_DISPATCH_FUNCTION(INT, CreateNeg),
-                UNARY_DISPATCH_FUNCTION(VINT, CreateNeg)
-            )(value->GetType().GetTypeInfo().type, value->GetLLVMValue()), node->location);
+        case Operator::ID::Sub:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFSub),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
+                BINARY_DISPATCH_FUNCTION(Int, CreateSub),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
-        case UnaryOpType::NOT:
-            result = ThrowOnError(DISPATCH_UNARY(
-                UNARY_DISPATCH_FUNCTION(BOOLEAN, CreateNot)
-            )(value->GetType().GetTypeInfo().type, value->GetLLVMValue()), node->location);
+        case Operator::ID::Mul:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFMul),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFMul),
+                BINARY_DISPATCH_FUNCTION(Int, CreateMul),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateMul)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            break;
+        case Operator::ID::Div:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFDiv),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFDiv),
+                BINARY_DISPATCH_FUNCTION(Int, CreateSDiv),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSDiv)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         default:
-            throw Exception{ "Invalid unary operator", node->location }; //Should never happen
+            throw Exception{ std::format("Invalid binary arithmetic operator `{}`.", ToString(node->op)), node->location }; //Should never happen
     }
 
     lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
 }
 
-void VCL::ModuleBuilder::VisitBinaryExpression(ASTBinaryExpression* node) {
+void VCL::ModuleBuilder::VisitBinaryLogicalExpression(ASTBinaryLogicalExpression* node) {
+    IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Condition | IntrinsicArgumentPolicy::Mask };
+
     node->lhs->Accept(this);
     Handle<Value> lhs = ThrowOnError(lastReturnedValue->Load(), node->location);
+
     node->rhs->Accept(this);
     Handle<Value> rhs = ThrowOnError(lastReturnedValue->Load(), node->location);
 
-    rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->location);
+    rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
+
+    if (!policy(lhs->GetType()) || !policy(rhs->GetType()))
+        throw Exception{ std::format("Logical operator `{}` requires both operands to be of type `bool` or `vbool`, but got `{}` and `{}`.",
+            ToString(node->op), ToString(lhs->GetType().GetTypeInfo()), ToString(rhs->GetType().GetTypeInfo())), node->location };
 
     llvm::Value* result;
-    
+
     switch (node->op) {
-        case BinaryOpType::ADDITION:
+        case Operator::ID::LogicalAnd:
             result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFAdd),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFAdd),
-                BINARY_DISPATCH_FUNCTION(INT, CreateAdd),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateAdd)
+                BINARY_DISPATCH_FUNCTION(Bool, CreateAnd),
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateAnd)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
-        case BinaryOpType::SUBSTRACTION:
+        case Operator::ID::LogicalOr:
             result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFSub),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFSub),
-                BINARY_DISPATCH_FUNCTION(INT, CreateSub),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateSub)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        case BinaryOpType::MULTIPLICATION:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFMul),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFMul),
-                BINARY_DISPATCH_FUNCTION(INT, CreateMul),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateMul)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        case BinaryOpType::DIVISION:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFDiv),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFDiv),
-                BINARY_DISPATCH_FUNCTION(INT, CreateSDiv),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateSDiv)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        
-        case BinaryOpType::SUPERIOR:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOGT),
-                BINARY_DISPATCH_FUNCTION(INT, CreateICmpUGT),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpUGT),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOGT),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpUGT),
-                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpUGT)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        case BinaryOpType::INFERIOR:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOLT),
-                BINARY_DISPATCH_FUNCTION(INT, CreateICmpULT),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpULT),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOLT),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpULT),
-                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpULT)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        case BinaryOpType::SUPERIOREQUAL:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOGE),
-                BINARY_DISPATCH_FUNCTION(INT, CreateICmpUGE),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpUGE),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOGE),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpUGE),
-                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpUGE)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        case BinaryOpType::INFERIOREQUAL:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOLE),
-                BINARY_DISPATCH_FUNCTION(INT, CreateICmpULE),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpULE),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOLE),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpULE),
-                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpULE)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        case BinaryOpType::EQUAL:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpOEQ),
-                BINARY_DISPATCH_FUNCTION(INT, CreateICmpEQ),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpEQ),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpOEQ),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpEQ),
-                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpEQ)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        case BinaryOpType::NOTEQUAL:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(FLOAT, CreateFCmpONE),
-                BINARY_DISPATCH_FUNCTION(INT, CreateICmpNE),
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateICmpNE),
-                BINARY_DISPATCH_FUNCTION(VFLOAT, CreateFCmpONE),
-                BINARY_DISPATCH_FUNCTION(VINT, CreateICmpNE),
-                BINARY_DISPATCH_FUNCTION(VBOOL, CreateICmpNE)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        case BinaryOpType::LOGICALAND:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateAnd),
-                BINARY_DISPATCH_FUNCTION(VBOOL, CreateAnd)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
-            break;
-        case BinaryOpType::LOGICALOR:
-            result = ThrowOnError(DISPATCH_BINARY(
-                BINARY_DISPATCH_FUNCTION(BOOLEAN, CreateOr),
-                BINARY_DISPATCH_FUNCTION(VBOOL, CreateOr)
+                BINARY_DISPATCH_FUNCTION(Bool, CreateOr),
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateOr)
             )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         default:
-            throw Exception{ "Invalid binary operator", node->location }; //Should never happen
+            throw Exception{ std::format("Invalid binary logical operator `{}`.", ToString(node->op)), node->location }; //Should never happen
     }
 
     lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+}
+
+void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpression* node) {
+    node->lhs->Accept(this);
+    Handle<Value> lhs = ThrowOnError(lastReturnedValue->Load(), node->location);
+
+    node->rhs->Accept(this);
+    Handle<Value> rhs = ThrowOnError(lastReturnedValue->Load(), node->location);
+
+    rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
+
+    llvm::Value* result;
+
+    switch (node->op) {
+        case Operator::ID::Greater:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFCmpOGT),
+                BINARY_DISPATCH_FUNCTION(Int, CreateICmpUGT),
+                BINARY_DISPATCH_FUNCTION(Bool, CreateICmpUGT),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOGT),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpUGT),
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpUGT)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            break;
+        case Operator::ID::Less:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFCmpOLT),
+                BINARY_DISPATCH_FUNCTION(Int, CreateICmpULT),
+                BINARY_DISPATCH_FUNCTION(Bool, CreateICmpULT),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOLT),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpULT),
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpULT)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            break;
+        case Operator::ID::GreaterEqual:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFCmpOGE),
+                BINARY_DISPATCH_FUNCTION(Int, CreateICmpUGE),
+                BINARY_DISPATCH_FUNCTION(Bool, CreateICmpUGE),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOGE),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpUGE),
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpUGE)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            break;
+        case Operator::ID::LessEqual:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFCmpOLE),
+                BINARY_DISPATCH_FUNCTION(Int, CreateICmpULE),
+                BINARY_DISPATCH_FUNCTION(Bool, CreateICmpULE),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOLE),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpULE),
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpULE)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            break;
+        case Operator::ID::Equal:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFCmpOEQ),
+                BINARY_DISPATCH_FUNCTION(Int, CreateICmpEQ),
+                BINARY_DISPATCH_FUNCTION(Bool, CreateICmpEQ),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOEQ),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpEQ),
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpEQ)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            break;
+        case Operator::ID::NotEqual:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFCmpONE),
+                BINARY_DISPATCH_FUNCTION(Int, CreateICmpNE),
+                BINARY_DISPATCH_FUNCTION(Bool, CreateICmpNE),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpONE),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpNE),
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpNE)
+            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            break;
+        default:
+            throw Exception{ std::format("Invalid binary comparison operator `{}`.", ToString(node->op)), node->location }; //Should never happen
+    }
+
+    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+}
+
+void VCL::ModuleBuilder::VisitAssignmentExpression(ASTAssignmentExpression* node) {
+    if (!node->lhs->IsLValue())
+        throw Exception{ std::format("Left-hand side of assignment must be a variable or a memory location (l-value)."), node->location };
+
+    node->lhs->Accept(this);
+    Handle<Value> lhs = lastReturnedValue;
+
+    node->rhs->Accept(this);
+    Handle<Value> rhs = ThrowOnError(lastReturnedValue->Load(), node->location);
+
+    rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
+
+    if (lhs->GetType().GetTypeInfo().IsConst())
+        throw Exception{ "You cannot assign to a variable that is const.", node->location };
+    
+    lhs->Store(rhs);
+    lastReturnedValue = lhs;
+}
+
+void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpression* node) {
+    IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Numeric | IntrinsicArgumentPolicy::Vector };
+
+    node->expression->Accept(this);
+    Handle<Value> expression = lastReturnedValue;
+
+    if (!policy(expression->GetType()))
+        throw Exception{ std::format("Arithmetic unary operator `{}` expects a numeric operand, but got `{}`.",
+            ToString(node->op), ToString(expression->GetType().GetTypeInfo())), node->location };
+
+    Handle<Value> one = ThrowOnError(Value::CreateConstantInt32(1, context), node->location);
+    one = ThrowOnError(one->Cast(expression->GetType()), node->location);
+
+    llvm::Value* result;
+
+    switch (node->op)
+    {
+    case Operator::ID::Plus:
+        lastReturnedValue = ThrowOnError(expression->Load(), node->location);
+        return;
+    case Operator::ID::Minus:
+        expression = ThrowOnError(expression->Load(), node->location);
+        result = ThrowOnError(DISPATCH_UNARY(
+                UNARY_DISPATCH_FUNCTION(Float, CreateFNeg),
+                UNARY_DISPATCH_FUNCTION(VectorFloat, CreateFNeg),
+                UNARY_DISPATCH_FUNCTION(Int, CreateNeg),
+                UNARY_DISPATCH_FUNCTION(VectorInt, CreateNeg)
+            )(expression->GetType().GetTypeInfo().type, expression->GetLLVMValue()), node->location);
+        break;
+    case Operator::ID::PreIncrement:
+        if (node->expression->IsLValue())
+            throw Exception{ std::format("Increment/decrement operator `{}` requires a numeric l-value.",
+                ToString(node->op)), node->location };
+        {
+            Handle<Value> loadedExpression = ThrowOnError(expression->Load(), node->location);
+            Handle<Value> incrementedValue = ThrowOnError(MakeValueVCLFromLLVM(ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFAdd),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
+                BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
+            )(loadedExpression->GetType().GetTypeInfo().type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
+            context), node->location);
+            expression->Store(incrementedValue);
+            result = incrementedValue->GetLLVMValue();
+        }
+        break;
+    case Operator::ID::PreDecrement:
+        if (node->expression->IsLValue())
+            throw Exception{ std::format("Increment/decrement operator `{}` requires a numeric l-value.",
+                ToString(node->op)), node->location };
+        {
+            Handle<Value> loadedExpression = ThrowOnError(expression->Load(), node->location);
+            Handle<Value> decrementedValue = ThrowOnError(MakeValueVCLFromLLVM(ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFSub),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
+                BINARY_DISPATCH_FUNCTION(Int, CreateSub),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
+            )(loadedExpression->GetType().GetTypeInfo().type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
+            context), node->location);
+            expression->Store(decrementedValue);
+            result = decrementedValue->GetLLVMValue();
+        }
+        break;
+    default:
+        throw Exception{ std::format("Invalid unary operator `{}`.", ToString(node->op)), node->location }; //Should never happen
+    }
+
+    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+}
+
+void VCL::ModuleBuilder::VisitPrefixLogicalExpression(ASTPrefixLogicalExpression* node) {
+    IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Condition | IntrinsicArgumentPolicy::Mask };
+
+    node->expression->Accept(this);
+    Handle<Value> expression = ThrowOnError(lastReturnedValue->Load(), node->location);
+
+    if (!policy(expression->GetType()))
+        throw Exception{ std::format("Logical unary operator `{}` expects a `bool` or `vbool` operand, but got `{}`.",
+            ToString(node->op), ToString(expression->GetType().GetTypeInfo())), node->location };
+
+    llvm::Value* result;
+
+    switch (node->op)
+    {
+    case Operator::ID::Not:
+        result = ThrowOnError(DISPATCH_UNARY(
+            UNARY_DISPATCH_FUNCTION(Bool, CreateNot)
+        )(expression->GetType().GetTypeInfo().type, expression->GetLLVMValue()), node->location);
+        break;
+    default:
+        throw Exception{ std::format("Invalid unary operator `{}`.", ToString(node->op)), node->location }; //Should never happen
+    }
+
+    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+}
+
+void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticExpression* node) {
+    IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Numeric | IntrinsicArgumentPolicy::Vector };
+
+    node->expression->Accept(this);
+    Handle<Value> expression = lastReturnedValue;
+
+    if (!policy(expression->GetType()))
+        throw Exception{ std::format("Arithmetic unary operator `{}` expects a numeric operand, but got `{}`.",
+            ToString(node->op), ToString(expression->GetType().GetTypeInfo())), node->location };
+
+    Handle<Value> one = ThrowOnError(Value::CreateConstantInt32(1, context), node->location);
+    one = ThrowOnError(one->Cast(expression->GetType()), node->location);
+
+    llvm::Value* result;
+
+    switch (node->op)
+    {
+    case Operator::ID::PostIncrement:
+        if (node->expression->IsLValue())
+            throw Exception{ std::format("Increment/decrement operator `{}` requires a numeric l-value.",
+                ToString(node->op)), node->location };
+        {
+            Handle<Value> loadedExpression = ThrowOnError(expression->Load(), node->location);
+            Handle<Value> incrementedValue = ThrowOnError(MakeValueVCLFromLLVM(ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFAdd),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
+                BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
+            )(loadedExpression->GetType().GetTypeInfo().type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
+            context), node->location);
+            expression->Store(incrementedValue);
+            result = loadedExpression->GetLLVMValue();
+        }
+        break;
+    case Operator::ID::PostDecrement:
+        if (node->expression->IsLValue())
+            throw Exception{ std::format("Increment/decrement operator `{}` requires a numeric l-value.",
+                ToString(node->op)), node->location };
+        {
+            Handle<Value> loadedExpression = ThrowOnError(expression->Load(), node->location);
+            Handle<Value> decrementedValue = ThrowOnError(MakeValueVCLFromLLVM(ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Float, CreateFSub),
+                BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
+                BINARY_DISPATCH_FUNCTION(Int, CreateSub),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
+            )(loadedExpression->GetType().GetTypeInfo().type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
+            context), node->location);
+            expression->Store(decrementedValue);
+            result = loadedExpression->GetLLVMValue();
+        }
+        break;
+    default:
+        throw Exception{ std::format("Invalid unary operator `{}`.", ToString(node->op)), node->location }; //Should never happen
+    }
+
+    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+}
+
+void VCL::ModuleBuilder::VisitFieldAccessExpression(ASTFieldAccessExpression* node) {
+    node->expression->Accept(this);
+    Handle<Value> expression = lastReturnedValue;
+
+    if (expression->GetType().GetTypeInfo().type != TypeInfo::TypeName::Custom)
+        throw Exception{ std::format("Cannot access field `{}` on a non-struct type ‘{}’.", 
+            node->fieldName, ToString(expression->GetType().GetTypeInfo())), node->location }; 
+    
+    if (auto type = context->GetScopeManager().GetNamedType(expression->GetType().GetTypeInfo().name); type.has_value()) {
+        std::shared_ptr<StructDefinition> structDefinition = *type;
+        std::string fieldName{ node->fieldName };
+        if (!structDefinition->fields.count(fieldName))
+            throw Exception{ std::format("Type `{}` has no member named `{}`.", 
+                ToString(expression->GetType().GetTypeInfo()), fieldName), node->location };
+        uint32_t fieldIndex = structDefinition->fields[fieldName];
+        llvm::Value* r = context->GetIRBuilder().CreateStructGEP(structDefinition->type, expression->GetLLVMValue(), fieldIndex, fieldName);
+        Type fieldType = ThrowOnError(Type::CreateFromLLVMType(structDefinition->type->getTypeAtIndex(fieldIndex), context), node->location);
+        lastReturnedValue = ThrowOnError(Value::Create(r, fieldType, context), node->location);
+    } else {
+        throw std::runtime_error{ "Compiler internal error." };
+    }
 }
 
 void VCL::ModuleBuilder::VisitLiteralExpression(ASTLiteralExpression* node) {
     switch (node->type)
     {
-    case TypeInfo::TypeName::FLOAT:
+    case TypeInfo::TypeName::Float:
         lastReturnedValue = ThrowOnError(Value::CreateConstantFloat(node->fValue, context), node->location);
         break;
-    case TypeInfo::TypeName::INT:
+    case TypeInfo::TypeName::Int:
         lastReturnedValue = ThrowOnError(Value::CreateConstantInt32(node->iValue, context), node->location);
         break;
     default:
@@ -396,17 +620,6 @@ void VCL::ModuleBuilder::VisitLiteralExpression(ASTLiteralExpression* node) {
 void VCL::ModuleBuilder::VisitVariableExpression(ASTVariableExpression* node) {
     lastReturnedValue = ThrowOnError(
         context->GetScopeManager().GetNamedValue(node->name), node->location);
-}
-
-void VCL::ModuleBuilder::VisitVariableAssignment(ASTVariableAssignment* node) {
-    Handle<Value> variable = ThrowOnError(
-        context->GetScopeManager().GetNamedValue(node->name), node->location);
-    if (variable->GetType().GetTypeInfo().IsConst())
-        throw Exception{ "You cannot assign to a variable that is const", node->location };
-    node->expression->Accept(this);
-    Handle<Value> value = lastReturnedValue;
-    variable->Store(value);
-    lastReturnedValue = variable;
 }
 
 void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) {
@@ -427,7 +640,7 @@ void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) 
         variable = ThrowOnError(Value::CreateLocalVariable(type, initializer, context, name.c_str()), node->location);
 
     if (!context->GetScopeManager().PushNamedValue(node->name, variable))
-        throw Exception{ std::format("redefinition of `{}`", node->name), node->location };
+        throw Exception{ std::format("Redefinition of `{}`", node->name), node->location };
 
     lastReturnedValue = variable;
 }

@@ -32,11 +32,16 @@ namespace VCL {
         void VisitWhileStatement(ASTWhileStatement* node) override;
         void VisitForStatement(ASTForStatement* node) override;
         void VisitBreakStatement(ASTBreakStatement* node) override;
-        void VisitUnaryExpression(ASTUnaryExpression* node) override;
-        void VisitBinaryExpression(ASTBinaryExpression* node) override;
+        void VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpression* node) override;
+        void VisitBinaryLogicalExpression(ASTBinaryLogicalExpression* node) override;
+        void VisitBinaryComparisonExpression(ASTBinaryComparisonExpression* node) override;
+        void VisitAssignmentExpression(ASTAssignmentExpression* node) override;
+        void VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpression* node) override;
+        void VisitPrefixLogicalExpression(ASTPrefixLogicalExpression* node) override;
+        void VisitPostfixArithmeticExpression(ASTPostfixArithmeticExpression* node) override;
+        void VisitFieldAccessExpression(ASTFieldAccessExpression* node) override;
         void VisitLiteralExpression(ASTLiteralExpression* node) override;
         void VisitVariableExpression(ASTVariableExpression* node) override;
-        void VisitVariableAssignment(ASTVariableAssignment* node) override;
         void VisitVariableDeclaration(ASTVariableDeclaration* node) override;
         void VisitFunctionCall(ASTFunctionCall* node) override;
 

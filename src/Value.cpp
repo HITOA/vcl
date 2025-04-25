@@ -4,6 +4,8 @@
 #include "Utility.hpp"
 #include "NativeTarget.hpp"
 
+#include <VCL/Debug.hpp>
+
 #include <iostream>
 
 
@@ -32,12 +34,12 @@ bool VCL::Value::IsAssignableFrom(Handle<Value> value) const {
 
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Splat() {
     if (value->getType()->isPointerTy())
-        std::unexpected(Error{ "Cannot splat pointer type" });
+        return std::unexpected(Error{ "Cannot splat pointer type" });
     
     switch (type.GetTypeInfo().type) {
-        case TypeInfo::TypeName::FLOAT:
-        case TypeInfo::TypeName::BOOLEAN:
-        case TypeInfo::TypeName::INT:
+        case TypeInfo::TypeName::Float:
+        case TypeInfo::TypeName::Bool:
+        case TypeInfo::TypeName::Int:
             break;
         default:
             return Value::Create(value, type, context);
@@ -56,38 +58,40 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Cast(Type type) {
         return Value::Create(value, type, context);
     
     if (value->getType()->isPointerTy())
-        std::unexpected(Error{ "Cannot cast pointer type to non pointer type" });
+        return std::unexpected(Error{ "Cannot cast pointer type to non pointer type" });
 
-    if (this->type.GetTypeInfo().type == TypeInfo::TypeName::FLOAT) {
-        if (type.GetTypeInfo().type == TypeInfo::TypeName::BOOLEAN)
+    if (this->type.GetTypeInfo().type == TypeInfo::TypeName::Float) {
+        if (type.GetTypeInfo().type == TypeInfo::TypeName::Bool)
             return Value::Create(context->GetIRBuilder().CreateFPToSI(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo().type == TypeInfo::TypeName::INT)
+        if (type.GetTypeInfo().type == TypeInfo::TypeName::Int)
             return Value::Create(context->GetIRBuilder().CreateFPToSI(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo().type == TypeInfo::TypeName::VFLOAT)
+        if (type.GetTypeInfo().type == TypeInfo::TypeName::VectorFloat) {
             return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), value), type, context);
+        }
     }
 
-    if (this->type.GetTypeInfo().type == TypeInfo::TypeName::BOOLEAN) {
-        if (type.GetTypeInfo().type == TypeInfo::TypeName::FLOAT)
+    if (this->type.GetTypeInfo().type == TypeInfo::TypeName::Bool) {
+        if (type.GetTypeInfo().type == TypeInfo::TypeName::Float)
             return Value::Create(context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo().type == TypeInfo::TypeName::INT)
+        if (type.GetTypeInfo().type == TypeInfo::TypeName::Int)
             return Value::Create(context->GetIRBuilder().CreateZExt(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo().type == TypeInfo::TypeName::VFLOAT)
+        if (type.GetTypeInfo().type == TypeInfo::TypeName::VectorFloat)
             return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), 
                 context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType())), type, context);
     }
 
-    if (this->type.GetTypeInfo().type == TypeInfo::TypeName::INT) {
-        if (type.GetTypeInfo().type == TypeInfo::TypeName::FLOAT)
+    if (this->type.GetTypeInfo().type == TypeInfo::TypeName::Int) {
+        if (type.GetTypeInfo().type == TypeInfo::TypeName::Float)
             return Value::Create(context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo().type == TypeInfo::TypeName::BOOLEAN)
+        if (type.GetTypeInfo().type == TypeInfo::TypeName::Bool)
             return Value::Create(context->GetIRBuilder().CreateTrunc(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo().type == TypeInfo::TypeName::VFLOAT)
+        if (type.GetTypeInfo().type == TypeInfo::TypeName::VectorFloat)
             return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), 
                 context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType())), type, context);
     }
 
-    return std::unexpected(Error{ "Invalid cast" });
+    return std::unexpected(Error{ std::format("Cannot cast value of type `{}` to type `{}`: cast not supported.", 
+        ToString(this->type.GetTypeInfo()), ToString(type.GetTypeInfo())) });
 }
 
 bool VCL::Value::IsValid() const {
@@ -112,24 +116,26 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Create(llvm::Valu
 
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name) {
     llvm::Constant* initializerValue = nullptr;
-    bool isExtern = false;
+    bool isExtern = type.GetTypeInfo().IsExtern();;
 
     if (initializer) {
         if (llvm::isa<llvm::Constant>(initializer->GetLLVMValue()))
             initializerValue = llvm::cast<llvm::Constant>(initializer->GetLLVMValue());
         else
             std::unexpected(Error{ "Global variable initializer must be const" });
+    } else if (!isExtern) {
+        initializerValue = llvm::ConstantStruct::getNullValue(type.GetLLVMType());
     }
-
-    isExtern = type.GetTypeInfo().IsExtern() || !initializer;
     
     llvm::GlobalVariable* value = new llvm::GlobalVariable{
         *context->GetTSModule().getModuleUnlocked(),
         type.GetLLVMType(),
-        type.GetTypeInfo().IsConst() || type.GetTypeInfo().IsInput(),
+        type.GetTypeInfo().IsConst(),
         isExtern ? llvm::GlobalValue::ExternalLinkage : llvm::GlobalValue::PrivateLinkage,
         initializerValue, name
     };
+
+    value->setAlignment(llvm::Align(NativeTarget::GetInstance()->GetMaxVectorByteWidth()));
 
     return Value::Create(value, type, context);
 }
@@ -150,8 +156,8 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateLocalVariab
 
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateConstantInt32(int value, ModuleContext* context) {
     TypeInfo typeInfo{};
-    typeInfo.type = TypeInfo::TypeName::INT;
-    typeInfo.qualifiers = TypeInfo::QualifierFlag::CONST;
+    typeInfo.type = TypeInfo::TypeName::Int;
+    typeInfo.qualifiers = TypeInfo::QualifierFlag::Const;
     
     auto type = Type::Create(typeInfo, context);
 
@@ -165,8 +171,8 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateConstantInt
 
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateConstantInt1(bool value, ModuleContext* context) {
     TypeInfo typeInfo{};
-    typeInfo.type = TypeInfo::TypeName::BOOLEAN;
-    typeInfo.qualifiers = TypeInfo::QualifierFlag::CONST;
+    typeInfo.type = TypeInfo::TypeName::Bool;
+    typeInfo.qualifiers = TypeInfo::QualifierFlag::Const;
     
     auto type = Type::Create(typeInfo, context);
 
@@ -180,8 +186,8 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateConstantInt
 
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateConstantFloat(float value, ModuleContext* context) {
     TypeInfo typeInfo{};
-    typeInfo.type = TypeInfo::TypeName::FLOAT;
-    typeInfo.qualifiers = TypeInfo::QualifierFlag::CONST;
+    typeInfo.type = TypeInfo::TypeName::Float;
+    typeInfo.qualifiers = TypeInfo::QualifierFlag::Const;
     
     auto type = Type::Create(typeInfo, context);
 

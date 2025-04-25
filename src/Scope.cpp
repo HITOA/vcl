@@ -34,7 +34,7 @@ bool VCL::ScopeManager::PushNamedValue(std::string_view name, Handle<Value> valu
     return true;
 }
 
-std::expected<llvm::Type*, VCL::Error> VCL::ScopeManager::GetNamedType(std::string_view name) const {
+std::expected<std::shared_ptr<VCL::StructDefinition>, VCL::Error> VCL::ScopeManager::GetNamedType(std::string_view name) const {
     std::string nameStr{ name };
     for (const Scope& scope : scopes) {
         if (scope.namedType.count(nameStr))
@@ -43,7 +43,7 @@ std::expected<llvm::Type*, VCL::Error> VCL::ScopeManager::GetNamedType(std::stri
     return std::unexpected(Error{ std::format("Undefined named type \'{}\'", name) });
 }
 
-bool VCL::ScopeManager::PushNamedType(std::string_view name, llvm::Type* type) {
+bool VCL::ScopeManager::PushNamedType(std::string_view name, std::shared_ptr<StructDefinition> type) {
     std::string nameStr{ name };
     if (scopes.front().namedType.count(nameStr))
         return false;

@@ -24,10 +24,10 @@ bool VCL::Lexer::Tokenize(std::shared_ptr<Source> source) {
 
         std::string_view currentTokenName{ currentSource.data(), currentTokenSize };
 
-        if (currentTokenType == TokenType::IDENTIFIER)
+        if (currentTokenType == TokenType::Identifier)
             TokenizeKeyword(currentTokenName, currentTokenType);
 
-        if (currentTokenType != TokenType::UNDEFINED) {
+        if (currentTokenType != TokenType::Undefined) {
             tokens.emplace_back(Token{
                 currentTokenType,
                 currentTokenName,
@@ -47,7 +47,7 @@ bool VCL::Lexer::Tokenize(std::shared_ptr<Source> source) {
     }
 
     tokens.emplace_back(Token{
-        TokenType::ENDOFFILE,
+        TokenType::EndOfFile,
         source_view,
         SourceLocation{
             source,
@@ -85,10 +85,9 @@ bool VCL::Lexer::TokenizePunctuator(std::string_view source, TokenType& type, ui
         const char* punctuator;
         TokenType type;
     } punctuatorTokenType[] = {
-        UNARY_OPERATOR_DEF
-        BINARY_OPERATOR_DEF
+        OPERATOR_DEF
         PUNCTUATOR_DEF
-        { "", TokenType::UNDEFINED }
+        { "", TokenType::Undefined }
     };
 
     uint32_t currentTokenTypeLength = 0;
@@ -109,27 +108,27 @@ bool VCL::Lexer::TokenizePunctuator(std::string_view source, TokenType& type, ui
 
 bool VCL::Lexer::TokenizeIdentifier(std::string_view source, TokenType& type, uint32_t& size) {
     if (!isalpha(source[0]) && source[0] != '_') {
-        type = TokenType::UNDEFINED;
+        type = TokenType::Undefined;
         size = 0;
         return false;
     }
 
     for (size_t i = 0; i < source.length(); ++i) {
         if (!isalnum(source[i]) && source[i] != '_') {
-            type = TokenType::IDENTIFIER;
+            type = TokenType::Identifier;
             size = i;
             return true;
         }
     }
 
-    type = TokenType::IDENTIFIER;
+    type = TokenType::Identifier;
     size = source.length();
     return true;
 }
 
 bool VCL::Lexer::TokenizeLiteral(std::string_view source, TokenType& type, uint32_t& size) {
     if (!isdigit(source[0])) {
-        type = TokenType::UNDEFINED;
+        type = TokenType::Undefined;
         size = 0;
         return false;
     }
@@ -138,7 +137,7 @@ bool VCL::Lexer::TokenizeLiteral(std::string_view source, TokenType& type, uint3
 
     for (size_t i = 0; i < source.length(); ++i) {
         if (!isdigit(source[i]) && source[i] != '.') {
-            type = isFloating ? TokenType::LITERALFLOAT : TokenType::LITERALINT;
+            type = isFloating ? TokenType::LiteralFloat : TokenType::LiteralInt;
             size = i;
             return true;
         }
@@ -146,7 +145,7 @@ bool VCL::Lexer::TokenizeLiteral(std::string_view source, TokenType& type, uint3
             isFloating = true;
     }
 
-    type = isFloating ? TokenType::LITERALFLOAT : TokenType::LITERALINT;
+    type = isFloating ? TokenType::LiteralFloat : TokenType::LiteralInt;
     size = source.length();
     return true;
 }
@@ -161,7 +160,7 @@ void VCL::Lexer::TokenizeKeyword(std::string_view identifier, TokenType& type) {
         TYPE_DEF
         TYPE_QUALIFIER_DEF
         KEYWORD_DEF
-        { "", TokenType::UNDEFINED }
+        { "", TokenType::Undefined }
     };
 
     for (uint32_t i = 0; i < sizeof(keywordTokenType) / sizeof(KeywordTokenType); ++i) {

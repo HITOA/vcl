@@ -14,26 +14,6 @@
 
 
 namespace VCL {
-
-    /**
-     * @brief This is all the token type the lexer and other class are using. Most of them come from Definition.hpp
-     */
-    enum class TokenType {
-        UNDEFINED,
-        ENDOFFILE,
-        IDENTIFIER,
-        LITERALINT,
-        LITERALFLOAT,
-
-        TYPE_DEF
-        TYPE_QUALIFIER_DEF
-        KEYWORD_DEF
-        UNARY_OPERATOR_DEF
-        BINARY_OPERATOR_DEF
-        PUNCTUATOR_DEF
-        MAX
-    };
-
     /**
      * @brief This class represents a token for the lexer.
      */
