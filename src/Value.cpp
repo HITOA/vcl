@@ -149,8 +149,12 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateLocalVariab
         context->GetIRBuilder().SetCurrentDebugLocation(llvm::DebugLoc());
         alloca = context->GetIRBuilder().CreateAlloca(type.GetLLVMType(), nullptr, name);
     }
-    if (initializer)
-        context->GetIRBuilder().CreateStore(initializer->GetLLVMValue(), alloca);
+    if (initializer) {
+        if (auto t = initializer->Cast(type); t.has_value())
+            context->GetIRBuilder().CreateStore((*t)->GetLLVMValue(), alloca);
+        else
+            return std::unexpected(t.error());
+    }
     return Value::Create(alloca, type, context);
 }
 

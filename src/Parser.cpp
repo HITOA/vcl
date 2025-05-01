@@ -108,8 +108,6 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, boo
         } else {
             statement = ParseVariableDeclaration(lexer, typeInfo);
         }
-    } else if (currentToken.type == TokenType::Identifier) { //Assignment or Call
-        statement = ParseExpression(lexer);
     } else if (currentToken.type == TokenType::Struct) {
         statement = ParseStructureDeclaration(lexer);
         expectedTerminatorTokenType = TokenType::Undefined;
@@ -127,7 +125,7 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, boo
     } else if (currentToken.type == TokenType::Break) {
         statement = ParseBreakStatement(lexer);
     } else {
-        throw Exception{ std::format("Unexpected token \'{}\'.", currentToken.name), currentToken.location };
+        statement = ParseExpression(lexer);
     }
 
     if (statement == nullptr) {

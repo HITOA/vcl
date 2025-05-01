@@ -430,7 +430,7 @@ void VCL::ModuleBuilder::VisitAssignmentExpression(ASTAssignmentExpression* node
 
     node->rhs->Accept(this);
     Handle<Value> rhs = ThrowOnError(lastReturnedValue->Load(), node->location);
-
+    
     rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
 
     if (lhs->GetType().GetTypeInfo().IsConst())
@@ -645,7 +645,7 @@ void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) 
     
     if (node->expression) {
         node->expression->Accept(this);
-        initializer = lastReturnedValue;
+        initializer = ThrowOnError(lastReturnedValue->Load(), node->expression->location);;
     }
 
     if (context->GetScopeManager().IsCurrentScopeGlobal())

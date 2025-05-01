@@ -14,11 +14,12 @@ in Vector3<vfloat> b;
 
 out vfloat distance;
 
-T Distance<typename T>(Vector3<T> a, Vector3<T> b) {
+/*T Distance<typename T>(Vector3<T> a, Vector3<T> b) {
     T distance = sqrt(pow(b.x - a.x, 2.0) + pow(b.y - a.y, 2.0) + pow(b.z - a.z, 2.0));
     return distance;
-}
+}*/
 
 void Main() {
-    distance = Distance<vfloat>(a, b);
+    distance = sqrt(pow(b.x - a.x, 2.0) + pow(b.y - a.y, 2.0) + pow(b.z - a.z, 2.0));
+    float i = distance;
 }
