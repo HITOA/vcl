@@ -2,12 +2,14 @@
 * This tool is made for precompiling vcl into bytecode and debugging purposes. It also serves as an exemple on how to use the library.
 */
 
-#include <vcl/vcl.hpp>
+#include <VCL/VCL.hpp>
+#include <VCL/Error.hpp>
 
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 #include <cstring>
 #include <filesystem>
 
@@ -17,7 +19,7 @@ struct Options {
     bool optimize = true;
     std::string outputDirectory;
     std::string dumpIrDirectory;
-    bool dumpObj = false;
+    std::string dumpObjFilename;
     std::string entryPoint = "Main";
 };
 
@@ -36,7 +38,7 @@ bool GetOptions(int argc, const char** argv, Options& options) {
             "\n-o, --output <dir>: output compiled bitcode into this directory."
             "\n-e, --entry-point <name>: name of the program entry point (default is \"Main\")."
             "\n--dump-ir <dir>: dump input file(s) module(s) readable ir into this directory."
-            "\n--dump-obj: dump object file(s)."
+            "\n--dump-obj <file>: dump object to disk."
             "\n--no-optimization: disable any optimization on the ir." << std::endl;
             return false;
         }
@@ -65,7 +67,12 @@ bool GetOptions(int argc, const char** argv, Options& options) {
 
 
         if (strcmp(argv[idx], "--dump-obj") == 0) {
-            options.dumpObj = true;
+            ++idx;
+            if (idx >= argc) {
+                std::cout << "Missing filename for --dump-obj." << std::endl;
+                return false;
+            }
+            options.dumpObjFilename = argv[idx];
             ++idx;
             continue;
         }
@@ -105,6 +112,21 @@ bool GetOptions(int argc, const char** argv, Options& options) {
     return true;
 }
 
+class ConsoleLogger : public VCL::Logger {
+public:
+    void Log(VCL::Message& message) override {
+        const char* severityStr[] = {
+            "None",
+            "Error",
+            "Warning",
+            "Info",
+            "Debug"
+        };
+        int severityInt = (int)message.severity;
+        printf("[%s] %s\n", severityStr[severityInt], message.message.c_str());
+    };
+};
+
 int main(int argc, const char** argv) {
     Options options;
     if (!GetOptions(argc, argv, options))
@@ -115,60 +137,61 @@ int main(int argc, const char** argv) {
         return 0;
     }
 
-    std::shared_ptr<VCL::JITContext> context = VCL::JITContext::Create();
+    std::shared_ptr<ConsoleLogger> logger = std::make_shared<ConsoleLogger>();
 
-    if (options.dumpObj)
-        context->DumpObjects();
+    std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger);
 
-    
-    try {
-        for (size_t i = 0; i < options.inputFilenames.size(); ++i) {
-            std::string filepath = options.inputFilenames[i];
-            std::string filename = filepath.substr(filepath.find_last_of("/\\") + 1);
-            std::cout << "[" << ((float)(i + 1) / (float)(options.inputFilenames.size()) * 100.0f) << 
-                "%] Building VCL \"" << filepath << "\"" << std::endl;
-            
-            std::ifstream file{ filepath, std::ios::binary };
+    std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger);
 
-            if (!file.is_open()) {
-                std::cout << "Couldn't open source file \"" << filepath << "\"" << std::endl;
-                return 0;
-            }
-
-            std::stringstream buffer{};
-            buffer << file.rdbuf();
-            std::string source = buffer.str();
-            file.close();
-
-            std::unique_ptr<VCL::Module> module = VCL::Module::Create(filename, context);
-            module->BindSource(source);
-            
-            if (options.optimize)
-                module->Optimize();
-
-            if (!options.dumpIrDirectory.empty()) {
-                std::filesystem::path p = std::filesystem::path{ options.dumpIrDirectory } / filename;
-                p.replace_extension(".ll");
-                std::ofstream irOutFile{ p, std::ios::binary | std::ios::trunc };
-                irOutFile << module->Dump();
-                irOutFile.close();
-            }
-
-            if (!options.outputDirectory.empty()) {
-                std::filesystem::path p = std::filesystem::path{ options.dumpIrDirectory } / filename;
-                p.replace_extension(".bc");
-                module->Serialize(p);
-            }
-            
-            context->AddModule(std::move(module));
-        }
-
-        context->Lookup(options.entryPoint);
-
-    } catch (std::runtime_error& err) {
-        std::cout << "[ERROR]: " << err.what() << std::endl; 
-        return 0;
+    if (!options.dumpObjFilename.empty()) {
+        std::filesystem::path dumpObjFilename = std::filesystem::path{ options.dumpObjFilename };
+        std::filesystem::path dumpObjDir = dumpObjFilename.parent_path();
+        std::string dumpObjName = dumpObjFilename.filename();
+        session->SetDumpObject(dumpObjDir, dumpObjName);
     }
 
-    return 0;
+    for (size_t i = 0; i < options.inputFilenames.size(); ++i) {
+        std::filesystem::path filepath = options.inputFilenames[i];
+        std::string filename = filepath.filename();
+        std::cout << "[" << ((float)(i + 1) / (float)(options.inputFilenames.size()) * 100.0f) << 
+            "%] Building VCL " << filepath << std::endl;
+        
+        if (auto source = VCL::Source::LoadFromDisk(filepath); source.has_value()) {
+            try {
+                std::unique_ptr<VCL::ASTProgram> program = parser->Parse(*source);
+
+                std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
+                module->Emit();
+
+                if (options.optimize)
+                    module->Optimize();
+
+                if (!options.dumpIrDirectory.empty()) {
+                    std::filesystem::path dumpIrPath = std::filesystem::path{ options.dumpIrDirectory } / filename;
+                    dumpIrPath.replace_extension(".ll");
+                    std::ofstream irOutFile{ dumpIrPath, std::ios::binary | std::ios::trunc };
+                    irOutFile << module->Dump();
+                    irOutFile.close();
+                }
+
+                session->SubmitModule(std::move(module));
+
+            } catch (VCL::Exception& exception) {
+                logger->Error("{}: {}\n{}", exception.location.ToString(), exception.what(), exception.location.ToStringDetailed());
+            } catch (std::runtime_error& exception) {
+                logger->Error("{}", exception.what());
+            }
+            
+        } else {
+            logger->Error("{}", source.error());
+            continue;
+        }
+    }
+
+    try {
+        if (!session->Lookup(options.entryPoint))
+            return 0;
+    } catch (std::runtime_error& exception) {
+        return 0;
+    }
 }
