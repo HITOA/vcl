@@ -59,10 +59,31 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(TypeInfo typeInfo, Module
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
         break;
     case TypeInfo::TypeName::Custom:
-        if (auto t = context->GetScopeManager().GetNamedType(typeInfo.name); t.has_value())
-            type = (*t)->type;
-        else
-            return std::unexpected(t.error());
+        {
+            if (auto t = context->GetScopeManager().GetNamedStructTemplate(typeInfo.name); t.has_value() && typeInfo.templateArgsCount <= 0)
+                return std::unexpected(Error{ std::format("Missing template arguments for generic type `{}`", typeInfo.name) });
+            if (typeInfo.templateArgsCount > 0) {
+                std::vector<TemplateArgument> args( typeInfo.arguments, typeInfo.arguments + typeInfo.templateArgsCount );
+                if (auto t = context->GetScopeManager().GetNamedStructTemplate(typeInfo.name); t.has_value()) {
+                    std::string mangledName = (*t)->Mangle(args);
+                    if (auto t = context->GetScopeManager().GetNamedType(mangledName); t.has_value()) {
+                        type = (*t)->GetType();
+                        break;
+                    }
+                    if (auto r = (*t)->Resolve(args); r.has_value()) {
+                        type = (*r)->GetType();
+                        break;
+                    } else
+                        return std::unexpected(r.error());
+                } else 
+                    return std::unexpected(t.error());
+            } else {
+                if (auto t = context->GetScopeManager().GetNamedType(typeInfo.name); t.has_value())
+                    type = (*t)->GetType();
+                else
+                    return std::unexpected(t.error());
+            }
+        }
         break;
     default:
         return std::unexpected(Error{ "Invalid typename while parsing type" });

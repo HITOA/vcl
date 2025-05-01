@@ -200,7 +200,7 @@ std::unique_ptr<VCL::ASTFunctionDeclaration> VCL::Parser::ParseFunctionDeclarati
 }
 
 std::unique_ptr<VCL::ASTStructureFieldDeclaration> VCL::Parser::ParseStructureFieldDeclaration(Lexer& lexer) {
-    if (!IsTypeInfoToken(lexer))
+    if (!IsTypeInfoToken(lexer) && lexer.Peek().type != TokenType::Identifier)
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting type.", lexer.Peek().name), lexer.Peek().location};
 
     TypeInfo typeInfo = ParseTypeInfo(lexer);
@@ -215,12 +215,49 @@ std::unique_ptr<VCL::ASTStructureFieldDeclaration> VCL::Parser::ParseStructureFi
     return FillASTStatementDebugInformation(std::make_unique<ASTStructureFieldDeclaration>(typeInfo, fieldIdentifierToken.name), fieldIdentifierToken);
 }
 
+std::unique_ptr<VCL::ASTTemplateParameterDeclaration> VCL::Parser::ParseTemplateParameterDeclaration(Lexer& lexer) {
+    Token typeToken = lexer.Consume();
+
+    TemplateArgument::TemplateValueType type;
+
+    switch (typeToken.type)
+    {
+    case TokenType::Typename:
+        type = TemplateArgument::TemplateValueType::Typename;
+        break;
+    case TokenType::Int:
+        type = TemplateArgument::TemplateValueType::Int;
+        break;
+    default:
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting parameter type.", typeToken.name), typeToken.location};
+    }
+
+    Token identifierToken = lexer.Consume();
+    if (identifierToken.type != TokenType::Identifier)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting parameter identifier.", identifierToken.name), identifierToken.location};
+
+    return FillASTStatementDebugInformation(std::make_unique<ASTTemplateParameterDeclaration>(identifierToken.name, type), typeToken);
+}
+
 std::unique_ptr<VCL::ASTStructureDeclaration> VCL::Parser::ParseStructureDeclaration(Lexer& lexer) {
     Token structToken = lexer.Consume(); //Consume struct token
     Token structIdentifierToken = lexer.Consume();
 
     if (structIdentifierToken.type != TokenType::Identifier)
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", structIdentifierToken.name), structIdentifierToken.location};
+
+    bool generic = false;
+    std::vector<std::unique_ptr<ASTTemplateParameterDeclaration>> parameters{};
+
+    if (lexer.ConsumeIf(TokenType::Less)) {
+        generic = true;
+        do {
+            parameters.push_back(std::move(ParseTemplateParameterDeclaration(lexer)));
+        } while (lexer.ConsumeIf(TokenType::Coma));
+        
+        if (Token token = lexer.Consume(); token.type != TokenType::Greater)
+            throw Exception{ std::format("Unexpected token \'{}\'.", token.name), token.location };
+    }
 
     if (Token token = lexer.Consume(); token.type != TokenType::LBracket)
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting bracket.", token.name), token.location };
@@ -230,7 +267,11 @@ std::unique_ptr<VCL::ASTStructureDeclaration> VCL::Parser::ParseStructureDeclara
     while (!lexer.ConsumeIf(TokenType::RBracket))
         fields.emplace_back(std::move(ParseStructureFieldDeclaration(lexer)));
 
-    return FillASTStatementDebugInformation(std::make_unique<ASTStructureDeclaration>(structIdentifierToken.name, std::move(fields)), structToken);
+    if (generic)
+        return FillASTStatementDebugInformation(std::make_unique<ASTTemplateDeclaration>(
+            structIdentifierToken.name, std::move(parameters), std::move(fields)), structToken);
+    else
+        return FillASTStatementDebugInformation(std::make_unique<ASTStructureDeclaration>(structIdentifierToken.name, std::move(fields)), structToken);
 }
 
 std::unique_ptr<VCL::ASTReturnStatement> VCL::Parser::ParseReturnStatement(Lexer& lexer) {
@@ -554,11 +595,15 @@ std::unique_ptr<VCL::ASTLiteralExpression> VCL::Parser::ParseLiteralExpression(L
 
 std::unique_ptr<VCL::ASTVariableExpression> VCL::Parser::ParseVariableExpression(Lexer& lexer) {
     Token variableIdentifierToken = lexer.Consume();
+    if (variableIdentifierToken.type != TokenType::Identifier)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", variableIdentifierToken.name), variableIdentifierToken.location };
     return FillASTStatementDebugInformation(std::make_unique<ASTVariableExpression>(variableIdentifierToken.name), variableIdentifierToken);
 }
 
 std::unique_ptr<VCL::ASTVariableDeclaration> VCL::Parser::ParseVariableDeclaration(Lexer& lexer, TypeInfo& typeInfo) {
     Token variableIdentifierToken = lexer.Consume();
+    if (variableIdentifierToken.type != TokenType::Identifier)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", variableIdentifierToken.name), variableIdentifierToken.location };
     std::unique_ptr<ASTExpression> expression = nullptr;
     if (lexer.Peek().type == TokenType::Assignment) {
         lexer.Consume();
@@ -570,6 +615,8 @@ std::unique_ptr<VCL::ASTVariableDeclaration> VCL::Parser::ParseVariableDeclarati
 
 std::unique_ptr<VCL::ASTFunctionCall> VCL::Parser::ParseFunctionCall(Lexer& lexer) {
     Token functionIdentifierToken = lexer.Consume();
+    if (functionIdentifierToken.type != TokenType::Identifier)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", functionIdentifierToken.name), functionIdentifierToken.location };
     lexer.Consume(); //LPAR
 
     std::vector<std::unique_ptr<ASTExpression>> arguments{};
@@ -650,6 +697,63 @@ VCL::TypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
         }
         lastTypeInfoToken = currentTypeInfoToken;
     }
+
+    //Template
+    if (lexer.ConsumeIf(TokenType::Less)) {
+        do {
+            TemplateArgument argument{};
+            Token currentToken = lexer.Consume();
+            std::string currentTokenStr{ currentToken.name };
+            switch (currentToken.type) {
+                //TypeName
+                case TokenType::LiteralInt:
+                    argument.type = TemplateArgument::TemplateValueType::Int;
+                    argument.value.intValue = std::stoi(currentTokenStr);
+                    break;
+                case TokenType::Float:
+                    argument.type = TemplateArgument::TemplateValueType::Typename;
+                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Float;
+                    break;
+                case TokenType::Bool:
+                    argument.type = TemplateArgument::TemplateValueType::Typename;
+                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Bool;
+                    break;
+                case TokenType::Int:
+                    argument.type = TemplateArgument::TemplateValueType::Typename;
+                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Int;
+                    break;
+                case TokenType::Void:
+                    argument.type = TemplateArgument::TemplateValueType::Typename;
+                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Void;
+                    break;
+                case TokenType::VectorFloat:
+                    argument.type = TemplateArgument::TemplateValueType::Typename;
+                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::VectorFloat;
+                    break;
+                case TokenType::VectorBool:
+                    argument.type = TemplateArgument::TemplateValueType::Typename;
+                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::VectorBool;
+                    break;
+                case TokenType::VectorInt:
+                    argument.type = TemplateArgument::TemplateValueType::Typename;
+                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::VectorInt;
+                    break;
+                case TokenType::Identifier:
+                    argument.type = TemplateArgument::TemplateValueType::Typename;
+                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Custom;
+                    argument.name = currentToken.name;
+                    break;
+                default:
+                    throw Exception{ std::format("Unexpected token \'{}\'. Expecting typename or literal.",
+                        currentToken.name), currentToken.location };
+            }
+            typeInfo.arguments[typeInfo.templateArgsCount++] = argument;
+        } while (lexer.ConsumeIf(TokenType::Coma));
+
+        if (Token token = lexer.Consume(); token.type != TokenType::Greater)
+            throw Exception{ std::format("Unexpected token \'{}\'.", token.name), token.location };
+    }
+
     return typeInfo;
 }
 

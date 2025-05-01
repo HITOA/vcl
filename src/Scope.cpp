@@ -34,7 +34,7 @@ bool VCL::ScopeManager::PushNamedValue(std::string_view name, Handle<Value> valu
     return true;
 }
 
-std::expected<std::shared_ptr<VCL::StructDefinition>, VCL::Error> VCL::ScopeManager::GetNamedType(std::string_view name) const {
+std::expected<VCL::Handle<VCL::StructDefinition>, VCL::Error> VCL::ScopeManager::GetNamedType(std::string_view name) const {
     std::string nameStr{ name };
     for (const Scope& scope : scopes) {
         if (scope.namedType.count(nameStr))
@@ -43,11 +43,28 @@ std::expected<std::shared_ptr<VCL::StructDefinition>, VCL::Error> VCL::ScopeMana
     return std::unexpected(Error{ std::format("Undefined named type \'{}\'", name) });
 }
 
-bool VCL::ScopeManager::PushNamedType(std::string_view name, std::shared_ptr<StructDefinition> type) {
+bool VCL::ScopeManager::PushNamedType(std::string_view name, Handle<StructDefinition> type) {
     std::string nameStr{ name };
     if (scopes.front().namedType.count(nameStr))
         return false;
     scopes.front().namedType.emplace(nameStr, type);
+    return true;
+}
+
+std::expected<VCL::Handle<VCL::StructTemplate>, VCL::Error> VCL::ScopeManager::GetNamedStructTemplate(std::string_view name) const {
+    std::string nameStr{ name };
+    for (const Scope& scope : scopes) {
+        if (scope.namedStructTemplate.count(nameStr))
+            return scope.namedStructTemplate.at(nameStr);
+    }
+    return std::unexpected(Error{ std::format("Undefined named template \'{}\'", name) });
+}
+
+bool VCL::ScopeManager::PushNamedStructTemplate(std::string_view name, Handle<StructTemplate> type) {
+    std::string nameStr{ name };
+    if (scopes.front().namedStructTemplate.count(nameStr))
+        return false;
+    scopes.front().namedStructTemplate.emplace(nameStr, type);
     return true;
 }
 

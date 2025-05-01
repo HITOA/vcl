@@ -27,6 +27,7 @@ namespace VCL {
         void VisitFunctionPrototype(ASTFunctionPrototype* node) override;
         void VisitFunctionDeclaration(ASTFunctionDeclaration* node) override;
         void VisitStructureDeclaration(ASTStructureDeclaration* node) override;
+        void VisitTemplateDeclaration(ASTTemplateDeclaration* node) override;
         void VisitReturnStatement(ASTReturnStatement* node) override;
         void VisitIfStatement(ASTIfStatement* node) override;
         void VisitWhileStatement(ASTWhileStatement* node) override;

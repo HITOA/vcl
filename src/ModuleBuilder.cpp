@@ -4,6 +4,7 @@
 #include "Callable.hpp"
 #include "Intrinsic.hpp"
 #include "StructDefinition.hpp"
+#include "StructTemplate.hpp"
 
 #include <VCL/Debug.hpp>
 
@@ -93,19 +94,32 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
 }
 
 void VCL::ModuleBuilder::VisitStructureDeclaration(ASTStructureDeclaration* node) {
-    std::shared_ptr<StructDefinition> structDefinition = std::make_shared<StructDefinition>();
-    std::vector<llvm::Type*> elements(node->fields.size());
-
-    for (size_t i = 0; i < node->fields.size(); ++i) {
-        Type type = ThrowOnError(Type::Create(node->fields[i]->type, context), node->fields[i]->location);
-        elements[i] = type.GetLLVMType();
-        structDefinition->fields[std::string{ node->fields[i]->name }] = (uint32_t)i;
-    }
+    std::vector<std::pair<std::string, TypeInfo>> elements(node->fields.size());
     
-    structDefinition->type = llvm::StructType::create(*context->GetTSContext().getContext(), elements);
-    structDefinition->type->setName(node->name);
+    for (size_t i = 0; i < node->fields.size(); ++i) {
+        std::string fieldName{ node->fields[i]->name };
+        elements[i] = std::make_pair(fieldName, node->fields[i]->type);
+    }
 
+    Handle<StructDefinition> structDefinition = ThrowOnError(StructDefinition::Create(node->name, elements, context), node->location);
+    
     if (!context->GetScopeManager().PushNamedType(node->name, structDefinition))
+        throw Exception{ std::format("redefinition of `{}`", node->name), node->location };
+}
+
+void VCL::ModuleBuilder::VisitTemplateDeclaration(ASTTemplateDeclaration* node) {
+    std::string_view name = node->name;
+    std::vector<std::pair<std::string_view, TypeInfo>> structTemplate{};
+    std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters{};
+
+    for (size_t i = 0; i < node->fields.size(); ++i)
+        structTemplate.push_back(std::make_pair(node->fields[i]->name, node->fields[i]->type));
+    for (size_t i = 0; i < node->parameters.size(); ++i)
+        templateParameters.push_back(std::make_pair(node->parameters[i]->name, node->parameters[i]->type));
+
+    Handle<StructTemplate> st = ThrowOnError(StructTemplate::Create(name, structTemplate, templateParameters, context), node->location);
+
+    if (!context->GetScopeManager().PushNamedStructTemplate(node->name, st))
         throw Exception{ std::format("redefinition of `{}`", node->name), node->location };
 }
 
@@ -588,15 +602,15 @@ void VCL::ModuleBuilder::VisitFieldAccessExpression(ASTFieldAccessExpression* no
         throw Exception{ std::format("Cannot access field `{}` on a non-struct type ‘{}’.", 
             node->fieldName, ToString(expression->GetType().GetTypeInfo())), node->location }; 
     
-    if (auto type = context->GetScopeManager().GetNamedType(expression->GetType().GetTypeInfo().name); type.has_value()) {
-        std::shared_ptr<StructDefinition> structDefinition = *type;
+    if (auto type = context->GetScopeManager().GetNamedType(expression->GetType().GetLLVMType()->getStructName()); type.has_value()) {
+        Handle<StructDefinition> structDefinition = *type;
         std::string fieldName{ node->fieldName };
-        if (!structDefinition->fields.count(fieldName))
+        if (!structDefinition->HasField(fieldName))
             throw Exception{ std::format("Type `{}` has no member named `{}`.", 
                 ToString(expression->GetType().GetTypeInfo()), fieldName), node->location };
-        uint32_t fieldIndex = structDefinition->fields[fieldName];
-        llvm::Value* r = context->GetIRBuilder().CreateStructGEP(structDefinition->type, expression->GetLLVMValue(), fieldIndex, fieldName);
-        Type fieldType = ThrowOnError(Type::CreateFromLLVMType(structDefinition->type->getTypeAtIndex(fieldIndex), context), node->location);
+        uint32_t fieldIndex = structDefinition->GetFieldIndex(fieldName);
+        llvm::Value* r = context->GetIRBuilder().CreateStructGEP(structDefinition->GetType(), expression->GetLLVMValue(), fieldIndex, fieldName);
+        Type fieldType = ThrowOnError(Type::CreateFromLLVMType(structDefinition->GetType()->getTypeAtIndex(fieldIndex), context), node->location);
         lastReturnedValue = ThrowOnError(Value::Create(r, fieldType, context), node->location);
     } else {
         throw std::runtime_error{ "Compiler internal error." };

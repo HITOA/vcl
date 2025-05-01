@@ -27,6 +27,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/NativeTarget.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructDefinition.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/StructTemplate.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utility.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.hpp
@@ -46,6 +47,8 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Parser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Source.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/StructDefinition.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/StructTemplate.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.cpp)
 target_include_directories(vcl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

@@ -33,7 +33,8 @@
     DEF(While,              "while") \
     DEF(For,                "for") \
     DEF(Break,              "break") \
-    DEF(Struct,             "struct")
+    DEF(Struct,             "struct") \
+    DEF(Typename,           "typename")
 
 #undef OPERATOR_DEF
 #define OPERATOR_DEF \
@@ -129,6 +130,7 @@ namespace VCL {
             int intValue;
             enum class TypeName {
                 None,
+                Custom,
                 TYPE_DEF
             } typeValue = TypeName::None;
         } value;
@@ -136,6 +138,7 @@ namespace VCL {
             Int,
             Typename
         } type = TemplateValueType::Typename;
+        std::string_view name;
     };
 
     /**

@@ -18,6 +18,8 @@ namespace VCL {
     class ASTFunctionDeclaration;
     class ASTStructureFieldDeclaration;
     class ASTStructureDeclaration;
+    class ASTTemplateParameterDeclaration;
+    class ASTTemplateDeclaration;
     class ASTReturnStatement;
     class ASTIfStatement;
     class ASTWhileStatement;
@@ -50,6 +52,8 @@ namespace VCL {
         virtual void VisitFunctionDeclaration(ASTFunctionDeclaration* node) {};
         virtual void VisitStructureFieldDeclaration(ASTStructureFieldDeclaration* node) {};
         virtual void VisitStructureDeclaration(ASTStructureDeclaration* node) {};
+        virtual void VisitTemplateParameterDeclaration(ASTTemplateParameterDeclaration* node) {};
+        virtual void VisitTemplateDeclaration(ASTTemplateDeclaration* node) {};
         virtual void VisitReturnStatement(ASTReturnStatement* node) {};
         virtual void VisitIfStatement(ASTIfStatement* node) {};
         virtual void VisitWhileStatement(ASTWhileStatement* node) {};
@@ -198,6 +202,28 @@ namespace VCL {
     public:
         std::string_view name;
         std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields;
+    };
+
+    class ASTTemplateParameterDeclaration : public ASTStatement {
+    public:
+        ASTTemplateParameterDeclaration(std::string_view name, TemplateArgument::TemplateValueType type) :
+            name{ name }, type{ type } {};
+        
+        void Accept(ASTVisitor* visitor) override { visitor->VisitTemplateParameterDeclaration(this); }
+    public:
+        std::string_view name;
+        TemplateArgument::TemplateValueType type;
+    };
+
+    class ASTTemplateDeclaration : public ASTStructureDeclaration {
+    public:
+        ASTTemplateDeclaration(std::string_view name, std::vector<std::unique_ptr<ASTTemplateParameterDeclaration>> parameters,
+            std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields) : 
+                ASTStructureDeclaration{ name, std::move(fields) }, parameters{ std::move(parameters) } {};
+
+        void Accept(ASTVisitor* visitor) override { visitor->VisitTemplateDeclaration(this); }
+    public:
+        std::vector<std::unique_ptr<ASTTemplateParameterDeclaration>> parameters;
     };
 
     /**
