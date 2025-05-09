@@ -58,8 +58,10 @@ bool VCL::Function::HasStorage() const {
 void VCL::Function::Verify() const {
     std::stringstream sstream{};
     llvm::raw_os_ostream llvmStream{ sstream };
-    if (llvm::verifyFunction(*GetLLVMFunction(), &llvmStream))
+    if (llvm::verifyFunction(*GetLLVMFunction(), &llvmStream)) {
+        llvmStream.flush();
         throw std::runtime_error{ sstream.str() };
+    }
 }
 
 std::expected<VCL::Handle<VCL::Function>, VCL::Error> VCL::Function::Create(

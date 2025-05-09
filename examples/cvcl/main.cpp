@@ -178,8 +178,8 @@ int main(int argc, const char** argv) {
 
             } catch (VCL::Exception& exception) {
                 logger->Error("{}: {}\n{}", exception.location.ToString(), exception.what(), exception.location.ToStringDetailed());
-            } catch (std::runtime_error& exception) {
-                logger->Error("{}", exception.what());
+            } catch (std::exception& exception) {
+                logger->Error("Unexpected: {}", exception.what());
             }
             
         } else {

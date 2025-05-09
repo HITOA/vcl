@@ -47,9 +47,18 @@ std::string VCL::ToString(Operator::ID id) {
     }
 }
 
-std::string VCL::ToString(TypeInfo type) {
-    switch (type.type) {
-        case TypeInfo::TypeName::Custom: return std::string{ type.name };
+
+std::string VCL::ToString(std::shared_ptr<TypeInfo> type) {
+    switch (type->type) {
+        case TypeInfo::TypeName::Custom: 
+        {
+            if (type->arguments.empty())
+                return std::string{ type->name };
+            std::string name{ type->name };
+            for (auto argument : type->arguments)
+                name += "_" + ToString(argument);
+            return name;
+        }
         case TypeInfo::TypeName::Callable: return "callable";
         case TypeInfo::TypeName::Float: return "float";
         case TypeInfo::TypeName::Bool: return "bool";
@@ -59,5 +68,15 @@ std::string VCL::ToString(TypeInfo type) {
         case TypeInfo::TypeName::VectorBool: return "vbool";
         case TypeInfo::TypeName::VectorInt: return "vint";
         default: return "unknown type";
+    }
+}
+
+std::string VCL::ToString(std::shared_ptr<TemplateArgument> argument) {
+    switch (argument->type)
+    {
+    case TemplateArgument::TemplateValueType::Int: return std::to_string(argument->intValue);
+    case TemplateArgument::TemplateValueType::Typename: return ToString(argument->typeInfo);
+        break;
+    default: return "unknown type";
     }
 }

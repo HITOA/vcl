@@ -8,10 +8,10 @@
 
 namespace VCL {
     bool IntrinsicArgumentPolicy::operator()(Type type) {
-        TypeInfo typeInfo = type.GetTypeInfo();
+        std::shared_ptr<TypeInfo> typeInfo = type.GetTypeInfo();
 
         if (policy & Numeric) {
-            switch (typeInfo.type) {
+            switch (typeInfo->type) {
             case TypeInfo::TypeName::Float:
             case TypeInfo::TypeName::Int:
                 return true;
@@ -19,7 +19,7 @@ namespace VCL {
         }
 
         if (policy & Vector) {
-            switch (typeInfo.type) {
+            switch (typeInfo->type) {
             case TypeInfo::TypeName::VectorFloat:
             case TypeInfo::TypeName::VectorInt:
                 return true;
@@ -27,7 +27,7 @@ namespace VCL {
         }
 
         if (policy & Condition) {
-            switch (typeInfo.type)
+            switch (typeInfo->type)
             {
             case TypeInfo::TypeName::Bool:
                 return true;
@@ -35,7 +35,7 @@ namespace VCL {
         }
 
         if (policy & Mask) {
-            switch (typeInfo.type)
+            switch (typeInfo->type)
             {
             case TypeInfo::TypeName::VectorBool:
                 return true;
@@ -155,8 +155,8 @@ VCL::CallableType VCL::Intrinsic::GetCallableType() {
 }
 
 std::expected<VCL::Handle<VCL::Intrinsic>, VCL::Error> VCL::Intrinsic::Create(std::unique_ptr<IntrinsicImpl> impl, ModuleContext* context) {
-    TypeInfo callableTypeInfo{};
-    callableTypeInfo.type = TypeInfo::TypeName::Callable;
+    std::shared_ptr<TypeInfo> callableTypeInfo = std::make_shared<TypeInfo>();
+    callableTypeInfo->type = TypeInfo::TypeName::Callable;
     if (auto type = Type::Create(callableTypeInfo, context); type.has_value())
         return MakeHandle<Intrinsic>(std::move(impl), *type, context);
     else

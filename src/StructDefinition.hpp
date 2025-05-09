@@ -34,7 +34,8 @@ namespace VCL {
         bool HasField(std::string_view name);
         
 
-        static std::expected<Handle<StructDefinition>, Error> Create(std::string_view name, std::vector<std::pair<std::string, TypeInfo>>& elements, ModuleContext* context);
+        static std::expected<Handle<StructDefinition>, Error> Create(std::string_view name, 
+            std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& elements, ModuleContext* context);
     private:
         llvm::StructType* type;
         std::unordered_map<std::string, uint32_t> fields;

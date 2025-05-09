@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <memory>
+#include <vector>
 
 #define FLAG(x) (1<<x)
 
@@ -125,20 +127,15 @@ namespace VCL {
         int precedence = -1;
     };
 
+    class TypeInfo;
+
     struct TemplateArgument {
-        union ValueUnion {
-            int intValue;
-            enum class TypeName {
-                None,
-                Custom,
-                TYPE_DEF
-            } typeValue = TypeName::None;
-        } value;
+        int intValue;
+        std::shared_ptr<TypeInfo> typeInfo;
         enum class TemplateValueType {
             Int,
             Typename
         } type = TemplateValueType::Typename;
-        std::string_view name;
     };
 
     /**
@@ -162,8 +159,7 @@ namespace VCL {
         } type = TypeName::None;
 
         std::string_view name = "";
-        TemplateArgument arguments[8] = {};
-        uint32_t templateArgsCount = 0;
+        std::vector<std::shared_ptr<TemplateArgument>> arguments{};
 
 
         friend inline TypeInfo::QualifierFlag operator|(TypeInfo::QualifierFlag a, TypeInfo::QualifierFlag b) {

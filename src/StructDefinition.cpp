@@ -26,7 +26,7 @@ bool VCL::StructDefinition::HasField(std::string_view name) {
 }
 
 std::expected<VCL::Handle<VCL::StructDefinition>, VCL::Error> VCL::StructDefinition::Create(std::string_view name, 
-    std::vector<std::pair<std::string, TypeInfo>>& elements, ModuleContext* context) {
+    std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& elements, ModuleContext* context) {
     
     std::unordered_map<std::string, uint32_t> fields{};
     std::vector<llvm::Type*> elementsType(elements.size());

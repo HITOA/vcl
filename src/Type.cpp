@@ -4,14 +4,16 @@
 #include "Utility.hpp"
 #include "NativeTarget.hpp"
 
+#include <iostream>
+
 
 VCL::Type::Type() :
     typeInfo{}, type{ nullptr }, context{ nullptr } {}
 
-VCL::Type::Type(TypeInfo typeInfo, llvm::Type* type, ModuleContext* context) :
+VCL::Type::Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, ModuleContext* context) :
     typeInfo{ typeInfo }, type{ type }, context{ context } {}
 
-VCL::TypeInfo VCL::Type::GetTypeInfo() const {
+std::shared_ptr<VCL::TypeInfo> VCL::Type::GetTypeInfo() const {
     return typeInfo;
 }
 
@@ -20,16 +22,24 @@ llvm::Type* VCL::Type::GetLLVMType() const {
 }
 
 bool VCL::Type::operator==(Type& rhs) const {
-    return this->typeInfo.type == rhs.typeInfo.type && this->typeInfo.name == rhs.typeInfo.name;
+    return this->typeInfo->type == rhs.typeInfo->type && this->typeInfo->name == rhs.typeInfo->name;
 }
 
 bool VCL::Type::operator!=(Type& rhs) const {
     return !(*this != rhs);
 }
 
-std::expected<VCL::Type, VCL::Error> VCL::Type::Create(TypeInfo typeInfo, ModuleContext* context) {
+std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo> typeInfo, ModuleContext* context) {
+    while (typeInfo->type == TypeInfo::TypeName::Custom) {
+        if (auto r = context->GetScopeManager().GetNamedTypeAlias(typeInfo->name); r.has_value()) {
+            typeInfo = *r;
+        } else {
+            break;
+        }
+    }
+
     llvm::Type* type;
-    switch (typeInfo.type)
+    switch (typeInfo->type)
     {
     case TypeInfo::TypeName::Callable:
         type = nullptr;
@@ -60,17 +70,16 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(TypeInfo typeInfo, Module
         break;
     case TypeInfo::TypeName::Custom:
         {
-            if (auto t = context->GetScopeManager().GetNamedStructTemplate(typeInfo.name); t.has_value() && typeInfo.templateArgsCount <= 0)
-                return std::unexpected(Error{ std::format("Missing template arguments for generic type `{}`", typeInfo.name) });
-            if (typeInfo.templateArgsCount > 0) {
-                std::vector<TemplateArgument> args( typeInfo.arguments, typeInfo.arguments + typeInfo.templateArgsCount );
-                if (auto t = context->GetScopeManager().GetNamedStructTemplate(typeInfo.name); t.has_value()) {
-                    std::string mangledName = (*t)->Mangle(args);
+            if (auto t = context->GetScopeManager().GetNamedStructTemplate(typeInfo->name); t.has_value() && typeInfo->arguments.empty())
+                return std::unexpected(Error{ std::format("Missing template arguments for generic type `{}`", typeInfo->name) });
+            if (!typeInfo->arguments.empty()) {
+                if (auto t = context->GetScopeManager().GetNamedStructTemplate(typeInfo->name); t.has_value()) {
+                    std::string mangledName = (*t)->Mangle(typeInfo->arguments);
                     if (auto t = context->GetScopeManager().GetNamedType(mangledName); t.has_value()) {
                         type = (*t)->GetType();
                         break;
                     }
-                    if (auto r = (*t)->Resolve(args); r.has_value()) {
+                    if (auto r = (*t)->Resolve(typeInfo->arguments); r.has_value()) {
                         type = (*r)->GetType();
                         break;
                     } else
@@ -78,7 +87,7 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(TypeInfo typeInfo, Module
                 } else 
                     return std::unexpected(t.error());
             } else {
-                if (auto t = context->GetScopeManager().GetNamedType(typeInfo.name); t.has_value())
+                if (auto t = context->GetScopeManager().GetNamedType(typeInfo->name); t.has_value())
                     type = (*t)->GetType();
                 else
                     return std::unexpected(t.error());
@@ -97,36 +106,36 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::CreateFromLLVMType(llvm::Type* t
     if (type->isVectorTy())
         trueType = type->getScalarType();
 
-    TypeInfo typeInfo;
+    std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
 
     if (trueType->isStructTy()) {
-        typeInfo.type = TypeInfo::TypeName::Custom;
-        typeInfo.name = trueType->getStructName();
+        typeInfo->type = TypeInfo::TypeName::Custom;
+        typeInfo->name = trueType->getStructName();
         return Type{ typeInfo, type, context };
     }
     
     if (trueType->isFunctionTy()) {
-        typeInfo.type = TypeInfo::TypeName::Callable;
+        typeInfo->type = TypeInfo::TypeName::Callable;
         return Type{ typeInfo, type, context };
     }
 
     if (trueType->isFloatTy())
-        typeInfo.type = TypeInfo::TypeName::Float;
+        typeInfo->type = TypeInfo::TypeName::Float;
     else if (trueType->isIntegerTy()) {
         uint32_t width = trueType->getIntegerBitWidth();
         if (width == 1)
-            typeInfo.type = TypeInfo::TypeName::Bool;
+            typeInfo->type = TypeInfo::TypeName::Bool;
         else if (width == 32)
-            typeInfo.type = TypeInfo::TypeName::Int;
+            typeInfo->type = TypeInfo::TypeName::Int;
         else
             return std::unexpected(Error{ "Unsupported integer bit width" });
     } else if (trueType->isVoidTy())
-        typeInfo.type = TypeInfo::TypeName::Void;
+        typeInfo->type = TypeInfo::TypeName::Void;
     else
         return std::unexpected(Error{ "Unsupported LLVM type" });
 
     if (type->isVectorTy())
-        typeInfo.type = (TypeInfo::TypeName)((uint32_t)typeInfo.type + 
+        typeInfo->type = (TypeInfo::TypeName)((uint32_t)typeInfo->type + 
             (uint32_t)TypeInfo::TypeName::VectorFloat - (uint32_t)TypeInfo::TypeName::Float);
     
     return Type{ typeInfo, type, context };

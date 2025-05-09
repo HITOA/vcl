@@ -18,7 +18,7 @@ namespace VCL {
     class StructTemplate {
     public:
         StructTemplate() = delete;
-        StructTemplate(std::string_view name, std::vector<std::pair<std::string_view, TypeInfo>>& structTemplate, 
+        StructTemplate(std::string_view name, std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>>& structTemplate, 
             std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context);
         StructTemplate(const StructTemplate& value) = default;
         StructTemplate(StructTemplate&& value) noexcept = default;
@@ -27,14 +27,15 @@ namespace VCL {
         StructTemplate& operator=(const StructTemplate& value) = default;
         StructTemplate& operator=(StructTemplate&& value) noexcept = default;
 
-        std::string Mangle(std::vector<TemplateArgument>& args);
-        std::expected<Handle<StructDefinition>, Error> Resolve(std::vector<TemplateArgument>& args);
+        std::string Mangle(std::vector<std::shared_ptr<TemplateArgument>>& args);
+        std::expected<Handle<StructDefinition>, Error> Resolve(std::vector<std::shared_ptr<TemplateArgument>>& args);
 
-        static std::expected<Handle<StructTemplate>, Error> Create(std::string_view name, std::vector<std::pair<std::string_view, TypeInfo>>& structTemplate, 
+        static std::expected<Handle<StructTemplate>, Error> Create(std::string_view name, 
+            std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>>& structTemplate, 
             std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context);
     private:
         std::string_view name;
-        std::vector<std::pair<std::string_view, TypeInfo>> structTemplate{};
+        std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> structTemplate{};
         std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters{};
         ModuleContext* context;
     };

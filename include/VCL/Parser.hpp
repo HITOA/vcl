@@ -41,11 +41,12 @@ namespace VCL {
         std::unique_ptr<ASTStatement> ParseCompoundStatement(Lexer& lexer);
 
         std::unique_ptr<ASTFunctionArgument> ParseFunctionArgument(Lexer& lexer);
-        std::unique_ptr<ASTFunctionPrototype> ParseFunctionPrototype(Lexer& lexer, TypeInfo& typeInfo);
+        std::unique_ptr<ASTFunctionPrototype> ParseFunctionPrototype(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo);
         std::unique_ptr<ASTFunctionDeclaration> ParseFunctionDeclaration(Lexer& lexer, std::unique_ptr<ASTFunctionPrototype> prototype);
         std::unique_ptr<ASTStructureFieldDeclaration> ParseStructureFieldDeclaration(Lexer& lexer);
         std::unique_ptr<ASTTemplateParameterDeclaration> ParseTemplateParameterDeclaration(Lexer& lexer);
         std::unique_ptr<ASTStructureDeclaration> ParseStructureDeclaration(Lexer& lexer);
+        std::unique_ptr<ASTTemplateFunctionDeclaration> ParseTemplateFunctionDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo);
         std::unique_ptr<ASTReturnStatement> ParseReturnStatement(Lexer& lexer);
         std::unique_ptr<ASTIfStatement> ParseIfStatement(Lexer& lexer);
         std::unique_ptr<ASTForStatement> ParseForStatement(Lexer& lexer);
@@ -61,10 +62,12 @@ namespace VCL {
         std::unique_ptr<ASTExpression> ParseParentExpression(Lexer& lexer);
         std::unique_ptr<ASTLiteralExpression> ParseLiteralExpression(Lexer& lexer);
         std::unique_ptr<ASTVariableExpression> ParseVariableExpression(Lexer& lexer);
-        std::unique_ptr<ASTVariableDeclaration> ParseVariableDeclaration(Lexer& lexer, TypeInfo& typeInfo);
+        std::unique_ptr<ASTVariableDeclaration> ParseVariableDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo);
         std::unique_ptr<ASTFunctionCall> ParseFunctionCall(Lexer& lexer);
+        std::unique_ptr<ASTFunctionCall> TryParseTemplatedFunctionCall(Lexer& lexer);
 
-        TypeInfo ParseTypeInfo(Lexer& lexer);
+        std::shared_ptr<TypeInfo> ParseTypeInfo(Lexer& lexer);
+        std::shared_ptr<TemplateArgument> ParseTemplateArgument(Lexer& lexer);
 
     private:
         std::shared_ptr<Logger> logger = nullptr;

@@ -17,6 +17,7 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 add_library(vcl 
     STATIC 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/CallableTemplate.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Handle.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsic.hpp
@@ -28,11 +29,13 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructDefinition.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructTemplate.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/TemplateUtils.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utility.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.hpp
 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/CallableTemplate.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Debug.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionSession.cpp
@@ -49,6 +52,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Source.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructDefinition.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructTemplate.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/TemplateUtils.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Type.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.cpp)
 target_include_directories(vcl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

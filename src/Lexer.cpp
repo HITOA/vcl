@@ -78,6 +78,14 @@ bool VCL::Lexer::ConsumeIf(TokenType type) {
     return false;
 }
 
+uint32_t VCL::Lexer::GetCursor() const {
+    return cursor;
+}
+
+void VCL::Lexer::SetCursor(uint32_t cursor) {
+    this->cursor = cursor;
+}
+
 bool VCL::Lexer::TokenizePunctuator(std::string_view source, TokenType& type, uint32_t& size) {
 #undef DEF
 #define DEF(name, symbol, ...) { symbol, TokenType::name },

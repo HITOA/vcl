@@ -5,6 +5,7 @@
 #include "Value.hpp"
 #include "StructDefinition.hpp"
 #include "StructTemplate.hpp"
+#include "CallableTemplate.hpp"
 
 #include <deque>
 #include <unordered_map>
@@ -22,6 +23,8 @@ namespace VCL {
         std::unordered_map<std::string, Handle<Value>> namedValue;
         std::unordered_map<std::string, Handle<StructDefinition>> namedType;
         std::unordered_map<std::string, Handle<StructTemplate>> namedStructTemplate;
+        std::unordered_map<std::string, Handle<CallableTemplate>> namedFunctionTemplate;
+        std::unordered_map<std::string, std::shared_ptr<TypeInfo>> namedTypeAlias;
 
         Scope() = delete;
         Scope(llvm::BasicBlock* bb) : bb{ bb }, namedValue{} {};
@@ -59,7 +62,7 @@ namespace VCL {
          *
          * @return true on success or false if a value already exist with this name in the current scope.
          */
-        bool PushNamedValue(std::string_view name, Handle<Value> value);
+        bool PushNamedValue(std::string_view name, Handle<Value> value, uint32_t offset = 0);
 
         /**
          * @brief Get a named type by name from the current or upper scope.
@@ -73,7 +76,7 @@ namespace VCL {
          * 
          * @return true on success or false if a type already exist with this name in the current scope.
          */
-        bool PushNamedType(std::string_view name, Handle<StructDefinition> type);
+        bool PushNamedType(std::string_view name, Handle<StructDefinition> type, uint32_t offset = 0);
 
 
         /**
@@ -88,7 +91,35 @@ namespace VCL {
          * 
          * @return true on success or false if a template already exist with this name in the current scope.
          */
-        bool PushNamedStructTemplate(std::string_view name, Handle<StructTemplate> type);
+        bool PushNamedStructTemplate(std::string_view name, Handle<StructTemplate> type, uint32_t offset = 0);
+
+        /**
+         * @brief Get a named function template by name from the current or upper scope.
+         * 
+         * @return Either the correct function template or an error if the name doesn't match any.
+         */
+        std::expected<Handle<CallableTemplate>, Error> GetNamedFunctionTemplate(std::string_view name) const;
+
+        /**
+         * @brief Add a named function template to the current scope.
+         * 
+         * @return true on success or false if a function template already exist with this name in the current scope.
+         */
+        bool PushNamedFunctionTemplate(std::string_view name, Handle<CallableTemplate> type, uint32_t offset = 0);
+
+        /**
+         * @brief Get a named type alias by name from the current or upper scope.
+         * 
+         * @return Either the correct type alias or an error if the name doesn't match any.
+         */
+        std::expected<std::shared_ptr<TypeInfo>, Error> GetNamedTypeAlias(std::string_view name) const;
+
+        /**
+         * @brief Add a named type alias to the current scope.
+         * 
+         * @return true on success or false if a type alias already exist with this name in the current scope.
+         */
+        bool PushNamedTypeAlias(std::string_view name, std::shared_ptr<TypeInfo> type, uint32_t offset = 0);
 
         /**
          * @brief Get BasicBlock for transfer control if any exist.
@@ -103,6 +134,9 @@ namespace VCL {
          * @return true if the scope stack size is one. false otherwise.
          */
         bool IsCurrentScopeGlobal() const;
+
+        uint32_t GetNamedStructTemplateOffset(std::string_view name) const;
+        uint32_t GetNamedFunctionTemplateOffset(std::string_view name) const;
 
     private:
         /**

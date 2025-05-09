@@ -16,7 +16,7 @@ namespace VCL {
     class Type {
     public:
         Type();
-        Type(TypeInfo typeInfo, llvm::Type* type, ModuleContext* context);
+        Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, ModuleContext* context);
         Type(const Type& type) = default;
         Type(Type&& type) noexcept = default;
         ~Type() = default;
@@ -27,7 +27,7 @@ namespace VCL {
         /**
          * @brief Get the underlying TypeInfo.
          */
-        TypeInfo GetTypeInfo() const;
+        std::shared_ptr<TypeInfo> GetTypeInfo() const;
 
         /**
          * @brief Get the underlying LLVM Type.
@@ -47,7 +47,7 @@ namespace VCL {
         /**
          * @brief Create a full Type from a TypeInfo structure and a context.
          */
-        static std::expected<Type, Error> Create(TypeInfo typeInfo, ModuleContext* context);
+        static std::expected<Type, Error> Create(std::shared_ptr<TypeInfo> typeInfo, ModuleContext* context);
 
         /**
          * @brief Create a full Type from a LLVM Type and context.
@@ -55,7 +55,7 @@ namespace VCL {
         static std::expected<Type, Error> CreateFromLLVMType(llvm::Type* type, ModuleContext* context);
 
     private:
-        TypeInfo typeInfo;
+        std::shared_ptr<TypeInfo> typeInfo;
         llvm::Type* type;
         ModuleContext* context;
     };

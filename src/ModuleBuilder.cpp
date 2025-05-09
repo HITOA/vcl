@@ -5,6 +5,7 @@
 #include "Intrinsic.hpp"
 #include "StructDefinition.hpp"
 #include "StructTemplate.hpp"
+#include "CallableTemplate.hpp"
 
 #include <VCL/Debug.hpp>
 
@@ -94,7 +95,7 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
 }
 
 void VCL::ModuleBuilder::VisitStructureDeclaration(ASTStructureDeclaration* node) {
-    std::vector<std::pair<std::string, TypeInfo>> elements(node->fields.size());
+    std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>> elements(node->fields.size());
     
     for (size_t i = 0; i < node->fields.size(); ++i) {
         std::string fieldName{ node->fields[i]->name };
@@ -109,7 +110,7 @@ void VCL::ModuleBuilder::VisitStructureDeclaration(ASTStructureDeclaration* node
 
 void VCL::ModuleBuilder::VisitTemplateDeclaration(ASTTemplateDeclaration* node) {
     std::string_view name = node->name;
-    std::vector<std::pair<std::string_view, TypeInfo>> structTemplate{};
+    std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> structTemplate{};
     std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters{};
 
     for (size_t i = 0; i < node->fields.size(); ++i)
@@ -120,6 +121,23 @@ void VCL::ModuleBuilder::VisitTemplateDeclaration(ASTTemplateDeclaration* node) 
     Handle<StructTemplate> st = ThrowOnError(StructTemplate::Create(name, structTemplate, templateParameters, context), node->location);
 
     if (!context->GetScopeManager().PushNamedStructTemplate(node->name, st))
+        throw Exception{ std::format("redefinition of `{}`", node->name), node->location };
+}
+
+void VCL::ModuleBuilder::VisitTemplateFunctionDeclaration(ASTTemplateFunctionDeclaration* node) {
+    std::string_view name = node->name;
+    std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> functionArguments{};
+    std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters{};
+
+    for (size_t i = 0; i < node->arguments.size(); ++i)
+        functionArguments.push_back(std::make_pair(node->arguments[i]->name, node->arguments[i]->type));
+    for (size_t i = 0; i < node->parameters.size(); ++i)
+        templateParameters.push_back(std::make_pair(node->parameters[i]->name, node->parameters[i]->type));
+
+    Handle<CallableTemplate> ft = ThrowOnError(CallableTemplate::Create(name, node->type,
+        functionArguments, templateParameters, std::move(node->body), context), node->location);
+    
+    if (!context->GetScopeManager().PushNamedFunctionTemplate(node->name, ft))
         throw Exception{ std::format("redefinition of `{}`", node->name), node->location };
 }
 
@@ -134,8 +152,8 @@ void VCL::ModuleBuilder::VisitReturnStatement(ASTReturnStatement* node) {
 
 void VCL::ModuleBuilder::VisitIfStatement(ASTIfStatement* node) {
     node->condition->Accept(this);
-    TypeInfo typeInfo{};
-    typeInfo.type = TypeInfo::TypeName::Bool;
+    std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+    typeInfo->type = TypeInfo::TypeName::Bool;
     Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
     Handle<Value> conditionValue = ThrowOnError(lastReturnedValue->Cast(type), node->condition->location);
     
@@ -182,8 +200,8 @@ void VCL::ModuleBuilder::VisitWhileStatement(ASTWhileStatement* node) {
 
     context->GetIRBuilder().SetInsertPoint(conditionBB);
     node->condition->Accept(this);
-    TypeInfo typeInfo{};
-    typeInfo.type = TypeInfo::TypeName::Bool;
+    std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+    typeInfo->type = TypeInfo::TypeName::Bool;
     Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
     Handle<Value> conditionValue = ThrowOnError(lastReturnedValue->Cast(type), node->condition->location);
     
@@ -219,8 +237,8 @@ void VCL::ModuleBuilder::VisitForStatement(ASTForStatement* node) {
     
     context->GetIRBuilder().SetInsertPoint(conditionBB);
     node->condition->Accept(this);
-    TypeInfo typeInfo{};
-    typeInfo.type = TypeInfo::TypeName::Bool;
+    std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+    typeInfo->type = TypeInfo::TypeName::Bool;
     Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
     Handle<Value> conditionValue = ThrowOnError(lastReturnedValue->Cast(type), node->condition->location);
     
@@ -272,7 +290,7 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Sub:
             result = ThrowOnError(DISPATCH_BINARY(
@@ -280,7 +298,7 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSub),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Mul:
             result = ThrowOnError(DISPATCH_BINARY(
@@ -288,7 +306,7 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFMul),
                 BINARY_DISPATCH_FUNCTION(Int, CreateMul),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateMul)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Div:
             result = ThrowOnError(DISPATCH_BINARY(
@@ -296,7 +314,7 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFDiv),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSDiv),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateSDiv)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         default:
             throw Exception{ std::format("Invalid binary arithmetic operator `{}`.", ToString(node->op)), node->location }; //Should never happen
@@ -327,13 +345,13 @@ void VCL::ModuleBuilder::VisitBinaryLogicalExpression(ASTBinaryLogicalExpression
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(Bool, CreateAnd),
                 BINARY_DISPATCH_FUNCTION(VectorBool, CreateAnd)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::LogicalOr:
             result = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(Bool, CreateOr),
                 BINARY_DISPATCH_FUNCTION(VectorBool, CreateOr)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         default:
             throw Exception{ std::format("Invalid binary logical operator `{}`.", ToString(node->op)), node->location }; //Should never happen
@@ -362,7 +380,7 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOGT),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpUGT),
                 BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpUGT)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Less:
             result = ThrowOnError(DISPATCH_BINARY(
@@ -372,7 +390,7 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOLT),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpULT),
                 BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpULT)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::GreaterEqual:
             result = ThrowOnError(DISPATCH_BINARY(
@@ -382,7 +400,7 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOGE),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpUGE),
                 BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpUGE)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::LessEqual:
             result = ThrowOnError(DISPATCH_BINARY(
@@ -392,7 +410,7 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOLE),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpULE),
                 BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpULE)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Equal:
             result = ThrowOnError(DISPATCH_BINARY(
@@ -402,7 +420,7 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOEQ),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpEQ),
                 BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpEQ)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::NotEqual:
             result = ThrowOnError(DISPATCH_BINARY(
@@ -412,7 +430,7 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpONE),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpNE),
                 BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpNE)
-            )(lhs->GetType().GetTypeInfo().type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         default:
             throw Exception{ std::format("Invalid binary comparison operator `{}`.", ToString(node->op)), node->location }; //Should never happen
@@ -433,7 +451,7 @@ void VCL::ModuleBuilder::VisitAssignmentExpression(ASTAssignmentExpression* node
     
     rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
 
-    if (lhs->GetType().GetTypeInfo().IsConst())
+    if (lhs->GetType().GetTypeInfo()->IsConst())
         throw Exception{ "You cannot assign to a variable that is const.", node->location };
     
     lhs->Store(rhs);
@@ -467,7 +485,7 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 UNARY_DISPATCH_FUNCTION(VectorFloat, CreateFNeg),
                 UNARY_DISPATCH_FUNCTION(Int, CreateNeg),
                 UNARY_DISPATCH_FUNCTION(VectorInt, CreateNeg)
-            )(expression->GetType().GetTypeInfo().type, expression->GetLLVMValue()), node->location);
+            )(expression->GetType().GetTypeInfo()->type, expression->GetLLVMValue()), node->location);
         break;
     case Operator::ID::PreIncrement:
         if (node->expression->IsLValue())
@@ -480,7 +498,7 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
-            )(loadedExpression->GetType().GetTypeInfo().type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
+            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
             context), node->location);
             expression->Store(incrementedValue);
             result = incrementedValue->GetLLVMValue();
@@ -497,7 +515,7 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSub),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
-            )(loadedExpression->GetType().GetTypeInfo().type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
+            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
             context), node->location);
             expression->Store(decrementedValue);
             result = decrementedValue->GetLLVMValue();
@@ -527,7 +545,7 @@ void VCL::ModuleBuilder::VisitPrefixLogicalExpression(ASTPrefixLogicalExpression
     case Operator::ID::Not:
         result = ThrowOnError(DISPATCH_UNARY(
             UNARY_DISPATCH_FUNCTION(Bool, CreateNot)
-        )(expression->GetType().GetTypeInfo().type, expression->GetLLVMValue()), node->location);
+        )(expression->GetType().GetTypeInfo()->type, expression->GetLLVMValue()), node->location);
         break;
     default:
         throw Exception{ std::format("Invalid unary operator `{}`.", ToString(node->op)), node->location }; //Should never happen
@@ -564,7 +582,7 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
-            )(loadedExpression->GetType().GetTypeInfo().type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
+            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
             context), node->location);
             expression->Store(incrementedValue);
             result = loadedExpression->GetLLVMValue();
@@ -581,7 +599,7 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSub),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
-            )(loadedExpression->GetType().GetTypeInfo().type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
+            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
             context), node->location);
             expression->Store(decrementedValue);
             result = loadedExpression->GetLLVMValue();
@@ -598,7 +616,7 @@ void VCL::ModuleBuilder::VisitFieldAccessExpression(ASTFieldAccessExpression* no
     node->expression->Accept(this);
     Handle<Value> expression = lastReturnedValue;
 
-    if (expression->GetType().GetTypeInfo().type != TypeInfo::TypeName::Custom)
+    if (expression->GetType().GetTypeInfo()->type != TypeInfo::TypeName::Custom)
         throw Exception{ std::format("Cannot access field `{}` on a non-struct type ‘{}’.", 
             node->fieldName, ToString(expression->GetType().GetTypeInfo())), node->location }; 
     
@@ -660,9 +678,31 @@ void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) 
 }
 
 void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
-    Handle<Value> value = ThrowOnError(context->GetScopeManager().GetNamedValue(node->name), node->location);
+    Handle<Value> value;
 
-    if (!value->GetType().GetTypeInfo().IsCallable())
+    std::vector<Handle<Value>> argsv( (size_t)node->arguments.size() );
+    std::vector<std::shared_ptr<TypeInfo>> argst( (size_t)node->arguments.size() );
+    
+    for (uint32_t i = 0; i < node->arguments.size(); ++i) {
+        node->arguments[i]->Accept(this);
+        Handle<Value> argValue = ThrowOnError(lastReturnedValue->Load(), node->location);
+        argsv[i] = argValue;
+        argst[i] = argValue->GetType().GetTypeInfo();
+    }
+
+    if (auto r = context->GetScopeManager().GetNamedFunctionTemplate(node->name); r.has_value()) {
+        Handle<CallableTemplate> callableTemplate = *r;
+        std::string name = ThrowOnError(callableTemplate->Mangle(node->templateArguments, argst), node->location);
+
+        if (auto s = context->GetScopeManager().GetNamedValue(name); s.has_value())
+            value = *s;
+        else
+            value = ThrowOnError(callableTemplate->Resolve(node->templateArguments, argst), node->location);
+    } else {
+        value = ThrowOnError(context->GetScopeManager().GetNamedValue(node->name), node->location);
+    }
+
+    if (!value->GetType().GetTypeInfo()->IsCallable())
         throw Exception{ std::format("`{}` isn't callable", node->name), node->location };
     
     Handle<Callable> callee = HandleCast<Callable, Value>(value);
@@ -678,18 +718,12 @@ void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
         throw Exception{ std::format("`{}` wrong number of arguments given.", node->name), node->location };
     }
 
-    std::vector<Handle<Value>> argsv( (size_t)node->arguments.size() );
-    
-    for (uint32_t i = 0; i < node->arguments.size(); ++i) {
-        node->arguments[i]->Accept(this);
-        Handle<Value> argValue = ThrowOnError(lastReturnedValue->Load(), node->location);
-
-        if (!callee->CheckArgType(i, argValue->GetType()))
+    for (uint32_t i = 0; i < argsv.size(); ++i) {
+        if (!callee->CheckArgType(i, argsv[i]->GetType()))
             if (callee->GetCallableType() == CallableType::Function)
-                argValue = ThrowOnError(argValue->Cast(HandleCast<Function>(callee)->GetArgType(i)), node->location);
+                argsv[i] = ThrowOnError(argsv[i]->Cast(HandleCast<Function>(callee)->GetArgType(i)), node->location);
             else
                 throw Exception{ std::format("Argument number {} is of wrong type", i), node->location };
-        argsv[i] = argValue;
     }
 
     lastReturnedValue = ThrowOnError(callee->Call(argsv), node->location);

@@ -29,8 +29,10 @@ void VCL::Module::Emit() {
     std::stringstream sstream{};
     llvm::raw_os_ostream llvmStream{ sstream };
     bool brokenDebugInfo;
-    if (llvm::verifyModule(*context->GetTSModule().getModuleUnlocked(), &llvmStream, &brokenDebugInfo))
+    if (llvm::verifyModule(*context->GetTSModule().getModuleUnlocked(), &llvmStream, &brokenDebugInfo)) {
+        llvmStream.flush();
         throw std::runtime_error{ sstream.str() };
+    }
     if (brokenDebugInfo && context->GetLogger())
         context->GetLogger()->Warning("{}", sstream.str());
 }

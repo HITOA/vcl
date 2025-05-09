@@ -50,6 +50,9 @@ namespace VCL {
         
         bool ConsumeIf(TokenType type);
 
+        uint32_t GetCursor() const;
+        void SetCursor(uint32_t cursor);
+
     private:
         bool TokenizePunctuator(std::string_view source, TokenType& type, uint32_t& size);
         bool TokenizeIdentifier(std::string_view source, TokenType& type, uint32_t& size);

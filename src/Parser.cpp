@@ -97,8 +97,11 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, boo
     std::unique_ptr<ASTStatement> statement = nullptr;
 
     if (IsTypeInfoToken(lexer)) { //Declaration
-        TypeInfo typeInfo = ParseTypeInfo(lexer);
-        if (lexer.Peek(1).type == TokenType::LPar) { 
+        std::shared_ptr<TypeInfo> typeInfo = ParseTypeInfo(lexer);
+        if (lexer.Peek(1).type == TokenType::Less) {
+            statement = ParseTemplateFunctionDeclaration(lexer, typeInfo);
+            expectedTerminatorTokenType = TokenType::Undefined;
+        } else if (lexer.Peek(1).type == TokenType::LPar) { 
             std::unique_ptr<ASTFunctionPrototype> prototype = ParseFunctionPrototype(lexer, typeInfo);
             if (lexer.Peek().type == TokenType::LBracket) {
                 statement = ParseFunctionDeclaration(lexer, std::move(prototype));
@@ -160,7 +163,7 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseCompoundStatement(Lexer& le
 
 std::unique_ptr<VCL::ASTFunctionArgument> VCL::Parser::ParseFunctionArgument(Lexer& lexer) {
     Token currentToken = lexer.Peek();
-    TypeInfo typeInfo = ParseTypeInfo(lexer);
+    std::shared_ptr<TypeInfo> typeInfo = ParseTypeInfo(lexer);
     Token argumentIdentifierToken = lexer.Consume();
     if (argumentIdentifierToken.type != TokenType::Identifier)
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", argumentIdentifierToken.name), argumentIdentifierToken.location};
@@ -168,7 +171,7 @@ std::unique_ptr<VCL::ASTFunctionArgument> VCL::Parser::ParseFunctionArgument(Lex
         std::make_unique<ASTFunctionArgument>(typeInfo, argumentIdentifierToken.name), argumentIdentifierToken);
 }
 
-std::unique_ptr<VCL::ASTFunctionPrototype> VCL::Parser::ParseFunctionPrototype(Lexer& lexer, TypeInfo& typeInfo) {
+std::unique_ptr<VCL::ASTFunctionPrototype> VCL::Parser::ParseFunctionPrototype(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo) {
     Token functionIdentifierToken = lexer.Consume();
     lexer.Consume(); //LPAR
 
@@ -201,7 +204,7 @@ std::unique_ptr<VCL::ASTStructureFieldDeclaration> VCL::Parser::ParseStructureFi
     if (!IsTypeInfoToken(lexer) && lexer.Peek().type != TokenType::Identifier)
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting type.", lexer.Peek().name), lexer.Peek().location};
 
-    TypeInfo typeInfo = ParseTypeInfo(lexer);
+    std::shared_ptr<TypeInfo> typeInfo = ParseTypeInfo(lexer);
     Token fieldIdentifierToken = lexer.Consume();
 
     if (fieldIdentifierToken.type != TokenType::Identifier)
@@ -270,6 +273,46 @@ std::unique_ptr<VCL::ASTStructureDeclaration> VCL::Parser::ParseStructureDeclara
             structIdentifierToken.name, std::move(parameters), std::move(fields)), structToken);
     else
         return FillASTStatementDebugInformation(std::make_unique<ASTStructureDeclaration>(structIdentifierToken.name, std::move(fields)), structToken);
+}
+
+std::unique_ptr<VCL::ASTTemplateFunctionDeclaration> VCL::Parser::ParseTemplateFunctionDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo) {
+    Token functionIdentifierToken = lexer.Consume();
+    lexer.Consume(); //Less
+
+    std::vector<std::unique_ptr<ASTTemplateParameterDeclaration>> parameters{};
+
+    do {
+        parameters.push_back(std::move(ParseTemplateParameterDeclaration(lexer)));
+    } while(lexer.ConsumeIf(TokenType::Coma));
+
+    if (Token token = lexer.Consume(); token.type != TokenType::Greater)
+        throw Exception{ std::format("Unexpected token \'{}\'.", token.name), token.location };
+
+    std::vector<std::unique_ptr<ASTFunctionArgument>> arguments{};
+
+    if (Token token = lexer.Consume(); token.type != TokenType::LPar)
+        throw Exception{ std::format("Unexpected token \'{}\'.", token.name), token.location };
+
+    if (lexer.Peek().type != TokenType::RPar) {
+        do {
+            std::unique_ptr<ASTFunctionArgument> argument = ParseFunctionArgument(lexer);
+            if (argument == nullptr)
+                return nullptr;
+            arguments.emplace_back(std::move(argument));
+        } while(lexer.ConsumeIf(TokenType::Coma));
+    }
+
+    if (Token token = lexer.Consume(); token.type != TokenType::RPar)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting closing parenthesis", token.name), token.location };
+    
+    if (Token token = lexer.Peek(); token.type != TokenType::LBracket)
+        throw Exception{ std::format("Unexpected token \'{}\'.", token.name), token.location };
+
+    std::unique_ptr<ASTStatement> body = ParseCompoundStatement(lexer);
+
+    return FillASTStatementDebugInformation(std::make_unique<ASTTemplateFunctionDeclaration>(
+        typeInfo, functionIdentifierToken.name, std::move(parameters), std::move(arguments), std::move(body)
+    ), functionIdentifierToken);
 }
 
 std::unique_ptr<VCL::ASTReturnStatement> VCL::Parser::ParseReturnStatement(Lexer& lexer) {
@@ -545,10 +588,14 @@ std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePrimaryExpression(Lexer& l
     std::unique_ptr<ASTExpression> expression = nullptr;
 
     if (IsTypeInfoToken(lexer)) {
-        TypeInfo typeInfo = ParseTypeInfo(lexer);
+        std::shared_ptr<TypeInfo> typeInfo = ParseTypeInfo(lexer);
         expression = ParseVariableDeclaration(lexer, typeInfo);
     } else if (currentToken.type == TokenType::Identifier) {
-        if (Token nextToken = lexer.Peek(1); nextToken.type == TokenType::LPar) {
+        if (Token nextToken = lexer.Peek(1); nextToken.type == TokenType::Less) {
+            expression = TryParseTemplatedFunctionCall(lexer);
+            if (!expression)
+                expression = ParseVariableExpression(lexer);
+        } else if (nextToken.type == TokenType::LPar) {
             expression = ParseFunctionCall(lexer);
         } else {
             expression = ParseVariableExpression(lexer);
@@ -598,7 +645,7 @@ std::unique_ptr<VCL::ASTVariableExpression> VCL::Parser::ParseVariableExpression
     return FillASTStatementDebugInformation(std::make_unique<ASTVariableExpression>(variableIdentifierToken.name), variableIdentifierToken);
 }
 
-std::unique_ptr<VCL::ASTVariableDeclaration> VCL::Parser::ParseVariableDeclaration(Lexer& lexer, TypeInfo& typeInfo) {
+std::unique_ptr<VCL::ASTVariableDeclaration> VCL::Parser::ParseVariableDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo) {
     Token variableIdentifierToken = lexer.Consume();
     if (variableIdentifierToken.type != TokenType::Identifier)
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", variableIdentifierToken.name), variableIdentifierToken.location };
@@ -634,55 +681,100 @@ std::unique_ptr<VCL::ASTFunctionCall> VCL::Parser::ParseFunctionCall(Lexer& lexe
     return FillASTStatementDebugInformation(std::make_unique<ASTFunctionCall>(functionIdentifierToken.name, std::move(arguments)), functionIdentifierToken);
 }
 
-VCL::TypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
-    TypeInfo typeInfo{};
+std::unique_ptr<VCL::ASTFunctionCall> VCL::Parser::TryParseTemplatedFunctionCall(Lexer& lexer) {
+    uint32_t cursor = lexer.GetCursor();
+
+    Token functionIdentifierToken = lexer.Consume();
+    lexer.Consume(); //Less
+
+    std::vector<std::shared_ptr<TemplateArgument>> templateArguments{};
+
+    try {
+        if (Token token = lexer.Peek(); token.type == TokenType::Greater) {
+            lexer.Consume();
+        } else {
+            do {
+                templateArguments.push_back(ParseTemplateArgument(lexer));
+            } while (lexer.ConsumeIf(TokenType::Coma));
+
+            if (Token token = lexer.Consume(); token.type != TokenType::Greater)
+                throw Exception{ std::format("Unexpected token \'{}\'.", token.name), token.location };
+        }
+    } catch (std::exception& e) {
+        lexer.SetCursor(cursor);
+        return nullptr;
+    }
+    
+    if (Token token = lexer.Consume(); token.type != TokenType::LPar)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting function call operator.", token.name), token.location };
+
+    std::vector<std::unique_ptr<ASTExpression>> arguments{};
+
+    if (lexer.Peek().type != TokenType::RPar) {
+        do {
+            std::unique_ptr<ASTExpression> expression = ParseExpression(lexer);
+            if (expression == nullptr)
+                return nullptr;
+            arguments.emplace_back(std::move(expression));
+        } while (lexer.ConsumeIf(TokenType::Coma));
+    }
+
+    if (Token token = lexer.Consume(); token.type != TokenType::RPar)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting closing parenthesis", token.name), token.location };
+
+    return FillASTStatementDebugInformation(std::make_unique<ASTFunctionCall>(
+        functionIdentifierToken.name, std::move(arguments), std::move(templateArguments)), functionIdentifierToken);
+}
+
+std::shared_ptr<VCL::TypeInfo> VCL::Parser::ParseTypeInfo(Lexer& lexer) {
+    std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
     bool complete = false;
-    Token lastTypeInfoToken;
+    Token lastTypeInfoToken{ TokenType::Undefined };
     while (!complete) {
         Token currentTypeInfoToken = lexer.Consume();
         switch (currentTypeInfoToken.type) {
             //Qualifier(s)
             case TokenType::In:
-                typeInfo.qualifiers |= TypeInfo::QualifierFlag::In;
+                typeInfo->qualifiers |= TypeInfo::QualifierFlag::In;
                 break;
             case TokenType::Out:
-                typeInfo.qualifiers |= TypeInfo::QualifierFlag::Out;
+                typeInfo->qualifiers |= TypeInfo::QualifierFlag::Out;
                 break;
             case TokenType::Const:
-                typeInfo.qualifiers |= TypeInfo::QualifierFlag::Const;
+                typeInfo->qualifiers |= TypeInfo::QualifierFlag::Const;
                 break;
             //TypeName
             case TokenType::Float:
-                typeInfo.type = TypeInfo::TypeName::Float;
+                typeInfo->type = TypeInfo::TypeName::Float;
                 complete = true;
                 break;
             case TokenType::Bool:
-                typeInfo.type = TypeInfo::TypeName::Bool;
+                typeInfo->type = TypeInfo::TypeName::Bool;
                 complete = true;
                 break;
             case TokenType::Int:
-                typeInfo.type = TypeInfo::TypeName::Int;
+                typeInfo->type = TypeInfo::TypeName::Int;
                 complete = true;
                 break;
             case TokenType::Void:
-                typeInfo.type = TypeInfo::TypeName::Void;
+                typeInfo->type = TypeInfo::TypeName::Void;
                 complete = true;
                 break;
             case TokenType::VectorFloat:
-                typeInfo.type = TypeInfo::TypeName::VectorFloat;
+                typeInfo->type = TypeInfo::TypeName::VectorFloat;
                 complete = true;
                 break;
             case TokenType::VectorBool:
-                typeInfo.type = TypeInfo::TypeName::VectorBool;
+                typeInfo->type = TypeInfo::TypeName::VectorBool;
                 complete = true;
                 break;
             case TokenType::VectorInt:
-                typeInfo.type = TypeInfo::TypeName::VectorInt;
+                typeInfo->type = TypeInfo::TypeName::VectorInt;
                 complete = true;
                 break;
             case TokenType::Identifier:
-                typeInfo.type = TypeInfo::TypeName::Custom;
-                typeInfo.name = currentTypeInfoToken.name;
+                typeInfo->type = TypeInfo::TypeName::Custom;
+                typeInfo->name = currentTypeInfoToken.name;
                 complete = true;
                 break;
             default:
@@ -699,53 +791,7 @@ VCL::TypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
     //Template
     if (lexer.ConsumeIf(TokenType::Less)) {
         do {
-            TemplateArgument argument{};
-            Token currentToken = lexer.Consume();
-            std::string currentTokenStr{ currentToken.name };
-            switch (currentToken.type) {
-                //TypeName
-                case TokenType::LiteralInt:
-                    argument.type = TemplateArgument::TemplateValueType::Int;
-                    argument.value.intValue = std::stoi(currentTokenStr);
-                    break;
-                case TokenType::Float:
-                    argument.type = TemplateArgument::TemplateValueType::Typename;
-                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Float;
-                    break;
-                case TokenType::Bool:
-                    argument.type = TemplateArgument::TemplateValueType::Typename;
-                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Bool;
-                    break;
-                case TokenType::Int:
-                    argument.type = TemplateArgument::TemplateValueType::Typename;
-                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Int;
-                    break;
-                case TokenType::Void:
-                    argument.type = TemplateArgument::TemplateValueType::Typename;
-                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Void;
-                    break;
-                case TokenType::VectorFloat:
-                    argument.type = TemplateArgument::TemplateValueType::Typename;
-                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::VectorFloat;
-                    break;
-                case TokenType::VectorBool:
-                    argument.type = TemplateArgument::TemplateValueType::Typename;
-                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::VectorBool;
-                    break;
-                case TokenType::VectorInt:
-                    argument.type = TemplateArgument::TemplateValueType::Typename;
-                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::VectorInt;
-                    break;
-                case TokenType::Identifier:
-                    argument.type = TemplateArgument::TemplateValueType::Typename;
-                    argument.value.typeValue = TemplateArgument::ValueUnion::TypeName::Custom;
-                    argument.name = currentToken.name;
-                    break;
-                default:
-                    throw Exception{ std::format("Unexpected token \'{}\'. Expecting typename or literal.",
-                        currentToken.name), currentToken.location };
-            }
-            typeInfo.arguments[typeInfo.templateArgsCount++] = argument;
+            typeInfo->arguments.push_back(ParseTemplateArgument(lexer));
         } while (lexer.ConsumeIf(TokenType::Coma));
 
         if (Token token = lexer.Consume(); token.type != TokenType::Greater)
@@ -753,6 +799,25 @@ VCL::TypeInfo VCL::Parser::ParseTypeInfo(Lexer& lexer) {
     }
 
     return typeInfo;
+}
+
+std::shared_ptr<VCL::TemplateArgument> VCL::Parser::ParseTemplateArgument(Lexer& lexer) {
+    std::shared_ptr<TemplateArgument> argument = std::make_shared<TemplateArgument>();
+    Token currentToken = lexer.Peek();
+    std::string currentTokenStr{ currentToken.name };
+    switch (currentToken.type) {
+        //TypeName
+        case TokenType::LiteralInt:
+            argument->type = TemplateArgument::TemplateValueType::Int;
+            argument->intValue = std::stoi(currentTokenStr);
+            lexer.Consume();
+            break;
+        default:
+            argument->type = TemplateArgument::TemplateValueType::Typename;
+            argument->typeInfo = ParseTypeInfo(lexer);
+            break;
+    }
+    return argument;
 }
 
 std::unique_ptr<VCL::Parser> VCL::Parser::Create(std::shared_ptr<Logger> logger) {
