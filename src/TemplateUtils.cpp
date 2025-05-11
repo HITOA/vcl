@@ -38,8 +38,16 @@ std::optional<VCL::Error> VCL::TemplateArgumentMapper::InferOne(std::unordered_m
     for (size_t i = 0; i < templatedArgument->arguments.size(); ++i) {
         if (templatedArgument->arguments[i]->type != TemplateArgument::TemplateValueType::Typename)
             continue;
-        if (resolvedArguments->arguments[i]->type != TemplateArgument::TemplateValueType::Typename)
+        if (resolvedArguments->arguments[i]->type == TemplateArgument::TemplateValueType::Int) {
+            templatedTypeInfoName = std::string{ templatedArgument->arguments[i]->typeInfo->name };
+            if (templateParameters.count(templatedTypeInfoName) && !map.count(templatedTypeInfoName)) {
+                std::shared_ptr<TemplateArgument> templateArgument = std::make_shared<TemplateArgument>();
+                templateArgument->type = TemplateArgument::TemplateValueType::Int;
+                templateArgument->intValue = resolvedArguments->arguments[i]->intValue;
+                map[templatedTypeInfoName] = templateArgument;
+            }
             continue;
+        }
         if (auto err = InferOne(templateParameters, templatedArgument->arguments[i]->typeInfo, resolvedArguments->arguments[i]->typeInfo))
             return err;
     }

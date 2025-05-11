@@ -55,7 +55,7 @@ std::expected<VCL::Handle<VCL::Callable>, VCL::Error> VCL::CallableTemplate::Res
 
     if (auto err = mapper.Infer(templateParameters, templatedArguments, resolvedArguments))
         return std::unexpected{ err.value() };
-
+    
     if (auto err = mapper.CheckParameters(templateParameters))
         return std::unexpected{ err.value() };
 
