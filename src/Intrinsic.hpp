@@ -14,7 +14,8 @@ namespace VCL {
             Numeric = FLAG(1),
             Vector = FLAG(2),
             Condition = FLAG(3),
-            Mask = FLAG(4)
+            Mask = FLAG(4),
+            Buffer = FLAG(5)
         } policy = Policy::None;
 
         bool operator()(Type type);

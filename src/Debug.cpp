@@ -67,6 +67,8 @@ std::string VCL::ToString(std::shared_ptr<TypeInfo> type) {
         case TypeInfo::TypeName::VectorFloat: return "vfloat";
         case TypeInfo::TypeName::VectorBool: return "vbool";
         case TypeInfo::TypeName::VectorInt: return "vint";
+        case TypeInfo::TypeName::Array: return "array";
+        case TypeInfo::TypeName::Span: return "span";
         default: return "unknown type";
     }
 }

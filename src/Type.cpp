@@ -1,5 +1,7 @@
 #include "Type.hpp"
 
+#include <VCL/Debug.hpp>
+
 #include "ModuleContext.hpp"
 #include "Utility.hpp"
 #include "NativeTarget.hpp"
@@ -67,6 +69,45 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
     case TypeInfo::TypeName::VectorInt:
         type = llvm::FixedVectorType::get(llvm::Type::getInt32Ty(*context->GetTSContext().getContext()), 
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
+        break;
+    case TypeInfo::TypeName::Array:
+        {
+            if (typeInfo->arguments.size() != 2)
+                return std::unexpected{ std::format("Buffer type `{}` expect 2 template arguments but got {} instead.", 
+                    ToString(typeInfo), typeInfo->arguments.size()) };
+            if (typeInfo->arguments[0]->type != TemplateArgument::TemplateValueType::Typename)
+                return std::unexpected{ std::format("Buffer type `{}` first template argument expect a typename but got `{}`.", 
+                    ToString(typeInfo), ToString(typeInfo->arguments[0])) };
+            if (typeInfo->arguments[1]->type != TemplateArgument::TemplateValueType::Int)
+                return std::unexpected{ std::format("Buffer type `{}` second template argument expect a int size but got `{}`.", 
+                    ToString(typeInfo), ToString(typeInfo->arguments[1])) };
+            if (auto t = Type::Create(typeInfo->arguments[0]->typeInfo, context); t.has_value()) {
+                Type elementType = *t;
+                type = llvm::ArrayType::get(elementType.GetLLVMType(), typeInfo->arguments[1]->intValue);
+            } else {
+                return std::unexpected{ t.error() };
+            }
+        }
+        break;
+    case TypeInfo::TypeName::Span:
+        {
+            if (!typeInfo->IsExtern())
+                return std::unexpected{ std::format("Buffer type `{}` must be extern.", ToString(typeInfo)) };
+            if (typeInfo->arguments.size() != 1)
+                return std::unexpected{ std::format("Buffer type `{}` expect 1 template arguments but got {} instead.", 
+                    ToString(typeInfo), typeInfo->arguments.size()) };
+            if (typeInfo->arguments[0]->type != TemplateArgument::TemplateValueType::Typename)
+                return std::unexpected{ std::format("Buffer type `{}` template argument expect a typename but got `{}`.", 
+                    ToString(typeInfo), ToString(typeInfo->arguments[0])) };
+            if (auto t = Type::Create(typeInfo->arguments[0]->typeInfo, context); t.has_value()) {
+                Type elementType = *t;
+                llvm::StructType* structType = llvm::StructType::create(
+                    { llvm::PointerType::get(elementType.GetLLVMType(), 0), llvm::Type::getInt32Ty(*context->GetTSContext().getContext()) });
+                type = structType;
+            } else {
+                return std::unexpected{ t.error() };
+            }
+        }
         break;
     case TypeInfo::TypeName::Custom:
         {

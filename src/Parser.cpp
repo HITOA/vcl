@@ -30,6 +30,8 @@ bool IsTypeInfoToken(VCL::Lexer& lexer) {
     case VCL::TokenType::VectorFloat:
     case VCL::TokenType::VectorBool:
     case VCL::TokenType::VectorInt:
+    case VCL::TokenType::Array:
+    case VCL::TokenType::Span:
         return true;
     case VCL::TokenType::Identifier:
         if (lexer.Peek(1).type == VCL::TokenType::Identifier)
@@ -410,8 +412,6 @@ std::unique_ptr<VCL::ASTBreakStatement> VCL::Parser::ParseBreakStatement(Lexer& 
 
 std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParseExpression(Lexer& lexer) {
     std::unique_ptr<ASTExpression> primary = ParsePrefixExpression(lexer);
-    if (!primary)
-        return nullptr;
     return ParseBinaryExpression(lexer, std::move(primary), 0);
 }
 
@@ -422,6 +422,8 @@ VCL::Operator GetBinaryOperator(VCL::TokenType type) {
         return VCL::Operator{  VCL::Operator::ID::Mul, VCL::Operator::Kind::Arithmetic, VCL::Operator::Associativity::Left, 12 };
     case VCL::TokenType::Slash:
         return VCL::Operator{  VCL::Operator::ID::Div, VCL::Operator::Kind::Arithmetic, VCL::Operator::Associativity::Left, 12 };
+    case VCL::TokenType::Remainder:
+        return VCL::Operator{  VCL::Operator::ID::Remainder, VCL::Operator::Kind::Arithmetic, VCL::Operator::Associativity::Left, 12 };
     case VCL::TokenType::Plus:
         return VCL::Operator{  VCL::Operator::ID::Add, VCL::Operator::Kind::Arithmetic, VCL::Operator::Associativity::Left, 11 };
     case VCL::TokenType::Minus:
@@ -477,6 +479,8 @@ VCL::Operator GetPostfixOperator(VCL::TokenType type) {
         return VCL::Operator{  VCL::Operator::ID::PostDecrement, VCL::Operator::Kind::Arithmetic, VCL::Operator::Associativity::Left, 14 };
     case VCL::TokenType::Dot:
         return VCL::Operator{  VCL::Operator::ID::FieldAccess, VCL::Operator::Kind::FieldAccess, VCL::Operator::Associativity::Left, 14 };
+    case VCL::TokenType::LSquareBracket:
+        return VCL::Operator{  VCL::Operator::ID::Subscript, VCL::Operator::Kind::Subscript, VCL::Operator::Associativity::Left, 14 };
     default:
         return VCL::Operator{};
     }
@@ -562,6 +566,15 @@ std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePostfixExpression(Lexer& l
                     expression = std::make_unique<ASTFieldAccessExpression>(std::move(expression), fieldNameToken.name);
                 }
                 break;
+            case Operator::Kind::Subscript:
+                {
+                    std::unique_ptr<ASTExpression> index = ParseExpression(lexer);
+                    if (Token token = lexer.Consume(); token.type != TokenType::RSquareBracket)
+                        throw Exception{ std::format("Unexpected token \'{}\'. Expecting right square bracket.", 
+                            token.name), token.location };
+                    expression = std::make_unique<ASTSubscriptExpression>(std::move(expression), std::move(index));
+                }
+                break;
             default:
                 throw std::runtime_error{ "Error parsing prefix expression." };
         }
@@ -607,7 +620,8 @@ std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePrimaryExpression(Lexer& l
     }
 
     if (expression == nullptr)
-        return nullptr;
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting primary expression", currentToken.name), 
+            currentToken.location };
     
     return expression;
 }
@@ -615,8 +629,6 @@ std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePrimaryExpression(Lexer& l
 std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParseParentExpression(Lexer& lexer) {
     lexer.Consume(); //LPAR
     std::unique_ptr<ASTExpression> expression = ParseExpression(lexer);
-    if (expression == nullptr)
-        return nullptr;
     Token closingParenthesisToken = lexer.Consume();
     if (closingParenthesisToken.type != TokenType::RPar) 
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting closing parenthesis.", closingParenthesisToken.name), 
@@ -669,8 +681,6 @@ std::unique_ptr<VCL::ASTFunctionCall> VCL::Parser::ParseFunctionCall(Lexer& lexe
     if (lexer.Peek().type != TokenType::RPar) {
         do {
             std::unique_ptr<ASTExpression> expression = ParseExpression(lexer);
-            if (expression == nullptr)
-                return nullptr;
             arguments.emplace_back(std::move(expression));
         } while (lexer.ConsumeIf(TokenType::Coma));
     }
@@ -770,6 +780,14 @@ std::shared_ptr<VCL::TypeInfo> VCL::Parser::ParseTypeInfo(Lexer& lexer) {
                 break;
             case TokenType::VectorInt:
                 typeInfo->type = TypeInfo::TypeName::VectorInt;
+                complete = true;
+                break;
+            case TokenType::Array:
+                typeInfo->type = TypeInfo::TypeName::Array;
+                complete = true;
+                break;
+            case TokenType::Span:
+                typeInfo->type = TypeInfo::TypeName::Span;
                 complete = true;
                 break;
             case TokenType::Identifier:

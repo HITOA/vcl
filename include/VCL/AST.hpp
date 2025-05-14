@@ -32,6 +32,7 @@ namespace VCL {
     class ASTPrefixLogicalExpression;
     class ASTPostfixArithmeticExpression;
     class ASTFieldAccessExpression;
+    class ASTSubscriptExpression;
     class ASTLiteralExpression;
     class ASTVariableExpression;
     class ASTVariableDeclaration;
@@ -67,6 +68,7 @@ namespace VCL {
         virtual void VisitPrefixLogicalExpression(ASTPrefixLogicalExpression* node) {};
         virtual void VisitPostfixArithmeticExpression(ASTPostfixArithmeticExpression* node) {};
         virtual void VisitFieldAccessExpression(ASTFieldAccessExpression* node) {};
+        virtual void VisitSubscriptExpression(ASTSubscriptExpression* node) {};
         virtual void VisitLiteralExpression(ASTLiteralExpression* node) {};
         virtual void VisitVariableExpression(ASTVariableExpression* node) {};
         virtual void VisitVariableDeclaration(ASTVariableDeclaration* node) {};
@@ -409,9 +411,22 @@ namespace VCL {
             expression{ std::move(expression) }, fieldName{ fieldName } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitFieldAccessExpression(this); }
+        bool IsLValue() const override { return true; }
     public:
         std::unique_ptr<ASTExpression> expression;
         std::string_view fieldName;
+    };
+
+    class ASTSubscriptExpression : public ASTExpression {
+    public:
+        ASTSubscriptExpression(std::unique_ptr<ASTExpression> expression, std::unique_ptr<ASTExpression> index) :
+            expression{ std::move(expression) }, index{ std::move(index) } {};
+
+        void Accept(ASTVisitor* visitor) override { visitor->VisitSubscriptExpression(this); }
+        bool IsLValue() const override { return true; }
+    public:
+        std::unique_ptr<ASTExpression> expression;
+        std::unique_ptr<ASTExpression> index;
     };
 
     /**
@@ -420,6 +435,7 @@ namespace VCL {
     class ASTLiteralExpression : public ASTExpression {
     public:
         ASTLiteralExpression(float value) : type{ TypeInfo::TypeName::Float }, fValue{ value } {};
+        ASTLiteralExpression(int value) : type{ TypeInfo::TypeName::Int }, iValue{ value } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitLiteralExpression(this); }
     public:

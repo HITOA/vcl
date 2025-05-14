@@ -316,6 +316,12 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateSDiv)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
+        case Operator::ID::Remainder:
+            result = ThrowOnError(DISPATCH_BINARY(
+                BINARY_DISPATCH_FUNCTION(Int, CreateSRem),
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSRem)
+            )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
+            break;
         default:
             throw Exception{ std::format("Invalid binary arithmetic operator `{}`.", ToString(node->op)), node->location }; //Should never happen
     }
@@ -488,7 +494,7 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
             )(expression->GetType().GetTypeInfo()->type, expression->GetLLVMValue()), node->location);
         break;
     case Operator::ID::PreIncrement:
-        if (node->expression->IsLValue())
+        if (!node->expression->IsLValue())
             throw Exception{ std::format("Increment/decrement operator `{}` requires a numeric l-value.",
                 ToString(node->op)), node->location };
         {
@@ -632,6 +638,39 @@ void VCL::ModuleBuilder::VisitFieldAccessExpression(ASTFieldAccessExpression* no
         lastReturnedValue = ThrowOnError(Value::Create(r, fieldType, context), node->location);
     } else {
         throw std::runtime_error{ "Compiler internal error." };
+    }
+}
+
+void VCL::ModuleBuilder::VisitSubscriptExpression(ASTSubscriptExpression* node) {
+    node->expression->Accept(this);
+    Handle<Value> expression = lastReturnedValue;
+    node->index->Accept(this);
+    Handle<Value> index = ThrowOnError(lastReturnedValue->Load(), node->index->location);
+
+    {
+        std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+        typeInfo->type = TypeInfo::TypeName::Int;
+        Type type = ThrowOnError(Type::Create(typeInfo, context), node->location);
+        index = ThrowOnError(index->Cast(type), node->location);
+    }
+
+    llvm::Value* zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context->GetTSContext().getContext()), 0);
+
+    if (expression->GetType().GetTypeInfo()->type == TypeInfo::TypeName::Array) {
+        llvm::Value* value = context->GetIRBuilder().CreateGEP(expression->GetType().GetLLVMType(), expression->GetLLVMValue(),
+            { zero, index->GetLLVMValue() });
+        Type type = ThrowOnError(Type::Create(expression->GetType().GetTypeInfo()->arguments[0]->typeInfo, context), node->location);
+        lastReturnedValue = ThrowOnError(Value::Create(value, type, context), node->location);
+    } else if (expression->GetType().GetTypeInfo()->type == TypeInfo::TypeName::Span) {
+        llvm::StructType* structType = llvm::cast<llvm::StructType>(expression->GetType().GetLLVMType());
+        Type elementType = ThrowOnError(Type::Create(expression->GetType().GetTypeInfo()->arguments[0]->typeInfo, context), node->location);
+        llvm::Value* bufferPtr = context->GetIRBuilder().CreateLoad(structType->getElementType(0),
+            context->GetIRBuilder().CreateStructGEP(structType, expression->GetLLVMValue(), 0));
+        llvm::Value* value = context->GetIRBuilder().CreateGEP(elementType.GetLLVMType(), bufferPtr, index->GetLLVMValue());
+        lastReturnedValue = ThrowOnError(Value::Create(value, elementType, context), node->location);
+    } else {
+        throw Exception{ std::format("Cannot subscript variable of type `{}`.", 
+            ToString(expression->GetType().GetTypeInfo())), node->location };
     }
 }
 

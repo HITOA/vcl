@@ -3,9 +3,14 @@
 #include "ModuleContext.hpp"
 #include "Utility.hpp"
 
+#include <VCL/Debug.hpp>
+
+#include <format>
+
 #define DEFINE_UNARY_INTRINSIC(name, intrinsic) sm.PushNamedValue(name, ThrowOnErrorRE(Intrinsic::CreateUnaryIntrinsic(intrinsic, context)))
 #define DEFINE_BINARY_INTRINSIC(name, intrinsic) sm.PushNamedValue(name, ThrowOnErrorRE(Intrinsic::CreateBinaryIntrinsic(intrinsic, context)))
 #define DEFINE_TRINARY_INTRINSIC(name, intrinsic) sm.PushNamedValue(name, ThrowOnErrorRE(Intrinsic::CreateTrinaryIntrinsic(intrinsic, context)))
+
 
 namespace VCL {
     
@@ -71,6 +76,34 @@ namespace VCL {
         llvm::Intrinsic::ID intrinsicId;
     };
 
+    class LenIntrinsicImpl : public IntrinsicImpl {
+    public:
+        std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv, ModuleContext* context) override {
+            Handle<Value> value = argsv[0];
+            if (value->GetType().GetTypeInfo()->type == TypeInfo::TypeName::Array) {
+                llvm::ArrayType* arrayType = llvm::cast<llvm::ArrayType>(value->GetType().GetLLVMType());
+                return Value::CreateConstantInt32(arrayType->getNumElements(), context);
+            } else if (value->GetType().GetTypeInfo()->type == TypeInfo::TypeName::Span) {
+                llvm::StructType* structType = llvm::cast<llvm::StructType>(value->GetType().GetLLVMType());
+                llvm::Value* idx = context->GetIRBuilder().CreateExtractValue(value->GetLLVMValue(), 1);
+                return MakeValueVCLFromLLVM(idx, context);
+            } else {
+                return std::unexpected{ Error{ std::format("Cannot take length of `{}`.", ToString(value->GetType().GetTypeInfo())) } };
+            }
+        }
+        
+        bool CheckArgType(uint32_t index, Type type) override {
+            IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Buffer};
+            return policy(type);
+        }
+
+        bool CheckArgCount(uint32_t count) override {
+            return count == 1;
+        }
+    private:
+        llvm::Intrinsic::ID intrinsicId;
+    };
+
 }
 
 template<typename T>
@@ -103,6 +136,7 @@ void VCL::Intrinsics::Register(ModuleContext* context) {
     DEFINE_UNARY_INTRINSIC("ceil",      llvm::Intrinsic::ceil);
     DEFINE_UNARY_INTRINSIC("floor",     llvm::Intrinsic::floor);
     DEFINE_UNARY_INTRINSIC("round",     llvm::Intrinsic::round);
+    sm.PushNamedValue("len", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<LenIntrinsicImpl>(), context)));
 
     DEFINE_BINARY_INTRINSIC("pow",      llvm::Intrinsic::pow);
     DEFINE_BINARY_INTRINSIC("min",      llvm::Intrinsic::minnum);

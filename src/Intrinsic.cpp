@@ -42,6 +42,15 @@ namespace VCL {
             }
         }
 
+        if (policy & Buffer) {
+            switch (typeInfo->type)
+            {
+            case TypeInfo::TypeName::Array:
+            case TypeInfo::TypeName::Span:
+                return true;
+            }
+        }
+
         return false;
     }
 

@@ -42,6 +42,7 @@ namespace VCL {
         void VisitPrefixLogicalExpression(ASTPrefixLogicalExpression* node) override;
         void VisitPostfixArithmeticExpression(ASTPostfixArithmeticExpression* node) override;
         void VisitFieldAccessExpression(ASTFieldAccessExpression* node) override;
+        void VisitSubscriptExpression(ASTSubscriptExpression* node) override;
         void VisitLiteralExpression(ASTLiteralExpression* node) override;
         void VisitVariableExpression(ASTVariableExpression* node) override;
         void VisitVariableDeclaration(ASTVariableDeclaration* node) override;

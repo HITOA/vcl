@@ -14,13 +14,10 @@ in Vector3<vfloat> b;
 
 out vfloat distance;
 
-T Distance<typename T, typename U>(Vector3<T> a, Vector3<U> b) {
+T Distance<typename T>(Vector3<T> a, Vector3<T> b) {
     return sqrt(pow(b.x - a.x, 2.0) + pow(b.y - a.y, 2.0) + pow(b.z - a.z, 2.0));
 }
 
 void Main() {
-    distance = Distance(a, b);
-    distance = Distance<>(a, b);
-    distance = Distance<vfloat>(a, b);
-    distance = Distance<vfloat, vfloat>(a, b);
+    distance = Distance(a, b); //Template parameter will be deduced from function arguments
 }

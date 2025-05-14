@@ -19,7 +19,9 @@
     DEF(Void,               "void") \
     DEF(VectorFloat,        "vfloat") \
     DEF(VectorBool,         "vbool") \
-    DEF(VectorInt,          "vint")
+    DEF(VectorInt,          "vint") \
+    DEF(Array,              "array") \
+    DEF(Span,               "span")
 
 #undef TYPE_QUALIFIER_DEF
 #define TYPE_QUALIFIER_DEF \
@@ -43,6 +45,7 @@
     DEF(Dot,                ".") \
     DEF(Asterisk,           "*") \
     DEF(Slash,              "/") \
+    DEF(Remainder,          "%") \
     DEF(Plus,               "+") \
     DEF(Minus,              "-") \
     DEF(Greater,            ">") \
@@ -92,7 +95,7 @@ namespace VCL {
         enum class ID {
             None,
             // Binary Arithmetic
-            Add, Sub, Mul, Div,
+            Add, Sub, Mul, Div, Remainder,
             // Binary Logical
             Greater, Less, GreaterEqual, LessEqual,
             Equal, NotEqual, LogicalAnd, LogicalOr,
@@ -106,7 +109,7 @@ namespace VCL {
             // Postfix Arithmetic
             PostIncrement, PostDecrement,
             // Access
-            FieldAccess
+            FieldAccess, Subscript
         } id = ID::None;
 
         enum class Kind {
@@ -115,7 +118,8 @@ namespace VCL {
             Logical,
             Comparison,
             Assignment,
-            FieldAccess
+            FieldAccess,
+            Subscript
         } kind = Kind::None;
 
         enum class Associativity {

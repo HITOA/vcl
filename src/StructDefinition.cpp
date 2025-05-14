@@ -32,6 +32,8 @@ std::expected<VCL::Handle<VCL::StructDefinition>, VCL::Error> VCL::StructDefinit
     std::vector<llvm::Type*> elementsType(elements.size());
 
     for (size_t i = 0; i < elements.size(); ++i) {
+        if (elements[i].second->IsExtern())
+            return std::unexpected(std::format("Struct cannot contain extern field `{}`.", elements[i].first));
         if (auto t = Type::Create(elements[i].second, context); t.has_value()) {
             fields[elements[i].first] = i;
             elementsType[i] = t->GetLLVMType();

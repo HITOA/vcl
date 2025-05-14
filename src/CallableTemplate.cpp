@@ -6,6 +6,7 @@
 #include "ModuleContext.hpp"
 #include "TemplateUtils.hpp"
 
+#include <iostream>
 
 
 VCL::CallableTemplate::CallableTemplate(std::string_view name, 
@@ -52,7 +53,7 @@ std::expected<VCL::Handle<VCL::Callable>, VCL::Error> VCL::CallableTemplate::Res
     std::vector<std::shared_ptr<TypeInfo>> templatedArguments( functionArguments.size() );
     for (size_t i = 0; i < functionArguments.size(); ++i)
         templatedArguments[i] = functionArguments[i].second;
-
+    
     if (auto err = mapper.Infer(templateParameters, templatedArguments, resolvedArguments))
         return std::unexpected{ err.value() };
     

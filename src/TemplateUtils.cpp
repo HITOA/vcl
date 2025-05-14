@@ -23,7 +23,7 @@ std::optional<VCL::Error> VCL::TemplateArgumentMapper::Map(std::vector<std::shar
 
 std::optional<VCL::Error> VCL::TemplateArgumentMapper::InferOne(std::unordered_map<std::string, TemplateArgument::TemplateValueType>& templateParameters,
     std::shared_ptr<TypeInfo> templatedArgument, std::shared_ptr<TypeInfo> resolvedArguments) {
-
+    
     std::string templatedTypeInfoName{ templatedArgument->name };
     if (templateParameters.count(templatedTypeInfoName) && !map.count(templatedTypeInfoName)) {
         std::shared_ptr<TemplateArgument> templateArgument = std::make_shared<TemplateArgument>();
@@ -99,14 +99,16 @@ std::expected<std::shared_ptr<VCL::TypeInfo>, VCL::Error> VCL::TemplateArgumentM
             newTypeInfo->arguments = argument->typeInfo->arguments;
         }
     }
-    for (size_t j = 0; j < newTypeInfo->arguments.size(); ++j) {
-        std::shared_ptr<TemplateArgument> ta = newTypeInfo->arguments[j];
-        if (ta->type != TemplateArgument::TemplateValueType::Typename)
+    for (size_t i = 0; i < newTypeInfo->arguments.size(); ++i) {
+        std::shared_ptr<TemplateArgument> ta = newTypeInfo->arguments[i];
+        std::shared_ptr<TemplateArgument> newta = std::make_shared<TemplateArgument>(*ta);
+        if (newta->type != TemplateArgument::TemplateValueType::Typename)
             continue;
         if (auto r = ResolveType(ta->typeInfo); r.has_value())
-            ta->typeInfo = *r;
+            newta->typeInfo = *r;
         else
             return std::unexpected{ r.error() };
+        newTypeInfo->arguments[i] = newta;
     }
     return newTypeInfo;
 }
