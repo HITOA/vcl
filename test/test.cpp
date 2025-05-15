@@ -136,6 +136,8 @@ TEST_CASE( "VCL infinite recursion with select detection", "[Error][Detection][R
     REQUIRE_NOTHROW(program = parser->Parse(*source));
     std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
     REQUIRE_NOTHROW(module->Emit());
-    REQUIRE_THROWS(module->Verify());
+    VCL::ModuleVerifierSettings settings{};
+    settings.selectRecursionAsError = true;
+    REQUIRE_THROWS(module->Verify(settings));
     session->SubmitModule(std::move(module));
 }

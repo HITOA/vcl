@@ -12,7 +12,7 @@ namespace VCL {
     struct ModuleVerifierSettings {
         bool brokenDebugInformationAsError = false;
         bool enableSelectRecursionCheck = true;
-        bool selectRecursionAsError = true;
+        bool selectRecursionAsError = false;
     };
 
 }
