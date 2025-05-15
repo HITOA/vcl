@@ -2,8 +2,8 @@
 
 #include "ModuleContext.hpp"
 #include "Utility.hpp"
-#include "NativeTarget.hpp"
 
+#include <VCL/NativeTarget.hpp>
 #include <VCL/Debug.hpp>
 
 #include <iostream>
@@ -85,6 +85,8 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Cast(Type type) {
             return Value::Create(context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType()), type, context);
         if (type.GetTypeInfo()->type == TypeInfo::TypeName::Bool)
             return Value::Create(context->GetIRBuilder().CreateTrunc(value, type.GetLLVMType()), type, context);
+        if (type.GetTypeInfo()->type == TypeInfo::TypeName::VectorInt)
+            return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), value), type, context);
         if (type.GetTypeInfo()->type == TypeInfo::TypeName::VectorFloat)
             return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), 
                 context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType())), type, context);

@@ -25,7 +25,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/NativeTarget.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleVerifier.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructDefinition.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructTemplate.hpp
@@ -46,6 +46,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleVerifier.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/NativeTarget.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Parser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.cpp
@@ -65,7 +66,8 @@ target_link_libraries(vcl ${llvm_libs})
 
 target_include_directories(vcl PRIVATE ${LLVM_INCLUDE_DIRS})
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/examples)
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/examples")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/test")
 
 option(VCL_BUILD_DOC "Build VCL documentation" OFF)
 

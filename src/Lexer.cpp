@@ -14,6 +14,9 @@ bool VCL::Lexer::Tokenize(std::shared_ptr<Source> source) {
     while (offset < source_view.length()) {
         while (SkipWhitespace(source_view, offset, position, line) || SkipComment(source_view, offset, position, line)) {}
 
+        if (offset >= source_view.length())
+            break;
+        
         std::string_view currentSource{ source_view.data() + offset, source_view.length() - offset };
         TokenType currentTokenType;
         uint32_t currentTokenSize;

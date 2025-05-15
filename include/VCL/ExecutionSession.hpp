@@ -26,9 +26,9 @@ namespace VCL {
         void SubmitModule(std::unique_ptr<Module> module);
 
         /**
-         * @brief Bind memory address to a input or output global vcl variable
+         * @brief Define a symbol by its address and its name.
          */
-        void BindGlobalVariable(std::string_view name, void* buffer);
+        void DefineExternSymbolPtr(std::string_view name, void* buffer);
 
         /**
          * @brief Lookup compiled vcl function's address by name and returns it.
@@ -36,9 +36,14 @@ namespace VCL {
         void* Lookup(std::string_view name);
 
         /**
-         * @brief Dump compiled object to given directory
+         * @brief Dump compiled object to given directory.
          */
         void SetDumpObject(std::filesystem::path directory, std::string_view identifier);
+
+        /**
+         * @brief Enable or disable debug information for this session.
+         */
+        void SetDebugInformation(bool enabled);
 
         /**
          * @brief Set the logger class instance the parser will use to send error warning info and debug messages. 

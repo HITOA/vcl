@@ -162,6 +162,7 @@ int main(int argc, const char** argv) {
 
                 std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
                 module->Emit();
+                module->Verify();
 
                 if (options.optimize)
                     module->Optimize();

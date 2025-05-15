@@ -1,10 +1,10 @@
 #include "Type.hpp"
 
 #include <VCL/Debug.hpp>
+#include <VCL/NativeTarget.hpp>
 
 #include "ModuleContext.hpp"
 #include "Utility.hpp"
-#include "NativeTarget.hpp"
 
 #include <iostream>
 

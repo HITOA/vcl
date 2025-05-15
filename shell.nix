@@ -7,6 +7,7 @@ pkgs.mkShell {
     pkg-config
 
     libllvm
+    catch2_3
     doxygen
   ];
 

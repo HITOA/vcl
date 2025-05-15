@@ -1,4 +1,4 @@
-#include "NativeTarget.hpp"
+#include <VCL/NativeTarget.hpp>
 
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/TargetParser/Host.h>

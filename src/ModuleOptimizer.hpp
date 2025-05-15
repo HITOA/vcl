@@ -1,5 +1,7 @@
 #pragma once
 
+#include <VCL/ModuleUtils.hpp>
+
 #include "ModuleContext.hpp"
 
 #include <llvm/Transforms/InstCombine/InstCombine.h>
@@ -20,12 +22,6 @@
 
 
 namespace VCL {
-
-    struct ModuleOptimizerSettings {
-        bool enableLoopUnrolling = true;
-        bool enableInliner = true;
-        bool enableVectorizer = true;
-    };
 
     class ModuleOptimizer {
     public:

@@ -1,8 +1,11 @@
 #include "ExecutionContext.hpp"
 
-#include "NativeTarget.hpp"
+#include <VCL/NativeTarget.hpp>
 
 #include <fstream>
+#include <iostream>
+
+#include <llvm/ExecutionEngine/JITEventListener.h>
 
 
 VCL::ExecutionContext::ExecutionContext() : context{}, dumpObject{ false } {
@@ -26,9 +29,11 @@ VCL::ExecutionContext::ExecutionContext() : context{}, dumpObject{ false } {
         layout = std::make_unique<llvm::DataLayout>(std::move(*r));
 
     mangle = std::make_unique<llvm::orc::MangleAndInterner>(*session, *layout);
+
     linkingLayer = std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(*session, []() {
         return std::make_unique<llvm::SectionMemoryManager>();
     });
+
     dumpObjectTransformFunction = std::make_unique<llvm::orc::ObjectTransformLayer::TransformFunction>(
         std::bind(&ExecutionContext::DumpObject, this, std::placeholders::_1)
     );
@@ -41,12 +46,13 @@ VCL::ExecutionContext::ExecutionContext() : context{}, dumpObject{ false } {
     compileLayer = std::make_unique<llvm::orc::IRCompileLayer>(*session, *dumpObjectLayer, 
         std::make_unique<llvm::orc::ConcurrentIRCompiler>(std::move(*jtmb)));
     
+
     main = &session->createBareJITDylib("Main");
+
+    gdbListener = llvm::JITEventListener::createGDBRegistrationListener();
 }
 
-VCL::ExecutionContext::~ExecutionContext() {
-
-}
+VCL::ExecutionContext::~ExecutionContext() {}
 
 void VCL::ExecutionContext::AddModule(llvm::orc::ThreadSafeModule module, llvm::orc::ResourceTrackerSP rt) {
     if (!rt)
@@ -63,7 +69,7 @@ llvm::orc::ExecutorSymbolDef VCL::ExecutionContext::Lookup(std::string_view name
         return *r;
 }
 
-void VCL::ExecutionContext::BindGlobalVariable(std::string_view name, void* buffer) {
+void VCL::ExecutionContext::DefineExternSymbolPtr(std::string_view name, void* buffer) {
     llvm::orc::ExecutorSymbolDef symbol{
         llvm::orc::ExecutorAddr::fromPtr(buffer),
         llvm::JITSymbolFlags::None
@@ -81,6 +87,14 @@ void VCL::ExecutionContext::SetDumpObject(std::filesystem::path directory, std::
     dumpObject = true;
     dumpObjectDirectory = directory;
     dumpObjectIdentifier = identifier;
+}
+
+void VCL::ExecutionContext::EnableDebugInformation() {
+    linkingLayer->registerJITEventListener(*gdbListener);
+}
+
+void VCL::ExecutionContext::DisableDebugInformation() {
+    linkingLayer->unregisterJITEventListener(*gdbListener);
 }
 
 llvm::orc::ThreadSafeContext& VCL::ExecutionContext::GetTSContext() {

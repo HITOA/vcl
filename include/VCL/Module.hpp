@@ -1,6 +1,6 @@
 #pragma once
 
-#include <VCL/Module.hpp>
+#include <VCL/ModuleUtils.hpp>
 #include <VCL/AST.hpp>
 #include <VCL/Logger.hpp>
 
@@ -21,7 +21,9 @@ namespace VCL {
 
         void Emit();
 
-        void Optimize();
+        void Verify(ModuleVerifierSettings settings = {});
+
+        void Optimize(ModuleOptimizerSettings settings = {});
 
         std::string Dump();
 

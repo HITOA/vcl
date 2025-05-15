@@ -319,7 +319,9 @@ std::unique_ptr<VCL::ASTTemplateFunctionDeclaration> VCL::Parser::ParseTemplateF
 
 std::unique_ptr<VCL::ASTReturnStatement> VCL::Parser::ParseReturnStatement(Lexer& lexer) {
     Token returnToken = lexer.Consume(); //RETURN
-    std::unique_ptr<ASTExpression> expression = ParseExpression(lexer);
+    std::unique_ptr<ASTExpression> expression = nullptr;
+    if (lexer.Peek().type != TokenType::Semicolon)
+        expression = ParseExpression(lexer);
     return FillASTStatementDebugInformation(std::make_unique<ASTReturnStatement>(std::move(expression)), returnToken);
 }
 

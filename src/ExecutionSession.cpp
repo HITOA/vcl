@@ -2,7 +2,7 @@
 
 #include "ExecutionContext.hpp"
 #include "ModuleContext.hpp"
-#include "NativeTarget.hpp"
+#include <VCL/NativeTarget.hpp>
 
 
 VCL::ExecutionSession::ExecutionSession() {
@@ -26,8 +26,8 @@ void VCL::ExecutionSession::SubmitModule(std::unique_ptr<Module> module) {
     context->AddModule(std::move(module->context->GetTSModule()));
 }
 
-void VCL::ExecutionSession::BindGlobalVariable(std::string_view name, void* buffer) {
-    context->BindGlobalVariable(name, buffer);
+void VCL::ExecutionSession::DefineExternSymbolPtr(std::string_view name, void* buffer) {
+    context->DefineExternSymbolPtr(name, buffer);
 }
 
 void* VCL::ExecutionSession::Lookup(std::string_view name) {
@@ -36,6 +36,13 @@ void* VCL::ExecutionSession::Lookup(std::string_view name) {
 
 void VCL::ExecutionSession::SetDumpObject(std::filesystem::path directory, std::string_view identifier) {
     context->SetDumpObject(directory, identifier);
+}
+
+void VCL::ExecutionSession::SetDebugInformation(bool enabled) {
+    if (enabled)
+        context->EnableDebugInformation();
+    else
+        context->DisableDebugInformation();
 }
 
 void VCL::ExecutionSession::SetLogger(std::shared_ptr<Logger> logger) {
