@@ -13,9 +13,9 @@ VCL::CallableTemplate::CallableTemplate(std::string_view name,
     std::shared_ptr<TypeInfo> returnType,
     std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> functionArguments,
     std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters,
-    std::unique_ptr<ASTNode> body, ModuleContext* context) : name{ name },
+    std::unique_ptr<ASTNode> body, llvm::DIFile* file, uint32_t line, ModuleContext* context) : name{ name },
         returnType{ returnType }, functionArguments{ functionArguments }, templateParameters{ templateParameters },
-        body{ std::move(body) }, context{ context } {}
+        body{ std::move(body) }, file{ file }, line{ line }, context{ context } {}
 
 std::expected<std::string, VCL::Error> VCL::CallableTemplate::Mangle(std::vector<std::shared_ptr<TemplateArgument>>& args, std::vector<std::shared_ptr<TypeInfo>>& resolvedArguments) {
     TemplateArgumentMapper mapper{};
@@ -107,9 +107,23 @@ std::expected<VCL::Handle<VCL::Callable>, VCL::Error> VCL::CallableTemplate::Res
     context->GetScopeManager().PushNamedValue(mangledName, function, offset);
     
     llvm::Function* llvmFunction = function->GetLLVMFunction();
+    llvm::DISubprogram* subprogram = nullptr;
     
     llvm::BasicBlock* bb = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "entry", llvmFunction);
     context->GetIRBuilder().SetInsertPoint(bb);
+
+    if (file) {
+        subprogram = context->GetDIBuilder().createFunction(
+            file, mangledName, mangledName,
+            file, line + 1, function->GetDIType(), line + 1, 
+            llvm::DINode::DIFlags::FlagPrototyped, llvm::DISubprogram::DISPFlags::SPFlagDefinition
+        );
+        llvmFunction->setSubprogram(subprogram);
+        context->GetScopeManager().SetCurrentDebugInformationScope(subprogram);
+        llvm::DILocation* loc = llvm::DILocation::get(*(context->GetTSContext().getContext()),
+            line + 1, 0, subprogram);
+        context->GetIRBuilder().SetCurrentDebugLocation(loc);
+    }
 
     for (size_t i = 0; i < llvmFunction->arg_size(); ++i) {
         Type argType = function->GetArgsInfo()[i].type;
@@ -121,15 +135,16 @@ std::expected<VCL::Handle<VCL::Callable>, VCL::Error> VCL::CallableTemplate::Res
         else
             return std::unexpected{ r.error() };
         Handle<Value> arg;
-        if (auto r = Value::CreateLocalVariable(argType, argValue, context, argNameStr.c_str()); r.has_value())
+        if (auto r = Value::CreateLocalVariable(argType, argValue, context, argNameStr.c_str(), file, line, 0); r.has_value())
             arg = *r;
         else
             return std::unexpected{ r.error() };
         context->GetScopeManager().PushNamedValue(argName, arg);
     }
-    
+
     if (body) {
         ModuleBuilder builder{ context };
+        builder.file = file;
         body->Accept(&builder);
     } else {
         return std::unexpected{ std::format("Missing body in templated function `{}`", name) };
@@ -148,6 +163,9 @@ std::expected<VCL::Handle<VCL::Callable>, VCL::Error> VCL::CallableTemplate::Res
         }
     }
 
+    if (subprogram)
+        context->GetDIBuilder().finalizeSubprogram(subprogram);
+
     function->Verify();
 
     return function;
@@ -157,6 +175,6 @@ std::expected<VCL::Handle<VCL::CallableTemplate>, VCL::Error> VCL::CallableTempl
             std::shared_ptr<TypeInfo> returnType,
             std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> functionArguments,
             std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters,
-            std::unique_ptr<ASTNode> body, ModuleContext* context) {
-    return MakeHandle<CallableTemplate>(name, returnType, functionArguments, templateParameters, std::move(body), context);
+            std::unique_ptr<ASTNode> body, llvm::DIFile* file, uint32_t line, ModuleContext* context) {
+    return MakeHandle<CallableTemplate>(name, returnType, functionArguments, templateParameters, std::move(body), file, line, context);
 }

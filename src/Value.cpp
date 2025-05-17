@@ -9,7 +9,7 @@
 #include <iostream>
 
 
-VCL::Value::Value() : value{ nullptr }, type{ nullptr, nullptr, nullptr }, context{ nullptr } {}
+VCL::Value::Value() : value{ nullptr }, type{ nullptr, nullptr, nullptr, nullptr }, context{ nullptr } {}
 
 VCL::Value::Value(llvm::Value* value, Type type, ModuleContext* context) :
     value{ value }, type{ type }, context{ context } {}
@@ -116,7 +116,8 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Create(llvm::Valu
     return MakeHandle<Value>(value, type, context);
 }
 
-std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name) {
+std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name,
+        llvm::DIFile* file, uint32_t line, uint32_t position) {
     llvm::Constant* initializerValue = nullptr;
     bool isExtern = type.GetTypeInfo()->IsExtern();;
 
@@ -137,26 +138,42 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
         initializerValue, name
     };
 
+    if (file) {
+        llvm::DIGlobalVariableExpression* diInfo = context->GetDIBuilder().createGlobalVariableExpression(
+            file, name, name, file, line + 1, type.GetDIType(), isExtern, initializerValue != nullptr);
+        value->addDebugInfo(diInfo);
+    }
+
     value->setAlignment(llvm::Align(NativeTarget::GetInstance()->GetMaxVectorByteWidth()));
 
     return Value::Create(value, type, context);
 }
 
-std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateLocalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name) {
+std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateLocalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name,
+    llvm::DIFile* file, uint32_t line, uint32_t position) {
     llvm::BasicBlock* bb = context->GetIRBuilder().GetInsertBlock();
     llvm::AllocaInst* alloca;
+
     {
         llvm::IRBuilder<>::InsertPointGuard ipGuard{ context->GetIRBuilder() };
         context->GetIRBuilder().SetInsertPoint(bb->getFirstInsertionPt());
         context->GetIRBuilder().SetCurrentDebugLocation(llvm::DebugLoc());
         alloca = context->GetIRBuilder().CreateAlloca(type.GetLLVMType(), nullptr, name);
     }
+
+    if (llvm::DIScope* scope = context->GetScopeManager().GetCurrentDebugInformationScope()) {
+        llvm::DILocalVariable* diVariable = context->GetDIBuilder().createAutoVariable(scope, name, file, line + 1, type.GetDIType(), true);
+        context->GetDIBuilder().insertDeclare(alloca, diVariable, 
+            context->GetDIBuilder().createExpression(), context->GetIRBuilder().getCurrentDebugLocation(), bb);
+    }
+
     if (initializer) {
         if (auto t = initializer->Cast(type); t.has_value())
             context->GetIRBuilder().CreateStore((*t)->GetLLVMValue(), alloca);
         else
             return std::unexpected(t.error());
     }
+
     return Value::Create(alloca, type, context);
 }
 

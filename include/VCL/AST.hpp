@@ -169,13 +169,13 @@ namespace VCL {
      */
     class ASTFunctionDeclaration : public ASTStatement {
     public:
-        ASTFunctionDeclaration(std::unique_ptr<ASTFunctionPrototype> prototype, std::unique_ptr<ASTNode> body) :
+        ASTFunctionDeclaration(std::unique_ptr<ASTFunctionPrototype> prototype, std::unique_ptr<ASTStatement> body) :
             prototype{ std::move(prototype) }, body{ std::move(body) } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitFunctionDeclaration(this); }
     public:
         std::unique_ptr<ASTFunctionPrototype> prototype;
-        std::unique_ptr<ASTNode> body;
+        std::unique_ptr<ASTStatement> body;
     };
 
     /**

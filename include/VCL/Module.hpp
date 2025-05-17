@@ -19,7 +19,7 @@ namespace VCL {
 
         void BindProgram(std::unique_ptr<ASTProgram> program);
 
-        void Emit();
+        void Emit(ModuleDebugInformationSettings settings = {});
 
         void Verify(ModuleVerifierSettings settings = {});
 

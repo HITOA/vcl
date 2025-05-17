@@ -151,7 +151,7 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, boo
 }
 
 std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseCompoundStatement(Lexer& lexer) {
-    lexer.Consume(); //LBRACKET
+    Token lbracket = lexer.Consume(); //LBRACKET
     std::vector<std::unique_ptr<ASTStatement>> statements{};
     while (lexer.Peek().type != TokenType::RBracket) {
         std::unique_ptr<ASTStatement> statement = ParseStatement(lexer);
@@ -160,7 +160,7 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseCompoundStatement(Lexer& le
         statements.emplace_back(std::move(statement));
     }
     lexer.Consume(); //RBRACKET
-    return std::make_unique<ASTCompoundStatement>(std::move(statements));
+    return FillASTStatementDebugInformation(std::make_unique<ASTCompoundStatement>(std::move(statements)), lbracket);
 }
 
 std::unique_ptr<VCL::ASTFunctionArgument> VCL::Parser::ParseFunctionArgument(Lexer& lexer) {
@@ -198,8 +198,9 @@ std::unique_ptr<VCL::ASTFunctionPrototype> VCL::Parser::ParseFunctionPrototype(L
 std::unique_ptr<VCL::ASTFunctionDeclaration> VCL::Parser::ParseFunctionDeclaration(Lexer& lexer, std::unique_ptr<ASTFunctionPrototype> prototype) {
     if (prototype == nullptr)
         return nullptr;
+    Token currentToken = lexer.Peek();
     std::unique_ptr<ASTStatement> body = ParseCompoundStatement(lexer);
-    return std::make_unique<ASTFunctionDeclaration>(std::move(prototype), std::move(body));
+    return FillASTStatementDebugInformation(std::make_unique<ASTFunctionDeclaration>(std::move(prototype), std::move(body)), currentToken);
 }
 
 std::unique_ptr<VCL::ASTStructureFieldDeclaration> VCL::Parser::ParseStructureFieldDeclaration(Lexer& lexer) {

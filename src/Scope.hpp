@@ -7,10 +7,13 @@
 #include "StructTemplate.hpp"
 #include "CallableTemplate.hpp"
 
+#include <llvm/IR/DIBuilder.h>
+
 #include <deque>
 #include <unordered_map>
 #include <string>
 #include <expected>
+#include <optional>
 
 
 namespace VCL {
@@ -19,7 +22,8 @@ namespace VCL {
      * @brief Scope data structure
      */
     struct Scope {
-        llvm::BasicBlock* bb;
+        llvm::BasicBlock* bb = nullptr;
+        llvm::DIScope* diScope = nullptr;
         std::unordered_map<std::string, Handle<Value>> namedValue;
         std::unordered_map<std::string, Handle<StructDefinition>> namedType;
         std::unordered_map<std::string, Handle<StructTemplate>> namedStructTemplate;
@@ -134,6 +138,9 @@ namespace VCL {
          * @return true if the scope stack size is one. false otherwise.
          */
         bool IsCurrentScopeGlobal() const;
+
+        void SetCurrentDebugInformationScope(llvm::DIScope* scope);
+        llvm::DIScope* GetCurrentDebugInformationScope();
 
         uint32_t GetNamedStructTemplateOffset(std::string_view name) const;
         uint32_t GetNamedFunctionTemplateOffset(std::string_view name) const;

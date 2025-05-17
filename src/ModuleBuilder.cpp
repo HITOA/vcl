@@ -12,7 +12,23 @@
 #include <iostream>
 
 
-VCL::ModuleBuilder::ModuleBuilder(ModuleContext* context) : context{ context } {
+void SetCurrentDebugLocation(VCL::ModuleContext* context, VCL::ASTStatement* node) {
+    if (llvm::DIScope* scope = context->GetScopeManager().GetCurrentDebugInformationScope()) {
+        llvm::DILocation* loc = llvm::DILocation::get(*(context->GetTSContext().getContext()),
+            node->location.line + 1, node->location.position + 1, scope);
+        context->GetIRBuilder().SetCurrentDebugLocation(loc);
+    }
+}
+
+void CreateDebugScope(VCL::ModuleContext* context, VCL::ASTStatement* node, llvm::DIFile* file) {
+    if (llvm::DIScope* parentScope = context->GetScopeManager().GetCurrentDebugInformationScope()) {
+        llvm::DIScope* scope = context->GetDIBuilder().createLexicalBlock(
+            parentScope, file, node->location.line + 1, node->location.position + 1);
+        context->GetScopeManager().SetCurrentDebugInformationScope(scope);
+    }
+}
+
+VCL::ModuleBuilder::ModuleBuilder(ModuleContext* context) : context{ context }, file{ nullptr } {
 
 }
 
@@ -21,12 +37,29 @@ VCL::ModuleBuilder::~ModuleBuilder() {
 }
 
 void VCL::ModuleBuilder::VisitProgram(ASTProgram* node) {
+    if (diSettings.generateDebugInformation) {
+        file = context->GetDIBuilder().createFile(
+            node->source->path.filename().string(),
+            node->source->path.parent_path().string());
+        llvm::DICompileUnit* cu = context->GetDIBuilder().createCompileUnit(
+            llvm::dwarf::DW_LANG_C,
+            file,
+            "VCL JIT Compiler", 
+            diSettings.optimized, 
+            "", 
+            0
+        );
+        context->GetScopeManager().SetCurrentDebugInformationScope(file);
+    }
+
     for (auto& statement : node->statements)
         statement->Accept(this);
 }
 
 void VCL::ModuleBuilder::VisitCompoundStatement(ASTCompoundStatement* node) {
     ScopeGuard scopeGuard{ &context->GetScopeManager() };
+
+    CreateDebugScope(context, node, file);
 
     for (auto& statement : node->statements)
         statement->Accept(this);
@@ -50,6 +83,15 @@ void VCL::ModuleBuilder::VisitFunctionPrototype(ASTFunctionPrototype* node) {
     }
 
     Handle<Function> function = ThrowOnError(Function::Create(returnType, argsInfo, node->name, context), node->location);
+
+    if (llvm::DIScope* parentScope = context->GetScopeManager().GetCurrentDebugInformationScope()) {
+        context->GetDIBuilder().createFunction(
+            parentScope, node->name, node->name,
+            file, node->location.line, function->GetDIType(), node->location.line, 
+            llvm::DINode::DIFlags::FlagPrototyped, llvm::DISubprogram::DISPFlags::SPFlagZero
+        );
+    }
+
     context->GetScopeManager().PushNamedValue(node->name, function);
     lastReturnedValue = function;
 }
@@ -61,18 +103,33 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
         throw Exception{ "Function redefinition", node->location };
 
     llvm::Function* llvmFunction = function->GetLLVMFunction();
+    llvm::DISubprogram* subprogram = nullptr;
     
     llvm::BasicBlock* bb = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "entry", llvmFunction);
     context->GetIRBuilder().SetInsertPoint(bb);
 
     ScopeGuard scopeGuard{ &context->GetScopeManager() };
+
+    if (llvm::DIScope* parentScope = context->GetScopeManager().GetCurrentDebugInformationScope()) {
+        subprogram = context->GetDIBuilder().createFunction(
+            parentScope, node->prototype->name, node->prototype->name,
+            file, node->location.line + 1, function->GetDIType(), node->body->location.line + 1, 
+            llvm::DINode::DIFlags::FlagPrototyped, llvm::DISubprogram::DISPFlags::SPFlagDefinition
+        );
+        llvmFunction->setSubprogram(subprogram);
+        context->GetScopeManager().SetCurrentDebugInformationScope(subprogram);
+        llvm::DILocation* loc = llvm::DILocation::get(*(context->GetTSContext().getContext()),
+            node->location.line + 1, node->location.position + 1, subprogram);
+        context->GetIRBuilder().SetCurrentDebugLocation(loc);
+    }
     
     for (size_t i = 0; i < llvmFunction->arg_size(); ++i) {
         Type argType = function->GetArgsInfo()[i].type;
         std::string_view argName = function->GetArgsInfo()[i].name;
         std::string argNameStr{ argName };
         Handle<Value> argValue = ThrowOnError(Value::Create(llvmFunction->getArg(i), argType, context), node->location);
-        Handle<Value> arg = ThrowOnError(Value::CreateLocalVariable(argType, argValue, context, argNameStr.c_str()), node->location);
+        Handle<Value> arg = ThrowOnError(Value::CreateLocalVariable(argType, argValue, context, argNameStr.c_str(), 
+            file, node->location.line, node->location.position), node->location);
         context->GetScopeManager().PushNamedValue(argName, arg);
     }
 
@@ -90,6 +147,9 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
             throw Exception{ "Missing return statement.", node->location };
         }
     }
+
+    if (subprogram)
+        context->GetDIBuilder().finalizeSubprogram(subprogram);
 
     function->Verify();
 }
@@ -135,13 +195,14 @@ void VCL::ModuleBuilder::VisitTemplateFunctionDeclaration(ASTTemplateFunctionDec
         templateParameters.push_back(std::make_pair(node->parameters[i]->name, node->parameters[i]->type));
 
     Handle<CallableTemplate> ft = ThrowOnError(CallableTemplate::Create(name, node->type,
-        functionArguments, templateParameters, std::move(node->body), context), node->location);
+        functionArguments, templateParameters, std::move(node->body), file, node->location.line, context), node->location);
     
     if (!context->GetScopeManager().PushNamedFunctionTemplate(node->name, ft))
         throw Exception{ std::format("redefinition of `{}`", node->name), node->location };
 }
 
 void VCL::ModuleBuilder::VisitReturnStatement(ASTReturnStatement* node) {
+    SetCurrentDebugLocation(context, node);
     if (node->expression) {
         node->expression->Accept(this);
         context->GetIRBuilder().CreateRet(ThrowOnError(lastReturnedValue->Load(), node->location)->GetLLVMValue());
@@ -169,6 +230,11 @@ void VCL::ModuleBuilder::VisitIfStatement(ASTIfStatement* node) {
     llvm::BasicBlock* elseBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "else", function);
     llvm::BasicBlock* endBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "end", function);
 
+    ScopeGuard scopeGuard{ &context->GetScopeManager(), endBB };
+
+    CreateDebugScope(context, node, file);
+    SetCurrentDebugLocation(context, node);
+
     context->GetIRBuilder().CreateCondBr(r, thenBB, elseBB);
 
     context->GetIRBuilder().SetInsertPoint(thenBB);
@@ -182,6 +248,8 @@ void VCL::ModuleBuilder::VisitIfStatement(ASTIfStatement* node) {
     context->GetIRBuilder().CreateBr(endBB);
 
     context->GetIRBuilder().SetInsertPoint(endBB);
+
+    scopeGuard.Release();
 }
 
 void VCL::ModuleBuilder::VisitWhileStatement(ASTWhileStatement* node) {
@@ -195,6 +263,9 @@ void VCL::ModuleBuilder::VisitWhileStatement(ASTWhileStatement* node) {
     llvm::BasicBlock* endBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "end", function);
 
     ScopeGuard scopeGuard{ &context->GetScopeManager(), endBB };
+
+    CreateDebugScope(context, node, file);
+    SetCurrentDebugLocation(context, node);
 
     context->GetIRBuilder().CreateBr(conditionBB);
 
@@ -232,6 +303,9 @@ void VCL::ModuleBuilder::VisitForStatement(ASTForStatement* node) {
 
     ScopeGuard scopeGuard{ &context->GetScopeManager(), endBB };
 
+    CreateDebugScope(context, node, file);
+    SetCurrentDebugLocation(context, node);
+
     node->start->Accept(this);
     context->GetIRBuilder().CreateBr(conditionBB);
     
@@ -263,6 +337,8 @@ void VCL::ModuleBuilder::VisitBreakStatement(ASTBreakStatement* node) {
     if (dest == nullptr)
         throw Exception{ "A break statement may only be used within a loop.", node->location };
 
+    SetCurrentDebugLocation(context, node);
+
     context->GetIRBuilder().CreateBr(dest);
 }
 
@@ -274,6 +350,8 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
 
     node->rhs->Accept(this);
     Handle<Value> rhs = ThrowOnError(lastReturnedValue->Load(), node->location);
+
+    SetCurrentDebugLocation(context, node);
 
     rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
 
@@ -338,6 +416,8 @@ void VCL::ModuleBuilder::VisitBinaryLogicalExpression(ASTBinaryLogicalExpression
     node->rhs->Accept(this);
     Handle<Value> rhs = ThrowOnError(lastReturnedValue->Load(), node->location);
 
+    SetCurrentDebugLocation(context, node);
+
     rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
 
     if (!policy(lhs->GetType()) || !policy(rhs->GetType()))
@@ -372,6 +452,8 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
 
     node->rhs->Accept(this);
     Handle<Value> rhs = ThrowOnError(lastReturnedValue->Load(), node->location);
+
+    SetCurrentDebugLocation(context, node);
 
     rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
 
@@ -470,6 +552,8 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
     node->expression->Accept(this);
     Handle<Value> expression = lastReturnedValue;
 
+    SetCurrentDebugLocation(context, node);
+
     if (!policy(expression->GetType()))
         throw Exception{ std::format("Arithmetic unary operator `{}` expects a numeric operand, but got `{}`.",
             ToString(node->op), ToString(expression->GetType().GetTypeInfo())), node->location };
@@ -540,6 +624,8 @@ void VCL::ModuleBuilder::VisitPrefixLogicalExpression(ASTPrefixLogicalExpression
     node->expression->Accept(this);
     Handle<Value> expression = ThrowOnError(lastReturnedValue->Load(), node->location);
 
+    SetCurrentDebugLocation(context, node);
+
     if (!policy(expression->GetType()))
         throw Exception{ std::format("Logical unary operator `{}` expects a `bool` or `vbool` operand, but got `{}`.",
             ToString(node->op), ToString(expression->GetType().GetTypeInfo())), node->location };
@@ -565,6 +651,8 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
 
     node->expression->Accept(this);
     Handle<Value> expression = lastReturnedValue;
+
+    SetCurrentDebugLocation(context, node);
 
     if (!policy(expression->GetType()))
         throw Exception{ std::format("Arithmetic unary operator `{}` expects a numeric operand, but got `{}`.",
@@ -622,6 +710,8 @@ void VCL::ModuleBuilder::VisitFieldAccessExpression(ASTFieldAccessExpression* no
     node->expression->Accept(this);
     Handle<Value> expression = lastReturnedValue;
 
+    SetCurrentDebugLocation(context, node);
+
     if (expression->GetType().GetTypeInfo()->type != TypeInfo::TypeName::Custom)
         throw Exception{ std::format("Cannot access field `{}` on a non-struct type ‘{}’.", 
             node->fieldName, ToString(expression->GetType().GetTypeInfo())), node->location }; 
@@ -647,6 +737,8 @@ void VCL::ModuleBuilder::VisitSubscriptExpression(ASTSubscriptExpression* node) 
     node->index->Accept(this);
     Handle<Value> index = ThrowOnError(lastReturnedValue->Load(), node->index->location);
 
+    SetCurrentDebugLocation(context, node);
+    
     {
         std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
         typeInfo->type = TypeInfo::TypeName::Int;
@@ -675,6 +767,7 @@ void VCL::ModuleBuilder::VisitSubscriptExpression(ASTSubscriptExpression* node) 
 }
 
 void VCL::ModuleBuilder::VisitLiteralExpression(ASTLiteralExpression* node) {
+    SetCurrentDebugLocation(context, node);
     switch (node->type)
     {
     case TypeInfo::TypeName::Float:
@@ -689,9 +782,11 @@ void VCL::ModuleBuilder::VisitLiteralExpression(ASTLiteralExpression* node) {
 }
 
 void VCL::ModuleBuilder::VisitVariableExpression(ASTVariableExpression* node) {
+    SetCurrentDebugLocation(context, node);
     lastReturnedValue = ThrowOnError(
         context->GetScopeManager().GetNamedValue(node->name), node->location);
 }
+
 
 void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) {
     Type type = ThrowOnError(Type::Create(node->type, context), node->location);
@@ -705,10 +800,14 @@ void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) 
         initializer = ThrowOnError(lastReturnedValue->Load(), node->expression->location);;
     }
 
+    SetCurrentDebugLocation(context, node);
+
     if (context->GetScopeManager().IsCurrentScopeGlobal())
-        variable = ThrowOnError(Value::CreateGlobalVariable(type, initializer, context, name.c_str()), node->location);
+        variable = ThrowOnError(Value::CreateGlobalVariable(type, initializer, context, name.c_str(), 
+            file, node->location.line, node->location.position), node->location);
     else
-        variable = ThrowOnError(Value::CreateLocalVariable(type, initializer, context, name.c_str()), node->location);
+        variable = ThrowOnError(Value::CreateLocalVariable(type, initializer, context, name.c_str(),
+            file, node->location.line, node->location.position), node->location);
 
     if (!context->GetScopeManager().PushNamedValue(node->name, variable))
         throw Exception{ std::format("Redefinition of `{}`", node->name), node->location };
@@ -764,6 +863,8 @@ void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
             else
                 throw Exception{ std::format("Argument number {} is of wrong type", i), node->location };
     }
+    
+    SetCurrentDebugLocation(context, node);
 
     lastReturnedValue = ThrowOnError(callee->Call(argsv), node->location);
 }

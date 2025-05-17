@@ -3,6 +3,11 @@
 
 namespace VCL {
 
+    struct ModuleDebugInformationSettings {
+        bool generateDebugInformation = false;
+        bool optimized = false;
+    };
+
     struct ModuleOptimizerSettings {
         bool enableLoopUnrolling = true;
         bool enableInliner = true;

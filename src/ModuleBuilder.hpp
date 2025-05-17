@@ -1,6 +1,7 @@
 #pragma once
 
 #include <VCL/AST.hpp>
+#include <VCL/ModuleUtils.hpp>
 
 #include "Value.hpp"
 #include "ModuleContext.hpp"
@@ -48,8 +49,12 @@ namespace VCL {
         void VisitVariableDeclaration(ASTVariableDeclaration* node) override;
         void VisitFunctionCall(ASTFunctionCall* node) override;
 
-    private:
+        inline void SetDISettings(ModuleDebugInformationSettings diSettings) { this->diSettings = diSettings; }
+
+    public:
         ModuleContext* context;
+        llvm::DIFile* file;
+        ModuleDebugInformationSettings diSettings;
         Handle<Value> lastReturnedValue;
     };
 

@@ -19,9 +19,11 @@ void VCL::Module::BindProgram(std::unique_ptr<ASTProgram> program) {
     this->program = std::move(program);
 }
 
-void VCL::Module::Emit() {
+void VCL::Module::Emit(ModuleDebugInformationSettings settings) {
     ModuleBuilder builder{ context.get() };
+    builder.SetDISettings(settings);
     program->Accept(&builder);
+    context->GetDIBuilder().finalize();
 }
 
 void VCL::Module::Verify(ModuleVerifierSettings settings) {

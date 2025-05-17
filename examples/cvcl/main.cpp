@@ -17,6 +17,7 @@
 struct Options {
     std::vector<std::string> inputFilenames{};
     bool optimize = true;
+    bool generateDebugInformation = false;
     std::string outputDirectory;
     std::string dumpIrDirectory;
     std::string dumpObjFilename;
@@ -39,8 +40,15 @@ bool GetOptions(int argc, const char** argv, Options& options) {
             "\n-e, --entry-point <name>: name of the program entry point (default is \"Main\")."
             "\n--dump-ir <dir>: dump input file(s) module(s) readable ir into this directory."
             "\n--dump-obj <file>: dump object to disk."
-            "\n--no-optimization: disable any optimization on the ir." << std::endl;
+            "\n--no-optimization: disable any optimization on the ir." 
+            "\n-g: generate debug information." << std::endl;
             return false;
+        }
+
+        if (strcmp(argv[idx], "-g") == 0) {
+            ++idx;
+            options.generateDebugInformation = true;
+            continue;
         }
 
         if (strcmp(argv[idx], "-i") == 0 || strcmp(argv[idx], "--inputs") == 0) {
@@ -161,7 +169,10 @@ int main(int argc, const char** argv) {
                 std::unique_ptr<VCL::ASTProgram> program = parser->Parse(*source);
 
                 std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
-                module->Emit();
+                VCL::ModuleDebugInformationSettings settings{};
+                settings.generateDebugInformation = options.generateDebugInformation;
+                settings.optimized = options.optimize;
+                module->Emit(settings);
                 module->Verify();
 
                 if (options.optimize)

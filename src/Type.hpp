@@ -4,6 +4,7 @@
 #include <VCL/Error.hpp>
 
 #include <llvm/IR/Type.h>
+#include <llvm/IR/DIBuilder.h>
 
 #include <expected>
 
@@ -16,7 +17,7 @@ namespace VCL {
     class Type {
     public:
         Type();
-        Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, ModuleContext* context);
+        Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, llvm::DIType* diType, ModuleContext* context);
         Type(const Type& type) = default;
         Type(Type&& type) noexcept = default;
         ~Type() = default;
@@ -33,6 +34,11 @@ namespace VCL {
          * @brief Get the underlying LLVM Type.
          */
         llvm::Type* GetLLVMType() const;
+
+        /**
+         * @brief Get the underlying LLVM Debug Information Type.
+         */
+        llvm::DIType* GetDIType() const;
 
         /**
          * @brief Compare types for equality
@@ -57,6 +63,7 @@ namespace VCL {
     private:
         std::shared_ptr<TypeInfo> typeInfo;
         llvm::Type* type;
+        llvm::DIType* diType;
         ModuleContext* context;
     };
 

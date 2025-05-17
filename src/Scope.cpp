@@ -114,6 +114,18 @@ bool VCL::ScopeManager::IsCurrentScopeGlobal() const {
     return scopes.size() == 1;
 }
 
+void VCL::ScopeManager::SetCurrentDebugInformationScope(llvm::DIScope* scope) {
+    scopes[0].diScope = scope;
+}
+
+llvm::DIScope* VCL::ScopeManager::GetCurrentDebugInformationScope() {
+    for (const Scope& scope : scopes) {
+        if (scope.diScope)
+            return scope.diScope;
+    }
+    return nullptr;
+}
+
 uint32_t VCL::ScopeManager::GetNamedStructTemplateOffset(std::string_view name) const {
     std::string nameStr{ name };
     uint32_t i = 0;

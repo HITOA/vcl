@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <llvm/IR/Function.h>
+#include <llvm/IR/DIBuilder.h>
 
 
 namespace VCL {
@@ -61,7 +62,7 @@ namespace VCL {
 
     public:
         Function() = delete;
-        Function(llvm::Function* value, Type type, Type returnType, std::vector<ArgInfo>& argsInfo, ModuleContext* context);
+        Function(llvm::Function* value, Type type, Type returnType, llvm::DISubroutineType* diType, std::vector<ArgInfo>& argsInfo, ModuleContext* context);
         Function(const Function& value) = default;
         Function(Function&& value) noexcept = default;
         virtual ~Function() = default;
@@ -103,6 +104,11 @@ namespace VCL {
         llvm::Function* GetLLVMFunction() const;
 
         /**
+         * @brief Get underlying LLVM Debug Information Type.
+         */
+        llvm::DISubroutineType* GetDIType() const;
+
+        /**
          * @brief Check if this function have storage
          */
         bool HasStorage() const;
@@ -119,6 +125,7 @@ namespace VCL {
 
     private:
         Type returnType;
+        llvm::DISubroutineType* diType;
         std::vector<ArgInfo> argsType;
     };
 }

@@ -97,12 +97,14 @@ namespace VCL {
         /**
          * @brief Create a new value that is a GlobalVariable with the given VCL Type, Value Initializer, and context.
          */
-        static std::expected<Handle<Value>, Error> CreateGlobalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name = nullptr);
+        static std::expected<Handle<Value>, Error> CreateGlobalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name = nullptr, 
+            llvm::DIFile* file = nullptr, uint32_t line = 0, uint32_t position = 0);
 
         /**
          * @brief Create a new value that is a AllocaInst with the given VCL Type, Value Initializer, and context.
          */
-        static std::expected<Handle<Value>, Error> CreateLocalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name = nullptr);
+        static std::expected<Handle<Value>, Error> CreateLocalVariable(Type type, Handle<Value> initializer, ModuleContext* context, const char* name = nullptr,
+            llvm::DIFile* file = nullptr, uint32_t line = 0, uint32_t position = 0);
         
         /**
          * @brief Create a new compile time constant int Value with the given int and context.

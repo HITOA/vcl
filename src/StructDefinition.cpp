@@ -4,11 +4,15 @@
 #include "Type.hpp"
 
 
-VCL::StructDefinition::StructDefinition(llvm::StructType* type, std::unordered_map<std::string, uint32_t>& fields) :
-    type{ type }, fields{ fields } {}
+VCL::StructDefinition::StructDefinition(llvm::StructType* type, llvm::DIType* diType, std::unordered_map<std::string, uint32_t>& fields) :
+    type{ type }, diType{ diType }, fields{ fields } {}
 
 llvm::StructType* VCL::StructDefinition::GetType() {
     return type;
+}
+
+llvm::DIType* VCL::StructDefinition::GetDIType() {
+    return diType;
 }
 
 uint32_t VCL::StructDefinition::GetFieldCount() {
@@ -30,6 +34,7 @@ std::expected<VCL::Handle<VCL::StructDefinition>, VCL::Error> VCL::StructDefinit
     
     std::unordered_map<std::string, uint32_t> fields{};
     std::vector<llvm::Type*> elementsType(elements.size());
+    std::vector<llvm::Metadata*> elementsDIType(elements.size());
 
     for (size_t i = 0; i < elements.size(); ++i) {
         if (elements[i].second->IsExtern())
@@ -37,13 +42,22 @@ std::expected<VCL::Handle<VCL::StructDefinition>, VCL::Error> VCL::StructDefinit
         if (auto t = Type::Create(elements[i].second, context); t.has_value()) {
             fields[elements[i].first] = i;
             elementsType[i] = t->GetLLVMType();
+            elementsDIType[i] = t->GetDIType();
         } else {
             return std::unexpected(t.error());
         }
     }
+
+    auto elementsDITypesArray = context->GetDIBuilder().getOrCreateArray(elementsDIType);
     
     llvm::StructType* type = llvm::StructType::create(*context->GetTSContext().getContext(), elementsType);
     type->setName(name);
 
-    return MakeHandle<VCL::StructDefinition>(type, fields);
+    uint64_t structSizeInBits = context->GetTSModule().getModuleUnlocked()->getDataLayout().getTypeSizeInBits(type);
+    uint64_t structAlignInBits = context->GetTSModule().getModuleUnlocked()->getDataLayout().getABITypeAlign(type).value() * 8;
+                
+    llvm::DIType* diType = context->GetDIBuilder().createStructType(context->GetScopeManager().GetCurrentDebugInformationScope(),
+        name, nullptr, 0, structSizeInBits, structAlignInBits, llvm::DINode::FlagZero, nullptr, elementsDITypesArray);
+
+    return MakeHandle<VCL::StructDefinition>(type, diType, fields);
 }

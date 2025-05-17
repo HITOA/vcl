@@ -32,7 +32,9 @@ public:
     std::unique_ptr<VCL::ASTProgram> program; \
     REQUIRE_NOTHROW(program = parser->Parse(*source)); \
     std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program)); \
-    REQUIRE_NOTHROW(module->Emit()); \
+    VCL::ModuleDebugInformationSettings diSettings{}; \
+    diSettings.generateDebugInformation = true; \
+    REQUIRE_NOTHROW(module->Emit(diSettings)); \
     REQUIRE_NOTHROW(module->Verify()); \
     session->SubmitModule(std::move(module))
 
@@ -139,5 +141,4 @@ TEST_CASE( "VCL infinite recursion with select detection", "[Error][Detection][R
     VCL::ModuleVerifierSettings settings{};
     settings.selectRecursionAsError = true;
     REQUIRE_THROWS(module->Verify(settings));
-    session->SubmitModule(std::move(module));
 }

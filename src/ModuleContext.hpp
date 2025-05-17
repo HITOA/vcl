@@ -7,12 +7,23 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/DIBuilder.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 
 #include <string_view>
 
 
 namespace VCL {
+
+    struct DebugInformationBasicType {
+        llvm::DIBasicType* floatDIType;
+        llvm::DIBasicType* intDIType;
+        llvm::DIBasicType* boolDIType;
+        llvm::DIBasicType* voidDIType;
+        llvm::DIDerivedType* vfloatDIType;
+        llvm::DIDerivedType* vintDIType;
+        llvm::DIDerivedType* vboolDIType;
+    };
 
     /**
      * @brief This is the main class representing a JIT Module.
@@ -38,9 +49,14 @@ namespace VCL {
         llvm::orc::ThreadSafeModule& GetTSModule();
 
         /**
-         * @brief Get the underlying LLVM IRBuilder<> module.
+         * @brief Get the underlying LLVM IRBuilder<>.
          */
         llvm::IRBuilder<>& GetIRBuilder();
+
+        /**
+         * @brief Get the underlyind LLVM DIBuilder.
+         */
+        llvm::DIBuilder& GetDIBuilder();
         
         /**
          * @brief Get the ScopeManager of this module.
@@ -52,11 +68,24 @@ namespace VCL {
          */
         std::shared_ptr<Logger> GetLogger();
 
+        /**
+         * @brief Get debug information basic type struct.
+         */
+        DebugInformationBasicType* GetDIBasicTypes();
+
+        /**
+         * @brief Get debug information builtin file.
+         */
+        llvm::DIFile* GetDIBuiltinFile();
+
     private:
         llvm::orc::ThreadSafeModule module;
         llvm::IRBuilder<> irBuilder;
+        llvm::DIBuilder diBuilder;
+        llvm::DIFile* diBuiltinFile;
         ScopeManager sm;
         std::shared_ptr<Logger> logger;
+        DebugInformationBasicType basicTypes;
     };
 
 }

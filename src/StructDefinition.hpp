@@ -6,6 +6,7 @@
 #include "Handle.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/DIBuilder.h>
 
 #include <unordered_map>
 #include <string>
@@ -18,7 +19,7 @@ namespace VCL {
     class StructDefinition {
     public:
         StructDefinition() = delete;
-        StructDefinition(llvm::StructType* type, std::unordered_map<std::string, uint32_t>& fields);
+        StructDefinition(llvm::StructType* type, llvm::DIType* diType, std::unordered_map<std::string, uint32_t>& fields);
         StructDefinition(const StructDefinition& value) = default;
         StructDefinition(StructDefinition&& value) noexcept = default;
         virtual ~StructDefinition() = default;
@@ -28,6 +29,7 @@ namespace VCL {
 
 
         llvm::StructType* GetType();
+        llvm::DIType* GetDIType();
 
         uint32_t GetFieldCount();
         uint32_t GetFieldIndex(std::string_view name);
@@ -38,6 +40,7 @@ namespace VCL {
             std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& elements, ModuleContext* context);
     private:
         llvm::StructType* type;
+        llvm::DIType* diType;
         std::unordered_map<std::string, uint32_t> fields;
     };
 

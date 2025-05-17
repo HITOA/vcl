@@ -12,8 +12,8 @@
 VCL::Type::Type() :
     typeInfo{}, type{ nullptr }, context{ nullptr } {}
 
-VCL::Type::Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, ModuleContext* context) :
-    typeInfo{ typeInfo }, type{ type }, context{ context } {}
+VCL::Type::Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, llvm::DIType* diType, ModuleContext* context) :
+    typeInfo{ typeInfo }, type{ type }, diType{ diType }, context{ context } {}
 
 std::shared_ptr<VCL::TypeInfo> VCL::Type::GetTypeInfo() const {
     return typeInfo;
@@ -21,6 +21,10 @@ std::shared_ptr<VCL::TypeInfo> VCL::Type::GetTypeInfo() const {
 
 llvm::Type* VCL::Type::GetLLVMType() const {
     return type;
+}
+
+llvm::DIType* VCL::Type::GetDIType() const {
+    return diType;
 }
 
 bool VCL::Type::operator==(Type& rhs) const {
@@ -41,34 +45,44 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
     }
 
     llvm::Type* type;
+    llvm::DIType* diType;
+
     switch (typeInfo->type)
     {
     case TypeInfo::TypeName::Callable:
         type = nullptr;
+        diType = nullptr;
         break;
     case TypeInfo::TypeName::Float:
         type = llvm::Type::getFloatTy(*context->GetTSContext().getContext());
+        diType = context->GetDIBasicTypes()->floatDIType;
         break;
     case TypeInfo::TypeName::Bool:
         type = llvm::Type::getInt1Ty(*context->GetTSContext().getContext());
+        diType = context->GetDIBasicTypes()->boolDIType;
         break;
     case TypeInfo::TypeName::Int:
         type = llvm::Type::getInt32Ty(*context->GetTSContext().getContext());
+        diType = context->GetDIBasicTypes()->intDIType;
         break;
     case TypeInfo::TypeName::Void:
         type = llvm::Type::getVoidTy(*context->GetTSContext().getContext());
+        diType = context->GetDIBasicTypes()->voidDIType;
         break;
     case TypeInfo::TypeName::VectorFloat:
         type = llvm::FixedVectorType::get(llvm::Type::getFloatTy(*context->GetTSContext().getContext()), 
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
+        diType = context->GetDIBasicTypes()->vfloatDIType;
         break;
     case TypeInfo::TypeName::VectorBool:
         type = llvm::FixedVectorType::get(llvm::Type::getInt1Ty(*context->GetTSContext().getContext()), 
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
+        diType = context->GetDIBasicTypes()->vboolDIType;
         break;
     case TypeInfo::TypeName::VectorInt:
         type = llvm::FixedVectorType::get(llvm::Type::getInt32Ty(*context->GetTSContext().getContext()), 
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
+        diType = context->GetDIBasicTypes()->vintDIType;
         break;
     case TypeInfo::TypeName::Array:
         {
@@ -83,7 +97,16 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
                     ToString(typeInfo), ToString(typeInfo->arguments[1])) };
             if (auto t = Type::Create(typeInfo->arguments[0]->typeInfo, context); t.has_value()) {
                 Type elementType = *t;
-                type = llvm::ArrayType::get(elementType.GetLLVMType(), typeInfo->arguments[1]->intValue);
+                int size = typeInfo->arguments[1]->intValue;
+                type = llvm::ArrayType::get(elementType.GetLLVMType(), size);
+                uint64_t elementSizeInBits = context->GetTSModule().getModuleUnlocked()->getDataLayout().getTypeSizeInBits(elementType.GetLLVMType());
+                auto* subrange = context->GetDIBuilder().getOrCreateSubrange(0, size);
+                auto subscript = context->GetDIBuilder().getOrCreateArray(subrange);
+                diType = context->GetDIBuilder().createArrayType(
+                    size * elementSizeInBits,
+                    32, elementType.diType, subscript
+                );
+                diType = context->GetDIBuilder().createTypedef(diType, ToString(typeInfo), context->GetDIBuiltinFile(), 0, nullptr);
             } else {
                 return std::unexpected{ t.error() };
             }
@@ -101,9 +124,15 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
                     ToString(typeInfo), ToString(typeInfo->arguments[0])) };
             if (auto t = Type::Create(typeInfo->arguments[0]->typeInfo, context); t.has_value()) {
                 Type elementType = *t;
+                uint64_t elementSizeInBits = context->GetTSModule().getModuleUnlocked()->getDataLayout().getTypeSizeInBits(elementType.GetLLVMType());
                 llvm::StructType* structType = llvm::StructType::create(
                     { llvm::PointerType::get(elementType.GetLLVMType(), 0), llvm::Type::getInt32Ty(*context->GetTSContext().getContext()) });
+                uint64_t structSizeInBits = context->GetTSModule().getModuleUnlocked()->getDataLayout().getTypeSizeInBits(structType);
+                uint64_t structAlignInBits = context->GetTSModule().getModuleUnlocked()->getDataLayout().getABITypeAlign(structType).value() * 8;
                 type = structType;
+                auto elements = context->GetDIBuilder().getOrCreateArray({ elementType.diType, context->GetDIBasicTypes()->intDIType });
+                diType = context->GetDIBuilder().createStructType(nullptr, ToString(typeInfo), context->GetDIBuiltinFile(), 0, structSizeInBits,
+                    structAlignInBits, llvm::DINode::FlagZero, nullptr, elements);
             } else {
                 return std::unexpected{ t.error() };
             }
@@ -118,19 +147,22 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
                     std::string mangledName = (*t)->Mangle(typeInfo->arguments);
                     if (auto t = context->GetScopeManager().GetNamedType(mangledName); t.has_value()) {
                         type = (*t)->GetType();
+                        diType = (*t)->GetDIType();
                         break;
                     }
                     if (auto r = (*t)->Resolve(typeInfo->arguments); r.has_value()) {
                         type = (*r)->GetType();
+                        diType = (*r)->GetDIType();
                         break;
                     } else
                         return std::unexpected(r.error());
                 } else 
                     return std::unexpected(t.error());
             } else {
-                if (auto t = context->GetScopeManager().GetNamedType(typeInfo->name); t.has_value())
+                if (auto t = context->GetScopeManager().GetNamedType(typeInfo->name); t.has_value()) {
                     type = (*t)->GetType();
-                else
+                    diType = (*t)->GetDIType();
+                } else
                     return std::unexpected(t.error());
             }
         }
@@ -139,7 +171,7 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
         return std::unexpected(Error{ "Invalid typename while parsing type" });
     }
 
-    return Type{ typeInfo, type, context };
+    return Type{ typeInfo, type, diType, context };
 }
 
 std::expected<VCL::Type, VCL::Error> VCL::Type::CreateFromLLVMType(llvm::Type* type, ModuleContext* context) {
@@ -148,36 +180,55 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::CreateFromLLVMType(llvm::Type* t
         trueType = type->getScalarType();
 
     std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+    llvm::DIType* diType = nullptr;
 
     if (trueType->isStructTy()) {
         typeInfo->type = TypeInfo::TypeName::Custom;
         typeInfo->name = trueType->getStructName();
-        return Type{ typeInfo, type, context };
+        if (auto t = context->GetScopeManager().GetNamedType(typeInfo->name); t.has_value())
+            diType = (*t)->GetDIType();
+        return Type{ typeInfo, type, diType, context };
     }
     
     if (trueType->isFunctionTy()) {
         typeInfo->type = TypeInfo::TypeName::Callable;
-        return Type{ typeInfo, type, context };
+        return Type{ typeInfo, type, diType, context };
     }
 
-    if (trueType->isFloatTy())
+    if (trueType->isFloatTy()) {
         typeInfo->type = TypeInfo::TypeName::Float;
-    else if (trueType->isIntegerTy()) {
+        diType = context->GetDIBasicTypes()->floatDIType;
+    } else if (trueType->isIntegerTy()) {
         uint32_t width = trueType->getIntegerBitWidth();
-        if (width == 1)
+        if (width == 1) {
             typeInfo->type = TypeInfo::TypeName::Bool;
-        else if (width == 32)
+        diType = context->GetDIBasicTypes()->boolDIType;
+        } else if (width == 32) {
             typeInfo->type = TypeInfo::TypeName::Int;
-        else
+        diType = context->GetDIBasicTypes()->intDIType;
+        } else
             return std::unexpected(Error{ "Unsupported integer bit width" });
-    } else if (trueType->isVoidTy())
+    } else if (trueType->isVoidTy()) {
         typeInfo->type = TypeInfo::TypeName::Void;
-    else
+        diType = context->GetDIBasicTypes()->voidDIType;
+    } else
         return std::unexpected(Error{ "Unsupported LLVM type" });
 
     if (type->isVectorTy())
         typeInfo->type = (TypeInfo::TypeName)((uint32_t)typeInfo->type + 
             (uint32_t)TypeInfo::TypeName::VectorFloat - (uint32_t)TypeInfo::TypeName::Float);
+
+    switch (typeInfo->type) {
+        case TypeInfo::TypeName::VectorFloat:
+            diType = context->GetDIBasicTypes()->vfloatDIType;
+            break;
+        case TypeInfo::TypeName::VectorBool:
+            diType = context->GetDIBasicTypes()->vboolDIType;
+            break;
+        case TypeInfo::TypeName::VectorInt:
+            diType = context->GetDIBasicTypes()->vintDIType;
+            break;
+    }
     
-    return Type{ typeInfo, type, context };
+    return Type{ typeInfo, type, diType, context };
 }
