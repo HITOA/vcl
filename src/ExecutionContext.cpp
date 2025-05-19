@@ -7,6 +7,8 @@
 
 #include <llvm/ExecutionEngine/JITEventListener.h>
 
+#include <cmath>
+
 
 VCL::ExecutionContext::ExecutionContext() : context{}, dumpObject{ false } {
     context = llvm::orc::ThreadSafeContext{ std::make_unique<llvm::LLVMContext>() };
@@ -20,6 +22,7 @@ VCL::ExecutionContext::ExecutionContext() : context{}, dumpObject{ false } {
     
 
     auto jtmb = llvm::orc::JITTargetMachineBuilder::detectHost();
+    
     if (!jtmb)
         throw std::runtime_error{ std::format("{}", llvm::toString(jtmb.takeError())) };
 
@@ -45,11 +48,12 @@ VCL::ExecutionContext::ExecutionContext() : context{}, dumpObject{ false } {
     );
     compileLayer = std::make_unique<llvm::orc::IRCompileLayer>(*session, *dumpObjectLayer, 
         std::make_unique<llvm::orc::ConcurrentIRCompiler>(std::move(*jtmb)));
-    
 
     main = &session->createBareJITDylib("Main");
 
     gdbListener = llvm::JITEventListener::createGDBRegistrationListener();
+
+    DefineIntrinsic();
 }
 
 VCL::ExecutionContext::~ExecutionContext() {}
@@ -110,4 +114,38 @@ llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> VCL::ExecutionContext::DumpO
     dumpOutFile.write(buf->getBufferStart(), buf->getBufferSize());
 
     return std::move(buf);
+}
+
+#define ADD_MATH_SYMBOL(f) symbolMap[session->intern(#f)] = llvm::orc::ExecutorSymbolDef{ \
+        llvm::orc::ExecutorAddr::fromPtr(&f), \
+        llvm::JITSymbolFlags::Exported \
+    }
+
+void VCL::ExecutionContext::DefineIntrinsic() {
+    llvm::orc::SymbolMap symbolMap{ 22 };
+
+    ADD_MATH_SYMBOL(sqrtf);
+    ADD_MATH_SYMBOL(sinf);
+    ADD_MATH_SYMBOL(cosf);
+    ADD_MATH_SYMBOL(tanf);
+    ADD_MATH_SYMBOL(asinf);
+    ADD_MATH_SYMBOL(acosf);
+    ADD_MATH_SYMBOL(atanf);
+    ADD_MATH_SYMBOL(sinhf);
+    ADD_MATH_SYMBOL(coshf);
+    ADD_MATH_SYMBOL(tanhf);
+    ADD_MATH_SYMBOL(logf);
+    ADD_MATH_SYMBOL(log10f);
+    ADD_MATH_SYMBOL(log2f);
+    ADD_MATH_SYMBOL(expf);
+    ADD_MATH_SYMBOL(exp10f);
+    ADD_MATH_SYMBOL(exp2f);
+    ADD_MATH_SYMBOL(fabsf);
+    ADD_MATH_SYMBOL(ceilf);
+    ADD_MATH_SYMBOL(floorf);
+    ADD_MATH_SYMBOL(roundf);
+    ADD_MATH_SYMBOL(powf);
+    ADD_MATH_SYMBOL(fmaf);
+
+    llvm::Error err = main->define(llvm::orc::absoluteSymbols(symbolMap));
 }

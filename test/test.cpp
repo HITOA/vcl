@@ -5,6 +5,7 @@
 #include <VCL/NativeTarget.hpp>
 #include <format>
 #include <stdlib.h>
+#include <iostream>
 
 
 class ConsoleLogger : public VCL::Logger {
@@ -141,4 +142,75 @@ TEST_CASE( "VCL infinite recursion with select detection", "[Error][Detection][R
     VCL::ModuleVerifierSettings settings{};
     settings.selectRecursionAsError = true;
     REQUIRE_THROWS(module->Verify(settings));
+}
+
+TEST_CASE( "VCL const test", "[Error]" ) {
+    std::shared_ptr<ConsoleLogger> logger = std::make_shared<ConsoleLogger>();
+    std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger);
+    std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger);
+    session->SetDebugInformation(true);
+    std::filesystem::path sourcepath{ "./vcl/const.vcl" };
+    auto source = VCL::Source::LoadFromDisk(sourcepath);
+    REQUIRE(source.has_value());
+    std::unique_ptr<VCL::ASTProgram> program;
+    REQUIRE_NOTHROW(program = parser->Parse(*source));
+    std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
+    REQUIRE_THROWS(module->Emit());
+}
+
+template<typename T>
+T Max(T a, T b) {
+    return a > b ? a : b;
+}
+
+TEST_CASE( "VCL templated max", "[Template]" ) {
+    MAKE_VCL("./vcl/templatefunction.vcl");
+
+    SECTION("Value check") {
+        float a = GENERATE(0.0f, 2.0f, -2.0f, 5.0f);
+        float b = GENERATE(4.0f, 2.0f, -1.0f, 0.0f);
+        
+        float r;
+
+        session->DefineExternSymbolPtr("a", &a);
+        session->DefineExternSymbolPtr("b", &b);
+
+        session->DefineExternSymbolPtr("r", &r);
+
+        ((void(*)())(session->Lookup("Main")))();
+        
+        REQUIRE(Max(a, b) == r);
+    }
+}
+
+template<typename T>
+struct Vector3 {
+    T x;
+    T y;
+    T z;
+};
+
+template<typename T>
+T Distance(Vector3<T> a, Vector3<T> b) {
+    return sqrt(pow(b.x - a.x, 2.0) + pow(b.y - a.y, 2.0) + pow(b.z - a.z, 2.0));
+}
+
+TEST_CASE( "VCL distance", "[Arithmetic][Intrinsic][Struct][Template]" ) {
+    MAKE_VCL("./vcl/distance.vcl");
+
+    SECTION("Value check") {
+        Vector3<float> vecA{ 0.0f, 10.0f, 3.0f };
+        Vector3<float> vecB{ -2.0f, 0.0f, 4.0f };
+
+        float distance;
+
+        session->DefineExternSymbolPtr("vecA", &vecA);
+        session->DefineExternSymbolPtr("vecB", &vecB);
+
+        session->DefineExternSymbolPtr("distance", &distance);
+
+        ((void(*)())(session->Lookup("Main")))();
+        
+        REQUIRE(Distance(vecA, vecB) == distance);
+    }
 }

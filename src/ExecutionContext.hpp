@@ -46,6 +46,7 @@ namespace VCL {
 
     private:
         llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> DumpObject(std::unique_ptr<llvm::MemoryBuffer> buf);
+        void DefineIntrinsic();
 
     private:
         llvm::orc::ThreadSafeContext context;

@@ -24,8 +24,11 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Load() {
     return Value::Create(loadedValue, type, context);
 }
 
-void VCL::Value::Store(Handle<Value> value) {
+std::optional<VCL::Error> VCL::Value::Store(Handle<Value> value) {
+    if (type.GetTypeInfo()->IsConst())
+        return Error{ "You cannot assign to a variable that is const." };
     context->GetIRBuilder().CreateStore(value->GetLLVMValue(), this->value);
+    return {};
 }
 
 bool VCL::Value::IsAssignableFrom(Handle<Value> value) const {

@@ -139,11 +139,8 @@ void VCL::Intrinsics::Register(ModuleContext* context) {
     sm.PushNamedValue("len", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<LenIntrinsicImpl>(), context)));
 
     DEFINE_BINARY_INTRINSIC("pow",      llvm::Intrinsic::pow);
-    DEFINE_BINARY_INTRINSIC("min",      llvm::Intrinsic::minnum);
-    DEFINE_BINARY_INTRINSIC("max",      llvm::Intrinsic::maxnum);
     sm.PushNamedValue("fmod", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<FModIntrinsicImpl>(), context)));
 
     DEFINE_TRINARY_INTRINSIC("fma",     llvm::Intrinsic::fma);
-    DEFINE_TRINARY_INTRINSIC("brev",    llvm::Intrinsic::bitreverse);
     sm.PushNamedValue("select", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<SelectIntrinsicImpl>(), context)));
 }

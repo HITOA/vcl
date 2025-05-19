@@ -12,6 +12,26 @@
 #include <iostream>
 
 
+struct BasicBlockOnNeed {
+    llvm::LLVMContext* context = nullptr;
+    const char* name = nullptr;
+    llvm::Function* function = nullptr;
+    llvm::BasicBlock* bb = nullptr;
+    bool created = false;
+
+    BasicBlockOnNeed() = delete;
+    BasicBlockOnNeed(llvm::LLVMContext* context, const char* name, llvm::Function* function) :
+        context{ context }, name{ name }, function{ function }, bb{ nullptr }, created{ false } {};
+
+    llvm::BasicBlock* Get() {
+        if (!created) {
+            bb = llvm::BasicBlock::Create(*context, name, function);
+            created = true;
+        }
+        return bb;
+    }
+};
+
 void SetCurrentDebugLocation(VCL::ModuleContext* context, VCL::ASTStatement* node) {
     if (llvm::DIScope* scope = context->GetScopeManager().GetCurrentDebugInformationScope()) {
         llvm::DILocation* loc = llvm::DILocation::get(*(context->GetTSContext().getContext()),
@@ -228,9 +248,9 @@ void VCL::ModuleBuilder::VisitIfStatement(ASTIfStatement* node) {
 
     llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "then", function);
     llvm::BasicBlock* elseBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "else", function);
-    llvm::BasicBlock* endBB = llvm::BasicBlock::Create(*context->GetTSContext().getContext(), "end", function);
+    BasicBlockOnNeed endBB{ context->GetTSContext().getContext(), "end", function };
 
-    ScopeGuard scopeGuard{ &context->GetScopeManager(), endBB };
+    ScopeGuard scopeGuard{ &context->GetScopeManager() };
 
     CreateDebugScope(context, node, file);
     SetCurrentDebugLocation(context, node);
@@ -240,14 +260,16 @@ void VCL::ModuleBuilder::VisitIfStatement(ASTIfStatement* node) {
     context->GetIRBuilder().SetInsertPoint(thenBB);
     node->thenStmt->Accept(this);
     if (!context->GetIRBuilder().GetInsertBlock()->getTerminator())
-        context->GetIRBuilder().CreateBr(endBB);
+        context->GetIRBuilder().CreateBr(endBB.Get());
 
     context->GetIRBuilder().SetInsertPoint(elseBB);
     if (node->elseStmt)
         node->elseStmt->Accept(this);
-    context->GetIRBuilder().CreateBr(endBB);
+    if (!context->GetIRBuilder().GetInsertBlock()->getTerminator())
+        context->GetIRBuilder().CreateBr(endBB.Get());
 
-    context->GetIRBuilder().SetInsertPoint(endBB);
+    if (endBB.created)
+        context->GetIRBuilder().SetInsertPoint(endBB.Get());
 
     scopeGuard.Release();
 }
@@ -539,10 +561,9 @@ void VCL::ModuleBuilder::VisitAssignmentExpression(ASTAssignmentExpression* node
     
     rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
 
-    if (lhs->GetType().GetTypeInfo()->IsConst())
-        throw Exception{ "You cannot assign to a variable that is const.", node->location };
-    
-    lhs->Store(rhs);
+    if (auto err = lhs->Store(rhs); err.has_value())
+        throw Exception{ err.value(), node->location };
+
     lastReturnedValue = lhs;
 }
 
@@ -590,7 +611,8 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
             )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
             context), node->location);
-            expression->Store(incrementedValue);
+            if (auto err = expression->Store(incrementedValue); err.has_value())
+                throw Exception{ err.value(), node->location };
             result = incrementedValue->GetLLVMValue();
         }
         break;
@@ -607,7 +629,8 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
             )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
             context), node->location);
-            expression->Store(decrementedValue);
+            if (auto err = expression->Store(decrementedValue); err.has_value())
+                throw Exception{ err.value(), node->location };
             result = decrementedValue->GetLLVMValue();
         }
         break;
@@ -678,7 +701,8 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
             )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
             context), node->location);
-            expression->Store(incrementedValue);
+            if (auto err = expression->Store(incrementedValue); err.has_value())
+                throw Exception{ err.value(), node->location };
             result = loadedExpression->GetLLVMValue();
         }
         break;
@@ -695,7 +719,8 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
             )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
             context), node->location);
-            expression->Store(decrementedValue);
+            if (auto err = expression->Store(decrementedValue); err.has_value())
+                throw Exception{ err.value(), node->location };
             result = loadedExpression->GetLLVMValue();
         }
         break;

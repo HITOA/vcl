@@ -51,6 +51,15 @@ namespace VCL {
             }
         }
 
+        if (policy & FloatOnly) {
+            switch (typeInfo->type)
+            {
+            case TypeInfo::TypeName::Float:
+            case TypeInfo::TypeName::VectorFloat:
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -64,7 +73,7 @@ namespace VCL {
         }
         
         bool CheckArgType(uint32_t index, Type type) override {
-            IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Numeric | IntrinsicArgumentPolicy::Vector };
+            IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::FloatOnly };
             return policy(type);
         }
 
@@ -96,7 +105,7 @@ namespace VCL {
         }
         
         bool CheckArgType(uint32_t index, Type type) override {
-            IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Numeric | IntrinsicArgumentPolicy::Vector };
+            IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::FloatOnly };
             return policy(type);
         }
 
@@ -128,7 +137,7 @@ namespace VCL {
         }
         
         bool CheckArgType(uint32_t index, Type type) override {
-            IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Numeric | IntrinsicArgumentPolicy::Vector };
+            IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::FloatOnly };
             return policy(type);
         }
 

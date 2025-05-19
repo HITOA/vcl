@@ -15,7 +15,8 @@ namespace VCL {
             Vector = FLAG(2),
             Condition = FLAG(3),
             Mask = FLAG(4),
-            Buffer = FLAG(5)
+            Buffer = FLAG(5),
+            FloatOnly = FLAG(6)
         } policy = Policy::None;
 
         bool operator()(Type type);

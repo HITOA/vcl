@@ -9,6 +9,7 @@
 #include <llvm/IR/Value.h>
 
 #include <expected>
+#include <optional>
 
 
 namespace VCL {
@@ -38,7 +39,7 @@ namespace VCL {
         /**
          * @brief Store the given Value into the current Value.
          */
-        void Store(Handle<Value> value);
+        std::optional<Error> Store(Handle<Value> value);
         
         /**
          * @brief Check if this Value can be assigned by the given one.
