@@ -143,7 +143,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
 
     if (file) {
         llvm::DIGlobalVariableExpression* diInfo = context->GetDIBuilder().createGlobalVariableExpression(
-            file, name, name, file, line + 1, type.GetDIType(), isExtern, initializerValue != nullptr);
+            file, name, name, file, line + 1, type.GetDIType(), !isExtern, initializerValue != nullptr);
         value->addDebugInfo(diInfo);
     }
 

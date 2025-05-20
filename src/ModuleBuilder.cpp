@@ -820,9 +820,12 @@ void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) 
 
     std::string name{ node->name };
     
+    if (context->GetScopeManager().IsCurrentScopeGlobal() && type.GetTypeInfo()->IsExtern() && node->expression)
+        throw Exception{ "global variable with 'in' and 'out' storage imply external linkage and cannot be initialized.", node->location };
+
     if (node->expression) {
         node->expression->Accept(this);
-        initializer = ThrowOnError(lastReturnedValue->Load(), node->expression->location);;
+        initializer = ThrowOnError(lastReturnedValue->Load(), node->expression->location);
     }
 
     SetCurrentDebugLocation(context, node);

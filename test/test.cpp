@@ -214,3 +214,76 @@ TEST_CASE( "VCL distance", "[Arithmetic][Intrinsic][Struct][Template]" ) {
         REQUIRE(Distance(vecA, vecB) == distance);
     }
 }
+
+TEST_CASE( "VCL initializer on extern global variable", "[Error]" ) {
+    std::shared_ptr<ConsoleLogger> logger = std::make_shared<ConsoleLogger>();
+    std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger);
+    std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger);
+    session->SetDebugInformation(true);
+    std::filesystem::path sourcepath{ "./vcl/initializeronextern.vcl" };
+    auto source = VCL::Source::LoadFromDisk(sourcepath);
+    REQUIRE(source.has_value());
+    std::unique_ptr<VCL::ASTProgram> program;
+    REQUIRE_NOTHROW(program = parser->Parse(*source));
+    std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
+    REQUIRE_THROWS(module->Emit());
+}
+
+TEST_CASE( "VCL array", "[Array]" ) {
+    MAKE_VCL("./vcl/array.vcl");
+
+    SECTION("Value check") {
+        int input = GENERATE(2.0, 5.0, -2.0, 0.0);
+        int output = 0;
+        
+        session->DefineExternSymbolPtr("input", &input);
+        session->DefineExternSymbolPtr("output", &output);
+
+        ((void(*)())(session->Lookup("Main")))();
+
+        int finput = input;
+
+        for (int i = 0; i < 7; ++i) {
+            input = rand();
+            ((void(*)())(session->Lookup("Main")))();
+        }
+        
+        REQUIRE(output == finput);
+    }
+}
+
+template<typename T>
+struct Span {
+    T* data;
+    int length;
+};
+
+TEST_CASE( "VCL span", "[Span]" ) {
+    MAKE_VCL("./vcl/span.vcl");
+
+    SECTION("Value check") {
+        float buffer[64]{};
+
+        Span<float> inputs{ buffer, 64 };
+        int index = 0;
+
+        float output = 0;
+        int length = 0;
+        
+        session->DefineExternSymbolPtr("inputs", &inputs);
+        session->DefineExternSymbolPtr("index", &index);
+
+        session->DefineExternSymbolPtr("output", &output);
+        session->DefineExternSymbolPtr("length", &length);
+
+        for (int i = 0; i < 64; ++i)
+            buffer[i] = rand();
+
+        for (int i = 0; i < 8; ++i) {
+            index = (i * 11) % 64;
+            ((void(*)())(session->Lookup("Main")))();
+            REQUIRE(buffer[index] == output);
+            REQUIRE(length == 64);
+        }
+    }
+}
