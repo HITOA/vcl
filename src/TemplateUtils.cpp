@@ -104,10 +104,20 @@ std::expected<std::shared_ptr<VCL::TypeInfo>, VCL::Error> VCL::TemplateArgumentM
         std::shared_ptr<TemplateArgument> newta = std::make_shared<TemplateArgument>(*ta);
         if (newta->type != TemplateArgument::TemplateValueType::Typename)
             continue;
-        if (auto r = ResolveType(ta->typeInfo); r.has_value())
-            newta->typeInfo = *r;
-        else
-            return std::unexpected{ r.error() };
+        n = std::string{newta->typeInfo->name};
+        if (map.count(n)) {
+            std::shared_ptr<TemplateArgument> argument = map[n];
+            if (argument->type == TemplateArgument::TemplateValueType::Int) {
+                newta->type = TemplateArgument::TemplateValueType::Int;
+                newta->typeInfo = nullptr;
+                newta->intValue = argument->intValue;
+            } else {
+                if (auto r = ResolveType(ta->typeInfo); r.has_value())
+                    newta->typeInfo = *r;
+                else
+                    return std::unexpected{ r.error() };
+            }
+        }
         newTypeInfo->arguments[i] = newta;
     }
     return newTypeInfo;

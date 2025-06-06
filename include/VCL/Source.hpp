@@ -22,8 +22,8 @@ namespace VCL {
         uint32_t line;
         uint32_t length;
 
-        std::string ToString();
-        std::string ToStringDetailed();
+        std::string ToString() const;
+        std::string ToStringDetailed() const;
         SourceLocation Combine(SourceLocation location);
     };
 }

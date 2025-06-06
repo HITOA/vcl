@@ -38,13 +38,13 @@ std::string GetLineFromString(std::string str, uint32_t line) {
     return str.substr(last_line_offset, str.length() - last_line_offset);
 }
 
-std::string VCL::SourceLocation::ToString() {
+std::string VCL::SourceLocation::ToString() const {
     if (source == nullptr)
         return "NULL";
     return std::format("{}:{}:{}", std::filesystem::weakly_canonical(source->path).string(), line + 1, position);
 }
 
-std::string VCL::SourceLocation::ToStringDetailed() {
+std::string VCL::SourceLocation::ToStringDetailed() const {
     if (source == nullptr)
         return "NULL";
     std::string error_line = GetLineFromString(source->source, line);

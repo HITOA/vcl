@@ -33,6 +33,9 @@ namespace VCL {
         
         std::string Mangle();
 
+        std::unordered_map<std::string, std::shared_ptr<TemplateArgument>>::iterator begin() { return map.begin(); }
+        std::unordered_map<std::string, std::shared_ptr<TemplateArgument>>::iterator end() { return map.end(); }
+
     private:
         std::unordered_map<std::string, std::shared_ptr<TemplateArgument>> map;
         std::string_view name;

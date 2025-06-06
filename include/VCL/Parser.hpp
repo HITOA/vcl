@@ -66,6 +66,7 @@ namespace VCL {
         std::unique_ptr<ASTFunctionCall> ParseFunctionCall(Lexer& lexer);
         std::unique_ptr<ASTFunctionCall> TryParseTemplatedFunctionCall(Lexer& lexer);
 
+        std::shared_ptr<TypeInfo> TryParseTypeInfo(Lexer& lexer, TokenType expectedAheadTokenType);
         std::shared_ptr<TypeInfo> ParseTypeInfo(Lexer& lexer);
         std::shared_ptr<TemplateArgument> ParseTemplateArgument(Lexer& lexer);
 

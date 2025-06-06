@@ -69,7 +69,7 @@ namespace VCL {
 
         std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv, ModuleContext* context) override {
             llvm::Value* r = context->GetIRBuilder().CreateUnaryIntrinsic(intrinsicId, argsv[0]->GetLLVMValue());
-            return MakeValueVCLFromLLVM(r, context);
+            return Value::Create(r, argsv[0]->GetType(), context);
         }
         
         bool CheckArgType(uint32_t index, Type type) override {
@@ -101,7 +101,7 @@ namespace VCL {
             }
             llvm::Value* r = context->GetIRBuilder().CreateBinaryIntrinsic(intrinsicId, 
                 castedArgsv[0]->GetLLVMValue(), castedArgsv[1]->GetLLVMValue());
-            return MakeValueVCLFromLLVM(r, context);
+            return Value::Create(r, argsv[0]->GetType(), context);
         }
         
         bool CheckArgType(uint32_t index, Type type) override {
@@ -133,7 +133,7 @@ namespace VCL {
             }
             llvm::Value* r = context->GetIRBuilder().CreateIntrinsic(intrinsicId, { castedArgsv[0]->GetType().GetLLVMType() },
                 { castedArgsv[0]->GetLLVMValue(), castedArgsv[1]->GetLLVMValue(), castedArgsv[2]->GetLLVMValue() });
-            return MakeValueVCLFromLLVM(r, context);
+            return Value::Create(r, argsv[0]->GetType(), context);
         }
         
         bool CheckArgType(uint32_t index, Type type) override {
@@ -157,6 +157,12 @@ VCL::Intrinsic::Intrinsic(std::unique_ptr<IntrinsicImpl> impl, Type type, Module
 }
 
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Intrinsic::Call(std::vector<Handle<Value>>& argsv) {
+    for (size_t i = 0; i < argsv.size(); ++i) {
+        if (auto loadedArgv = argsv[i]->Load(); loadedArgv.has_value())
+            argsv[i] = *loadedArgv;
+        else
+            return std::unexpected{ loadedArgv.error() };
+    }
     return impl->Call(argsv, GetModuleContext());
 }
 

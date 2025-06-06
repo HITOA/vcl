@@ -9,7 +9,7 @@
 #include <iostream>
 
 
-VCL::Value::Value() : value{ nullptr }, type{ nullptr, nullptr, nullptr, nullptr }, context{ nullptr } {}
+VCL::Value::Value() : value{ nullptr }, type{ nullptr, nullptr, nullptr, nullptr, false }, context{ nullptr } {}
 
 VCL::Value::Value(llvm::Value* value, Type type, ModuleContext* context) :
     value{ value }, type{ type }, context{ context } {}
@@ -20,8 +20,10 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Load() {
 
     if (loadedValue->getType()->isPointerTy())
         loadedValue = context->GetIRBuilder().CreateLoad(type.GetLLVMType(), loadedValue, loadedValueName);
-
-    return Value::Create(loadedValue, type, context);
+    if (auto newType = Type::Create(type.GetTypeInfo(), context); newType.has_value())
+        return Value::Create(loadedValue, *newType, context);
+    else
+        return std::unexpected{ newType.error() };
 }
 
 std::optional<VCL::Error> VCL::Value::Store(Handle<Value> value) {
@@ -39,17 +41,25 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Splat() {
     if (value->getType()->isPointerTy())
         return std::unexpected(Error{ "Cannot splat pointer type" });
     
+    std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+    typeInfo->qualifiers = type.GetTypeInfo()->qualifiers;
+
     switch (type.GetTypeInfo()->type) {
         case TypeInfo::TypeName::Float:
+            typeInfo->type = TypeInfo::TypeName::VectorFloat;
+            break;
         case TypeInfo::TypeName::Bool:
+            typeInfo->type = TypeInfo::TypeName::VectorBool;
+            break;
         case TypeInfo::TypeName::Int:
+            typeInfo->type = TypeInfo::TypeName::VectorInt;
             break;
         default:
             return Value::Create(value, type, context);
     }
     
     llvm::Value* v = context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), value);
-    if (auto t = Type::CreateFromLLVMType(v->getType(), context); t.has_value()) {
+    if (auto t = Type::Create(typeInfo, context); t.has_value()) {
         return Value::Create(v, *t, context);
     } else {
         return std::unexpected(t.error());
@@ -148,6 +158,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
     }
 
     value->setAlignment(llvm::Align(NativeTarget::GetInstance()->GetMaxVectorByteWidth()));
+    type.SetPointer();
 
     return Value::Create(value, type, context);
 }
@@ -177,6 +188,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateLocalVariab
             return std::unexpected(t.error());
     }
 
+    type.SetPointer();
     return Value::Create(alloca, type, context);
 }
 

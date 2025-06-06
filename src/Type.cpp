@@ -12,11 +12,19 @@
 VCL::Type::Type() :
     typeInfo{}, type{ nullptr }, context{ nullptr } {}
 
-VCL::Type::Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, llvm::DIType* diType, ModuleContext* context) :
-    typeInfo{ typeInfo }, type{ type }, diType{ diType }, context{ context } {}
+VCL::Type::Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, llvm::DIType* diType, ModuleContext* context, bool isPointer) :
+    typeInfo{ typeInfo }, type{ type }, diType{ diType }, context{ context }, isPointer{ false } {}
 
 std::shared_ptr<VCL::TypeInfo> VCL::Type::GetTypeInfo() const {
     return typeInfo;
+}
+
+bool VCL::Type::IsPointerType() const {
+    return isPointer;
+}
+
+void VCL::Type::SetPointer() {
+    isPointer = true;
 }
 
 llvm::Type* VCL::Type::GetLLVMType() const {
@@ -35,7 +43,7 @@ bool VCL::Type::operator!=(Type& rhs) const {
     return !(*this != rhs);
 }
 
-std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo> typeInfo, ModuleContext* context) {
+std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo> typeInfo, ModuleContext* context, bool isPointer) {
     while (typeInfo->type == TypeInfo::TypeName::Custom) {
         if (auto r = context->GetScopeManager().GetNamedTypeAlias(typeInfo->name); r.has_value()) {
             typeInfo = *r;
@@ -171,64 +179,11 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
         return std::unexpected(Error{ "Invalid typename while parsing type" });
     }
 
-    return Type{ typeInfo, type, diType, context };
+    return Type{ typeInfo, type, diType, context, isPointer};
 }
 
-std::expected<VCL::Type, VCL::Error> VCL::Type::CreateFromLLVMType(llvm::Type* type, ModuleContext* context) {
-    llvm::Type* trueType = type;
-    if (type->isVectorTy())
-        trueType = type->getScalarType();
-
-    std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
-    llvm::DIType* diType = nullptr;
-
-    if (trueType->isStructTy()) {
-        typeInfo->type = TypeInfo::TypeName::Custom;
-        typeInfo->name = trueType->getStructName();
-        if (auto t = context->GetScopeManager().GetNamedType(typeInfo->name); t.has_value())
-            diType = (*t)->GetDIType();
-        return Type{ typeInfo, type, diType, context };
-    }
-    
-    if (trueType->isFunctionTy()) {
-        typeInfo->type = TypeInfo::TypeName::Callable;
-        return Type{ typeInfo, type, diType, context };
-    }
-
-    if (trueType->isFloatTy()) {
-        typeInfo->type = TypeInfo::TypeName::Float;
-        diType = context->GetDIBasicTypes()->floatDIType;
-    } else if (trueType->isIntegerTy()) {
-        uint32_t width = trueType->getIntegerBitWidth();
-        if (width == 1) {
-            typeInfo->type = TypeInfo::TypeName::Bool;
-        diType = context->GetDIBasicTypes()->boolDIType;
-        } else if (width == 32) {
-            typeInfo->type = TypeInfo::TypeName::Int;
-        diType = context->GetDIBasicTypes()->intDIType;
-        } else
-            return std::unexpected(Error{ "Unsupported integer bit width" });
-    } else if (trueType->isVoidTy()) {
-        typeInfo->type = TypeInfo::TypeName::Void;
-        diType = context->GetDIBasicTypes()->voidDIType;
-    } else
-        return std::unexpected(Error{ "Unsupported LLVM type" });
-
-    if (type->isVectorTy())
-        typeInfo->type = (TypeInfo::TypeName)((uint32_t)typeInfo->type + 
-            (uint32_t)TypeInfo::TypeName::VectorFloat - (uint32_t)TypeInfo::TypeName::Float);
-
-    switch (typeInfo->type) {
-        case TypeInfo::TypeName::VectorFloat:
-            diType = context->GetDIBasicTypes()->vfloatDIType;
-            break;
-        case TypeInfo::TypeName::VectorBool:
-            diType = context->GetDIBasicTypes()->vboolDIType;
-            break;
-        case TypeInfo::TypeName::VectorInt:
-            diType = context->GetDIBasicTypes()->vintDIType;
-            break;
-    }
-    
-    return Type{ typeInfo, type, diType, context };
+std::expected<VCL::Type, VCL::Error> VCL::Type::CreatePointerType(Type baseType) {
+    llvm::DIType* diType;
+    diType = baseType.context->GetDIBuilder().createPointerType(baseType.diType, 64);
+    return Type{ baseType.typeInfo, baseType.GetLLVMType()->getPointerTo(), diType, baseType.context, true };
 }

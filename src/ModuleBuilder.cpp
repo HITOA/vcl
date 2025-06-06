@@ -148,9 +148,13 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
         std::string_view argName = function->GetArgsInfo()[i].name;
         std::string argNameStr{ argName };
         Handle<Value> argValue = ThrowOnError(Value::Create(llvmFunction->getArg(i), argType, context), node->location);
-        Handle<Value> arg = ThrowOnError(Value::CreateLocalVariable(argType, argValue, context, argNameStr.c_str(), 
-            file, node->location.line, node->location.position), node->location);
-        context->GetScopeManager().PushNamedValue(argName, arg);
+        if (argType.GetTypeInfo()->IsGivenByReference()) {
+            context->GetScopeManager().PushNamedValue(argName, argValue);
+        } else {
+            Handle<Value> arg = ThrowOnError(Value::CreateLocalVariable(argType, argValue, context, argNameStr.c_str(), 
+                file, node->location.line, node->location.position), node->location);
+            context->GetScopeManager().PushNamedValue(argName, arg);
+        }
     }
 
     node->body->Accept(this);
@@ -426,7 +430,7 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
             throw Exception{ std::format("Invalid binary arithmetic operator `{}`.", ToString(node->op)), node->location }; //Should never happen
     }
 
-    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+    lastReturnedValue = ThrowOnError(Value::Create(result, lhs->GetType(), context), node->location);
 }
 
 void VCL::ModuleBuilder::VisitBinaryLogicalExpression(ASTBinaryLogicalExpression* node) {
@@ -465,7 +469,7 @@ void VCL::ModuleBuilder::VisitBinaryLogicalExpression(ASTBinaryLogicalExpression
             throw Exception{ std::format("Invalid binary logical operator `{}`.", ToString(node->op)), node->location }; //Should never happen
     }
 
-    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+    lastReturnedValue = ThrowOnError(Value::Create(result, lhs->GetType(), context), node->location);
 }
 
 void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpression* node) {
@@ -546,7 +550,16 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
             throw Exception{ std::format("Invalid binary comparison operator `{}`.", ToString(node->op)), node->location }; //Should never happen
     }
 
-    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+    std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+
+    if (lhs->GetType().GetTypeInfo()->IsVector())
+        typeInfo->type = TypeInfo::TypeName::VectorBool;
+    else
+        typeInfo->type = TypeInfo::TypeName::Bool;
+
+    Type resultType = ThrowOnError(Type::Create(typeInfo, context), node->location);
+
+    lastReturnedValue = ThrowOnError(Value::Create(result, resultType, context), node->location);
 }
 
 void VCL::ModuleBuilder::VisitAssignmentExpression(ASTAssignmentExpression* node) {
@@ -604,16 +617,18 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 ToString(node->op)), node->location };
         {
             Handle<Value> loadedExpression = ThrowOnError(expression->Load(), node->location);
-            Handle<Value> incrementedValue = ThrowOnError(MakeValueVCLFromLLVM(ThrowOnError(DISPATCH_BINARY(
+            llvm::Value* incrementedValueResult = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(Float, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
-            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
-            context), node->location);
+            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location);
+            Handle<Value> incrementedValue = ThrowOnError(Value::Create(incrementedValueResult, expression->GetType(), context), node->location);
+            
             if (auto err = expression->Store(incrementedValue); err.has_value())
                 throw Exception{ err.value(), node->location };
-            result = incrementedValue->GetLLVMValue();
+            lastReturnedValue = expression;
+            return;
         }
         break;
     case Operator::ID::PreDecrement:
@@ -622,23 +637,24 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 ToString(node->op)), node->location };
         {
             Handle<Value> loadedExpression = ThrowOnError(expression->Load(), node->location);
-            Handle<Value> decrementedValue = ThrowOnError(MakeValueVCLFromLLVM(ThrowOnError(DISPATCH_BINARY(
+            llvm::Value* decrementedValueResult = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(Float, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSub),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
-            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
-            context), node->location);
+            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location);
+            Handle<Value> decrementedValue = ThrowOnError(Value::Create(decrementedValueResult, expression->GetType(), context), node->location);
             if (auto err = expression->Store(decrementedValue); err.has_value())
                 throw Exception{ err.value(), node->location };
-            result = decrementedValue->GetLLVMValue();
+            lastReturnedValue = expression;
+            return;
         }
         break;
     default:
         throw Exception{ std::format("Invalid unary operator `{}`.", ToString(node->op)), node->location }; //Should never happen
     }
 
-    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+    lastReturnedValue = ThrowOnError(Value::Create(result, expression->GetType(), context), node->location);
 }
 
 void VCL::ModuleBuilder::VisitPrefixLogicalExpression(ASTPrefixLogicalExpression* node) {
@@ -666,7 +682,7 @@ void VCL::ModuleBuilder::VisitPrefixLogicalExpression(ASTPrefixLogicalExpression
         throw Exception{ std::format("Invalid unary operator `{}`.", ToString(node->op)), node->location }; //Should never happen
     }
 
-    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+    lastReturnedValue = ThrowOnError(Value::Create(result, expression->GetType(), context), node->location);
 }
 
 void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticExpression* node) {
@@ -694,16 +710,17 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
                 ToString(node->op)), node->location };
         {
             Handle<Value> loadedExpression = ThrowOnError(expression->Load(), node->location);
-            Handle<Value> incrementedValue = ThrowOnError(MakeValueVCLFromLLVM(ThrowOnError(DISPATCH_BINARY(
+            llvm::Value* incrementedValueResult = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(Float, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
-            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
-            context), node->location);
+            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location);
+            Handle<Value> incrementedValue = ThrowOnError(Value::Create(incrementedValueResult, expression->GetType(), context), node->location);
             if (auto err = expression->Store(incrementedValue); err.has_value())
                 throw Exception{ err.value(), node->location };
-            result = loadedExpression->GetLLVMValue();
+            lastReturnedValue = loadedExpression;
+            return;
         }
         break;
     case Operator::ID::PostDecrement:
@@ -712,23 +729,24 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
                 ToString(node->op)), node->location };
         {
             Handle<Value> loadedExpression = ThrowOnError(expression->Load(), node->location);
-            Handle<Value> decrementedValue = ThrowOnError(MakeValueVCLFromLLVM(ThrowOnError(DISPATCH_BINARY(
+            llvm::Value* decrementedValueResult = ThrowOnError(DISPATCH_BINARY(
                 BINARY_DISPATCH_FUNCTION(Float, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSub),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
-            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location),
-            context), node->location);
+            )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location);
+            Handle<Value> decrementedValue = ThrowOnError(Value::Create(decrementedValueResult, expression->GetType(), context), node->location);
             if (auto err = expression->Store(decrementedValue); err.has_value())
                 throw Exception{ err.value(), node->location };
-            result = loadedExpression->GetLLVMValue();
+            lastReturnedValue = loadedExpression;
+            return;
         }
         break;
     default:
         throw Exception{ std::format("Invalid unary operator `{}`.", ToString(node->op)), node->location }; //Should never happen
     }
 
-    lastReturnedValue = ThrowOnError(MakeValueVCLFromLLVM(result, context), node->location);
+    lastReturnedValue = ThrowOnError(Value::Create(result, expression->GetType(), context), node->location);
 }
 
 void VCL::ModuleBuilder::VisitFieldAccessExpression(ASTFieldAccessExpression* node) {
@@ -740,8 +758,11 @@ void VCL::ModuleBuilder::VisitFieldAccessExpression(ASTFieldAccessExpression* no
     if (expression->GetType().GetTypeInfo()->type != TypeInfo::TypeName::Custom)
         throw Exception{ std::format("Cannot access field `{}` on a non-struct type ‘{}’.", 
             node->fieldName, ToString(expression->GetType().GetTypeInfo())), node->location }; 
+
     
-    if (auto type = context->GetScopeManager().GetNamedType(expression->GetType().GetLLVMType()->getStructName()); type.has_value()) {
+    std::string mangledName{ ToString(expression->GetType().GetTypeInfo()) };
+    
+    if (auto type = context->GetScopeManager().GetNamedType(mangledName); type.has_value()) {
         Handle<StructDefinition> structDefinition = *type;
         std::string fieldName{ node->fieldName };
         if (!structDefinition->HasField(fieldName))
@@ -749,7 +770,8 @@ void VCL::ModuleBuilder::VisitFieldAccessExpression(ASTFieldAccessExpression* no
                 ToString(expression->GetType().GetTypeInfo()), fieldName), node->location };
         uint32_t fieldIndex = structDefinition->GetFieldIndex(fieldName);
         llvm::Value* r = context->GetIRBuilder().CreateStructGEP(structDefinition->GetType(), expression->GetLLVMValue(), fieldIndex, fieldName);
-        Type fieldType = ThrowOnError(Type::CreateFromLLVMType(structDefinition->GetType()->getTypeAtIndex(fieldIndex), context), node->location);
+        
+        Type fieldType = structDefinition->GetFieldType(fieldIndex);
         lastReturnedValue = ThrowOnError(Value::Create(r, fieldType, context), node->location);
     } else {
         throw std::runtime_error{ "Compiler internal error." };
@@ -851,7 +873,7 @@ void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
     
     for (uint32_t i = 0; i < node->arguments.size(); ++i) {
         node->arguments[i]->Accept(this);
-        Handle<Value> argValue = ThrowOnError(lastReturnedValue->Load(), node->location);
+        Handle<Value> argValue = lastReturnedValue;
         argsv[i] = argValue;
         argst[i] = argValue->GetType().GetTypeInfo();
     }
@@ -886,10 +908,17 @@ void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
 
     for (uint32_t i = 0; i < argsv.size(); ++i) {
         if (!callee->CheckArgType(i, argsv[i]->GetType()))
-            if (callee->GetCallableType() == CallableType::Function)
-                argsv[i] = ThrowOnError(argsv[i]->Cast(HandleCast<Function>(callee)->GetArgType(i)), node->location);
-            else
+            if (callee->GetCallableType() == CallableType::Function) {
+                if (HandleCast<Function>(callee)->GetArgType(i).GetTypeInfo()->IsGivenByReference() && !argsv[i]->GetType().IsPointerType()) {
+                    throw Exception{ "Cannot pass r-value by reference.", node->location };
+                } else if (HandleCast<Function>(callee)->GetArgType(i).GetTypeInfo()->IsGivenByValue()) {
+                    argsv[i] = ThrowOnError(argsv[i]->Cast(HandleCast<Function>(callee)->GetArgType(i)), node->location);
+                } else {
+                    throw Exception{ std::format("Argument number {} is of wrong type", i), node->location };
+                }
+            } else {
                 throw Exception{ std::format("Argument number {} is of wrong type", i), node->location };
+            }
     }
     
     SetCurrentDebugLocation(context, node);

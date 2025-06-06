@@ -199,5 +199,17 @@ namespace VCL {
         inline bool IsCallable() const {
             return type == TypeName::Callable;
         }
+
+        inline bool IsVector() const {
+            return type == TypeName::VectorFloat || type == TypeName::VectorBool || type == TypeName::VectorInt;
+        }
+
+        inline bool IsGivenByValue() const {
+            return (!IsOutput() && type != TypeName::Custom && type != TypeName::Array) || IsInput();
+        }
+
+        inline bool IsGivenByReference() const {
+            return !IsGivenByValue();
+        }
     };
 }

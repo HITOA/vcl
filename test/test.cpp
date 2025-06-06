@@ -3,6 +3,7 @@
 #include <catch2/generators/catch_generators_random.hpp>
 #include <VCL/VCL.hpp>
 #include <VCL/NativeTarget.hpp>
+#include <VCL/Error.hpp>
 #include <format>
 #include <stdlib.h>
 #include <iostream>
@@ -19,7 +20,15 @@ public:
             "Debug"
         };
         int severityInt = (int)message.severity;
-        INFO(std::format("[%s] %s\n", severityStr[severityInt], message.message.c_str()));
+        if (severityInt == 1) {
+            CAPTURE(std::format("[%s] %s\n", severityStr[severityInt], message.message.c_str()));
+        }
+        else if (severityInt == 2) {
+            WARN(std::format("[%s] %s\n", severityStr[severityInt], message.message.c_str()));
+        }
+        else {
+            INFO(std::format("[%s] %s\n", severityStr[severityInt], message.message.c_str()));
+        }
     };
 };
 
@@ -52,7 +61,7 @@ TEST_CASE( "VCL input & output", "[Assignment][Binding]" ) {
     
     uint32_t vectorElementWidth = VCL::NativeTarget::GetInstance()->GetMaxVectorElementWidth();
     uint32_t vectorAlignment = VCL::NativeTarget::GetInstance()->GetMaxVectorByteWidth();
-
+    logger->Error("DAMN UWU");
     SECTION("Value check") {
         float inputFloat = GENERATE(12.0f, 0.0f, -23.0f);
         int inputInt = GENERATE(23, 0, -34);
@@ -285,5 +294,47 @@ TEST_CASE( "VCL span", "[Span]" ) {
             REQUIRE(buffer[index] == output);
             REQUIRE(length == 64);
         }
+    }
+}
+
+
+TEST_CASE( "VCL templated ring", "[Array][Template][Struct]" ) {
+    MAKE_VCL("./vcl/templatering.vcl");
+
+    uint32_t vectorElementWidth = VCL::NativeTarget::GetInstance()->GetMaxVectorElementWidth();
+    uint32_t vectorAlignment = VCL::NativeTarget::GetInstance()->GetMaxVectorByteWidth();
+
+    SECTION("Value check") {
+        
+        float* firstInput = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
+        float* input = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
+        int delay = 36;
+
+        float* output = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
+
+        session->DefineExternSymbolPtr("input", input);
+        session->DefineExternSymbolPtr("delay", &delay);
+        session->DefineExternSymbolPtr("output", output);
+
+        for (size_t i = 0; i < vectorElementWidth; ++i) {
+            input[i] = (float)rand() / RAND_MAX;
+            firstInput[i] = input[i];
+        }
+
+        ((void(*)())(session->Lookup("Main")))();
+
+        for (size_t i = 0; i < delay - 1; ++i) {
+            for (size_t i = 0; i < vectorElementWidth; ++i) {
+                input[i] = (float)rand() / RAND_MAX;
+            }
+            ((void(*)())(session->Lookup("Main")))();
+        }
+
+        for (size_t i = 0; i < vectorElementWidth; ++i) {
+            REQUIRE(firstInput[i] == output[i]);
+        }
+
+        free(input);
+        free(output);
     }
 }

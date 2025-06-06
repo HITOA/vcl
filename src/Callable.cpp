@@ -11,9 +11,18 @@ VCL::Function::Function(llvm::Function* value, Type type, Type returnType, llvm:
 
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Function::Call(std::vector<Handle<Value>>& argsv) {
     llvm::Function* callee = GetLLVMFunction();
+    if (argsv.size() != argsType.size())
+        return std::unexpected{ "Wrong number of argument(s)." };
     std::vector<llvm::Value*> llvmargsv(argsv.size());
-    for (size_t i = 0; i < argsv.size(); ++i)
-        llvmargsv[i] = argsv[i]->GetLLVMValue();
+    for (size_t i = 0; i < argsv.size(); ++i) {
+        Handle<Value> arg = argsv[i];
+        if (argsType[i].type.GetTypeInfo()->IsGivenByValue())
+            if (auto loadedArg = arg->Load(); loadedArg.has_value())
+                arg = *loadedArg;
+            else
+                return std::unexpected{ loadedArg.error() };
+        llvmargsv[i] = arg->GetLLVMValue();
+    }
     
     llvm::Value* llvmReturnValue = GetModuleContext()->GetIRBuilder().CreateCall(callee, llvmargsv);
     return Value::Create(llvmReturnValue, returnType, GetModuleContext());
@@ -36,6 +45,8 @@ bool VCL::Function::CheckArgCount(uint32_t count) {
 }
 
 bool VCL::Function::CheckArgType(uint32_t index, Type type) {
+    if (argsType[index].type.GetTypeInfo()->IsGivenByReference() && !type.IsPointerType())
+        return false;
     return argsType[index].type == type;
 }
 
@@ -76,6 +87,8 @@ std::expected<VCL::Handle<VCL::Function>, VCL::Error> VCL::Function::Create(
     argsDIType[0] = returnType.GetDIType();
 
     for (size_t i = 0; i < argsInfo.size(); ++i) {
+        if (argsInfo[i].type.GetTypeInfo()->IsGivenByReference())
+            argsInfo[i].type = Type::CreatePointerType(argsInfo[i].type).value();
         argsType[i] = argsInfo[i].type.GetLLVMType();
         argsDIType[i + 1] = argsInfo[i].type.GetDIType();
     }
@@ -85,11 +98,14 @@ std::expected<VCL::Handle<VCL::Function>, VCL::Error> VCL::Function::Create(
 
     llvm::FunctionType* functionType = llvm::FunctionType::get(returnType.GetLLVMType(), argsType, false);
     llvm::Function* function = llvm::Function::Create(functionType, llvm::GlobalValue::ExternalLinkage, name, context->GetTSModule().getModuleUnlocked());
-
+    
     for (size_t i = 0; i < argsInfo.size(); ++i)
         function->getArg(i)->setName(argsInfo[i].name);
 
-    if (auto fType = Type::CreateFromLLVMType(function->getFunctionType(), context); fType.has_value())
+    std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+    typeInfo->type = TypeInfo::TypeName::Callable;
+
+    if (auto fType = Type::Create(typeInfo, context); fType.has_value())
         return MakeHandle<Function>(function, *fType, returnType, diType, argsInfo, context);
     else
         return std::unexpected(fType.error());

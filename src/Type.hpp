@@ -17,13 +17,17 @@ namespace VCL {
     class Type {
     public:
         Type();
-        Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, llvm::DIType* diType, ModuleContext* context);
+        Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, llvm::DIType* diType, ModuleContext* context, bool isPointer);
         Type(const Type& type) = default;
         Type(Type&& type) noexcept = default;
         ~Type() = default;
 
         Type& operator=(const Type& value) = default;
         Type& operator=(Type&& value) noexcept = default;
+
+        bool IsPointerType() const;
+
+        void SetPointer();
 
         /**
          * @brief Get the underlying TypeInfo.
@@ -53,18 +57,19 @@ namespace VCL {
         /**
          * @brief Create a full Type from a TypeInfo structure and a context.
          */
-        static std::expected<Type, Error> Create(std::shared_ptr<TypeInfo> typeInfo, ModuleContext* context);
+        static std::expected<Type, Error> Create(std::shared_ptr<TypeInfo> typeInfo, ModuleContext* context, bool isPointer = false);
 
         /**
-         * @brief Create a full Type from a LLVM Type and context.
+         * @brief Create a pointer type of a full type
          */
-        static std::expected<Type, Error> CreateFromLLVMType(llvm::Type* type, ModuleContext* context);
+        static std::expected<Type, Error> CreatePointerType(Type baseType);
 
     private:
         std::shared_ptr<TypeInfo> typeInfo;
         llvm::Type* type;
         llvm::DIType* diType;
         ModuleContext* context;
+        bool isPointer;
     };
 
 }

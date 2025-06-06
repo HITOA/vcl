@@ -45,11 +45,4 @@ namespace VCL {
             return std::unexpected(Error{ "Invalid operand(s) type for this operation." });
         }
     };
-
-    inline std::expected<Handle<Value>, Error> MakeValueVCLFromLLVM(llvm::Value* value, ModuleContext* context) {
-        std::expected<Type, Error> type = Type::CreateFromLLVMType(value->getType(), context);
-        if (!type.has_value())
-            return std::unexpected(type.error());
-        return Value::Create(value, *type, context);
-    }
 }

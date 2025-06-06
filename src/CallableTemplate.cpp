@@ -63,12 +63,14 @@ std::expected<VCL::Handle<VCL::Callable>, VCL::Error> VCL::CallableTemplate::Res
     llvm::IRBuilder<>::InsertPointGuard ipGuard{ context->GetIRBuilder() };
     ScopeGuard scopeGuard{ &context->GetScopeManager() };
 
-    //Add alias of template parameter and constant variable for parameter that are int
-    for (size_t i = 0; i < args.size(); ++i) {
-        if (args[i]->type != templateParameters[i].second)
-            return std::unexpected{ Error{ "Wrong template parameter type." } };
-        if (args[i]->type == TemplateArgument::TemplateValueType::Typename)
-            context->GetScopeManager().PushNamedTypeAlias(templateParameters[i].first, args[i]->typeInfo);
+    for (auto& arg : mapper) {
+        if (arg.second->type == TemplateArgument::TemplateValueType::Typename)
+            context->GetScopeManager().PushNamedTypeAlias(arg.first, arg.second->typeInfo);
+        if (arg.second->type == TemplateArgument::TemplateValueType::Int)
+            if (auto r = Value::CreateConstantInt32(arg.second->intValue, context); r.has_value())
+                context->GetScopeManager().PushNamedValue(arg.first, *r);
+            else
+                return std::unexpected{ r.error() };
     }
     
     Type returnType;
@@ -134,12 +136,17 @@ std::expected<VCL::Handle<VCL::Callable>, VCL::Error> VCL::CallableTemplate::Res
             argValue = *r;
         else
             return std::unexpected{ r.error() };
-        Handle<Value> arg;
-        if (auto r = Value::CreateLocalVariable(argType, argValue, context, argNameStr.c_str(), file, line, 0); r.has_value())
-            arg = *r;
-        else
-            return std::unexpected{ r.error() };
-        context->GetScopeManager().PushNamedValue(argName, arg);
+
+        if (argType.GetTypeInfo()->IsGivenByReference()) {
+            context->GetScopeManager().PushNamedValue(argName, argValue);
+        } else {
+            Handle<Value> arg;
+            if (auto r = Value::CreateLocalVariable(argType, argValue, context, argNameStr.c_str(), file, line, 0); r.has_value())
+                arg = *r;
+            else
+                return std::unexpected{ r.error() };
+            context->GetScopeManager().PushNamedValue(argName, arg);
+        }
     }
 
     if (body) {

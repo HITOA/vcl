@@ -27,7 +27,7 @@ namespace VCL {
                     return std::unexpected(r.error());
             }
             llvm::Value* r = context->GetIRBuilder().CreateFRem(castedArgsv[0]->GetLLVMValue(), castedArgsv[0]->GetLLVMValue());
-            return MakeValueVCLFromLLVM(r, context);
+            return Value::Create(r, argsv[0]->GetType(), context);
         }
         
         bool CheckArgType(uint32_t index, Type type) override {
@@ -57,7 +57,7 @@ namespace VCL {
             if (auto v2 = argsv[2]->Cast(v1->GetType()); v2.has_value()) {
                 llvm::Value* r = context->GetIRBuilder().CreateSelect(condition->GetLLVMValue(), 
                     v1->GetLLVMValue(), (*v2)->GetLLVMValue());
-                return MakeValueVCLFromLLVM(r, context);
+                return Value::Create(r, v1->GetType(), context);
             } else
                 return std::unexpected(v2.error());
         }
@@ -86,7 +86,12 @@ namespace VCL {
             } else if (value->GetType().GetTypeInfo()->type == TypeInfo::TypeName::Span) {
                 llvm::StructType* structType = llvm::cast<llvm::StructType>(value->GetType().GetLLVMType());
                 llvm::Value* idx = context->GetIRBuilder().CreateExtractValue(value->GetLLVMValue(), 1);
-                return MakeValueVCLFromLLVM(idx, context);
+                std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+                typeInfo->type = TypeInfo::TypeName::Int;
+                if (auto t = Type::Create(typeInfo, context); t.has_value())
+                    return Value::Create(idx, *t, context);
+                else
+                    return std::unexpected{ t.error() };
             } else {
                 return std::unexpected{ Error{ std::format("Cannot take length of `{}`.", ToString(value->GetType().GetTypeInfo())) } };
             }

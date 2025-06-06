@@ -21,7 +21,7 @@ namespace VCL {
         Exception& operator=(const Exception&) = default;
         Exception(Exception&&) = default;
         Exception& operator=(Exception&&) = default;
-
+        
     public:
         SourceLocation location;
     };

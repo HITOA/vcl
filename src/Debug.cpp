@@ -67,8 +67,18 @@ std::string VCL::ToString(std::shared_ptr<TypeInfo> type) {
         case TypeInfo::TypeName::VectorFloat: return "vfloat";
         case TypeInfo::TypeName::VectorBool: return "vbool";
         case TypeInfo::TypeName::VectorInt: return "vint";
-        case TypeInfo::TypeName::Array: return "array";
-        case TypeInfo::TypeName::Span: return "span";
+        case TypeInfo::TypeName::Array: {
+            std::string name{ "array" };
+            for (auto argument : type->arguments)
+                name += "_" + ToString(argument);
+            return name;
+        }
+        case TypeInfo::TypeName::Span: {
+            std::string name{ "span" };
+            for (auto argument : type->arguments)
+                name += "_" + ToString(argument);
+            return name;
+        }
         default: return "unknown type";
     }
 }
