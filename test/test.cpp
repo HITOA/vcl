@@ -338,3 +338,32 @@ TEST_CASE( "VCL templated ring", "[Array][Template][Struct]" ) {
         free(output);
     }
 }
+
+TEST_CASE( "VCL in out parameters", "[Struct][Qualifiers]" ) {
+    MAKE_VCL("./vcl/inoutparameters.vcl");
+
+    SECTION("Value check") {
+        float a1 = 0.0;
+        float a2 = 0.0;
+        float a3 = 0.0;
+        float b1 = 0.0;
+        float b2 = 0.0;
+        float b3 = 0.0;
+
+        session->DefineExternSymbolPtr("a1", &a1);
+        session->DefineExternSymbolPtr("a2", &a2);
+        session->DefineExternSymbolPtr("a3", &a3);
+        session->DefineExternSymbolPtr("b1", &b1);
+        session->DefineExternSymbolPtr("b2", &b2);
+        session->DefineExternSymbolPtr("b3", &b3);
+
+        ((void(*)())(session->Lookup("Main")))();
+
+        REQUIRE(a1 == 0.0);
+        REQUIRE(a2 == 0.0);
+        REQUIRE(a3 == 1.0);
+        REQUIRE(b1 == 1.0);
+        REQUIRE(b2 == 0.0);
+        REQUIRE(b3 == 1.0);
+    }
+}
