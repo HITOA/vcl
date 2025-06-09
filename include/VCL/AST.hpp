@@ -37,6 +37,7 @@ namespace VCL {
     class ASTVariableExpression;
     class ASTVariableDeclaration;
     class ASTFunctionCall;
+    class ASTAggregateExpression;
 
     /**
      * @brief This is the base class to visite a whole AST from top to bottom.
@@ -73,6 +74,7 @@ namespace VCL {
         virtual void VisitVariableExpression(ASTVariableExpression* node) {};
         virtual void VisitVariableDeclaration(ASTVariableDeclaration* node) {};
         virtual void VisitFunctionCall(ASTFunctionCall* node) {};
+        virtual void VisitAggregateExpression(ASTAggregateExpression* node) {};
     };
 
     class ASTVisitor;
@@ -490,5 +492,17 @@ namespace VCL {
         std::string_view name;
         std::vector<std::unique_ptr<ASTExpression>> arguments;
         std::vector<std::shared_ptr<TemplateArgument>> templateArguments;
+    };
+
+    /**
+     * @brief represents an aggregate expression
+     */
+    class ASTAggregateExpression : public ASTExpression {
+    public:
+        ASTAggregateExpression(std::vector<std::unique_ptr<ASTExpression>> values) : values{ std::move(values) } {};
+
+        void Accept(ASTVisitor* visitor) override { visitor->VisitAggregateExpression(this); }
+    public:
+        std::vector<std::unique_ptr<ASTExpression>> values;
     };
 }

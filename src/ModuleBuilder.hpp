@@ -48,6 +48,7 @@ namespace VCL {
         void VisitVariableExpression(ASTVariableExpression* node) override;
         void VisitVariableDeclaration(ASTVariableDeclaration* node) override;
         void VisitFunctionCall(ASTFunctionCall* node) override;
+        void VisitAggregateExpression(ASTAggregateExpression* node) override;
 
         inline void SetDISettings(ModuleDebugInformationSettings diSettings) { this->diSettings = diSettings; }
 

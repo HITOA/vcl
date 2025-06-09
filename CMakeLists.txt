@@ -16,6 +16,7 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
 add_library(vcl 
     STATIC 
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Aggregate.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/CallableTemplate.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.hpp
@@ -34,6 +35,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utility.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.hpp
 
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Aggregate.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/CallableTemplate.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Debug.cpp

@@ -2,6 +2,7 @@
 
 #include "Utility.hpp"
 #include "Callable.hpp"
+#include "Aggregate.hpp"
 #include "Intrinsic.hpp"
 #include "StructDefinition.hpp"
 #include "StructTemplate.hpp"
@@ -848,6 +849,7 @@ void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) 
     if (node->expression) {
         node->expression->Accept(this);
         initializer = ThrowOnError(lastReturnedValue->Load(), node->expression->location);
+        initializer = ThrowOnError(initializer->Cast(type), node->expression->location);
     }
 
     SetCurrentDebugLocation(context, node);
@@ -924,4 +926,15 @@ void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
     SetCurrentDebugLocation(context, node);
 
     lastReturnedValue = ThrowOnError(callee->Call(argsv), node->location);
+}
+
+void VCL::ModuleBuilder::VisitAggregateExpression(ASTAggregateExpression* node) {
+    std::vector<Handle<Value>> values{};
+
+    for (size_t i = 0; i < node->values.size(); ++i) {
+        node->values[i]->Accept(this);
+        values.push_back(lastReturnedValue);
+    }
+    
+    lastReturnedValue = ThrowOnError(Aggregate::Create(values, context), node->location);
 }

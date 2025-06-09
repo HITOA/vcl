@@ -33,10 +33,6 @@ std::optional<VCL::Error> VCL::Value::Store(Handle<Value> value) {
     return {};
 }
 
-bool VCL::Value::IsAssignableFrom(Handle<Value> value) const {
-    return value->GetType().GetTypeInfo()->type == type.GetTypeInfo()->type && !type.GetTypeInfo()->IsConst();
-}
-
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Splat() {
     if (value->getType()->isPointerTy())
         return std::unexpected(Error{ "Cannot splat pointer type" });
@@ -138,7 +134,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
         if (llvm::isa<llvm::Constant>(initializer->GetLLVMValue()))
             initializerValue = llvm::cast<llvm::Constant>(initializer->GetLLVMValue());
         else
-            std::unexpected(Error{ "Global variable initializer must be const" });
+            return std::unexpected(Error{ "Global variable initializer must be const" });
     } else if (!isExtern) {
         initializerValue = llvm::ConstantStruct::getNullValue(type.GetLLVMType());
     }

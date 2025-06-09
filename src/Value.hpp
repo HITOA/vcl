@@ -34,24 +34,17 @@ namespace VCL {
          *
          * @return Dereferenced pointer or this value if not a pointer.
          */
-        std::expected<Handle<Value>, Error> Load();
+        virtual std::expected<Handle<Value>, Error> Load();
         
         /**
          * @brief Store the given Value into the current Value.
          */
-        std::optional<Error> Store(Handle<Value> value);
-        
-        /**
-         * @brief Check if this Value can be assigned by the given one.
-         * 
-         * This is true if both are of the same type and if this value isn't const.
-         */
-        bool IsAssignableFrom(Handle<Value> value) const;
+        virtual std::optional<Error> Store(Handle<Value> value);
 
         /**
          * @brief Splat the non vector value into a vector of same type.
          */
-        std::expected<Handle<Value>, Error> Splat();
+        virtual std::expected<Handle<Value>, Error> Splat();
         
         /**
          * @brief Cast this Value to the given type and return the casted Value.
@@ -62,7 +55,7 @@ namespace VCL {
          * this will also broadcast the current value to a new vector.
          * If the cast can't be made, an error will be returned.
          */
-        std::expected<Handle<Value>, Error> Cast(Type type);
+        virtual std::expected<Handle<Value>, Error> Cast(Type type);
 
         /**
          * @brief Check if this is a valid Value.
@@ -127,7 +120,7 @@ namespace VCL {
          */
         static std::expected<Handle<Value>, Error> CreateInvalid();
 
-    private:
+    protected:
         llvm::Value* value;
         Type type;
         ModuleContext* context;

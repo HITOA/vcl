@@ -65,6 +65,7 @@ namespace VCL {
         std::unique_ptr<ASTVariableDeclaration> ParseVariableDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo);
         std::unique_ptr<ASTFunctionCall> ParseFunctionCall(Lexer& lexer);
         std::unique_ptr<ASTFunctionCall> TryParseTemplatedFunctionCall(Lexer& lexer);
+        std::unique_ptr<ASTAggregateExpression> ParseAggregateExpression(Lexer& lexer);
 
         std::shared_ptr<TypeInfo> TryParseTypeInfo(Lexer& lexer, TokenType expectedAheadTokenType);
         std::shared_ptr<TypeInfo> ParseTypeInfo(Lexer& lexer);

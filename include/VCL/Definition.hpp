@@ -159,6 +159,7 @@ namespace VCL {
             None,
             Custom,
             Callable,
+            Aggregate,
             TYPE_DEF
         } type = TypeName::None;
 

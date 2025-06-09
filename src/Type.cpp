@@ -10,7 +10,7 @@
 
 
 VCL::Type::Type() :
-    typeInfo{}, type{ nullptr }, context{ nullptr } {}
+    typeInfo{}, type{ nullptr }, diType{ nullptr }, context{ nullptr }, isPointer{ false } {}
 
 VCL::Type::Type(std::shared_ptr<TypeInfo> typeInfo, llvm::Type* type, llvm::DIType* diType, ModuleContext* context, bool isPointer) :
     typeInfo{ typeInfo }, type{ type }, diType{ diType }, context{ context }, isPointer{ false } {}
@@ -57,6 +57,10 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
 
     switch (typeInfo->type)
     {
+    case TypeInfo::TypeName::Aggregate:
+        type = nullptr;
+        diType = nullptr;
+        break;
     case TypeInfo::TypeName::Callable:
         type = nullptr;
         diType = nullptr;

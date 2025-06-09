@@ -563,16 +563,6 @@ std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePostfixExpression(Lexer& l
 std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePrimaryExpression(Lexer& lexer) {
     Token currentToken = lexer.Peek();
 
-    /**
-     * Expression can be:
-     * - Unary Operation
-     * - Variable Declaration [X]
-     * - Variable Expression [X]
-     * - Function Call [X]
-     * - Variable Assignment [X]
-     * - Literal Expression [X]
-     */
-
     std::unique_ptr<ASTExpression> expression = nullptr;
 
     if (std::shared_ptr<TypeInfo> typeInfo = TryParseTypeInfo(lexer, TokenType::Identifier)) {
@@ -591,6 +581,8 @@ std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePrimaryExpression(Lexer& l
         expression = ParseLiteralExpression(lexer);
     } else if (currentToken.type == TokenType::LPar) {
         expression = ParseParentExpression(lexer);
+    } else if (currentToken.type == TokenType::LBracket) {
+        expression = ParseAggregateExpression(lexer);
     }
 
     if (expression == nullptr)
@@ -708,6 +700,24 @@ std::unique_ptr<VCL::ASTFunctionCall> VCL::Parser::TryParseTemplatedFunctionCall
 
     return FillASTStatementDebugInformation(std::make_unique<ASTFunctionCall>(
         functionIdentifierToken.name, std::move(arguments), std::move(templateArguments)), functionIdentifierToken);
+}
+
+std::unique_ptr<VCL::ASTAggregateExpression> VCL::Parser::ParseAggregateExpression(Lexer& lexer) {
+    Token token = lexer.Consume(); //Consume LBracket;
+
+    std::vector<std::unique_ptr<ASTExpression>> values{};
+
+    if (lexer.ConsumeIf(TokenType::RBracket))
+        return FillASTStatementDebugInformation(std::make_unique<ASTAggregateExpression>(std::move(values)), token);
+
+    do {
+        values.emplace_back(ParseExpression(lexer));
+    } while (lexer.ConsumeIf(TokenType::Coma));
+
+    if (Token token = lexer.Consume(); token.type != TokenType::RBracket)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting closing bracket", token.name), token.location };
+
+    return FillASTStatementDebugInformation(std::make_unique<ASTAggregateExpression>(std::move(values)), token);;
 }
 
 std::shared_ptr<VCL::TypeInfo> VCL::Parser::TryParseTypeInfo(Lexer& lexer, TokenType expectedAheadTokenType) {

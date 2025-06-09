@@ -367,3 +367,41 @@ TEST_CASE( "VCL in out parameters", "[Struct][Qualifiers]" ) {
         REQUIRE(b3 == 1.0);
     }
 }
+
+TEST_CASE( "VCL const array init", "[Array][Aggregate]" ) {
+    MAKE_VCL("./vcl/constarrayinit.vcl");
+
+    static float values[16] = {
+        4.92, 8.84, 9.28, 5.45,
+        9.66, 1.53, 9.73, 3.68,
+        6.93, 4.51, 5.65, 3.89,
+        1.65, 5.23, 8.84, 5.67
+    };
+
+    SECTION("Value check") {
+        int index = 0;
+        float output;
+
+        session->DefineExternSymbolPtr("index", &index);
+        session->DefineExternSymbolPtr("output", &output);
+
+        for (int i = 0; i < 16; ++i) {
+            index = i;
+            ((void(*)())(session->Lookup("Main")))();
+            REQUIRE(output == values[i]);
+        }
+    }
+}
+
+TEST_CASE( "VCL const struct init", "[Array][Aggregate]" ) {
+    MAKE_VCL("./vcl/conststructinit.vcl");
+
+    SECTION("Value check") {
+        float distance;
+
+        session->DefineExternSymbolPtr("distance", &distance);
+
+        ((void(*)())(session->Lookup("Main")))();
+        REQUIRE(distance == 3.0f);
+    }
+}
