@@ -26,6 +26,8 @@ VCL::ModuleContext::ModuleContext(std::string_view name, llvm::orc::ThreadSafeCo
     basicTypes.vfloatDIType = diBuilder.createTypedef(vfloatBaseType, "vfloat", diBuiltinFile, 0, nullptr);
     basicTypes.vintDIType = diBuilder.createTypedef(vintBaseType, "vint", diBuiltinFile, 0, nullptr);
     basicTypes.vboolDIType = diBuilder.createTypedef(vboolBaseType, "vbool", diBuiltinFile, 0, nullptr);
+
+    info = std::make_shared<ModuleInfo>();
 }
 
 VCL::ModuleContext::~ModuleContext() {
@@ -62,4 +64,8 @@ VCL::DebugInformationBasicType* VCL::ModuleContext::GetDIBasicTypes() {
 
 llvm::DIFile* VCL::ModuleContext::GetDIBuiltinFile() {
     return diBuiltinFile;
+}
+
+std::shared_ptr<VCL::ModuleInfo> VCL::ModuleContext::GetModuleInfo() {
+    return info;
 }

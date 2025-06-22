@@ -56,7 +56,8 @@ namespace VCL {
     private:
         bool TokenizePunctuator(std::string_view source, TokenType& type, uint32_t& size);
         bool TokenizeIdentifier(std::string_view source, TokenType& type, uint32_t& size);
-        bool TokenizeLiteral(std::string_view source, TokenType& type, uint32_t& size);
+        bool TokenizeLiteralNumber(std::string_view source, TokenType& type, uint32_t& size);
+        bool TokenizeLiteralString(std::string_view source, TokenType& type, uint32_t& size);
         void TokenizeKeyword(std::string_view identifier, TokenType& type);
 
         bool SkipWhitespace(std::string_view source, uint32_t& offset, uint32_t& position, uint32_t& line);

@@ -81,6 +81,7 @@ namespace VCL {
         Identifier,
         LiteralInt,
         LiteralFloat,
+        LiteralString,
 
         TYPE_DEF
         TYPE_QUALIFIER_DEF
@@ -142,6 +143,11 @@ namespace VCL {
         } type = TemplateValueType::Typename;
     };
 
+    struct RuntimeTypeInfo {
+        size_t sizeInBytes = 0;
+        size_t alignmentInBytes = 0;
+    };
+
     /**
      * @brief The TypeInfo class contain all the needed information to debug and build a proper LLVM Type for JIT compilation.
      */
@@ -166,6 +172,7 @@ namespace VCL {
         std::string_view name = "";
         std::vector<std::shared_ptr<TemplateArgument>> arguments{};
 
+        RuntimeTypeInfo rtInfo{};
 
         friend inline TypeInfo::QualifierFlag operator|(TypeInfo::QualifierFlag a, TypeInfo::QualifierFlag b) {
             return (TypeInfo::QualifierFlag)((int)a | (int)b);

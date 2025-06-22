@@ -42,3 +42,7 @@ std::string VCL::Module::Dump() {
     context->GetTSModule().getModuleUnlocked()->print(output, nullptr);
     return str;
 }
+
+std::shared_ptr<VCL::ModuleInfo> VCL::Module::GetModuleInfo() {
+    return context->GetModuleInfo();
+}

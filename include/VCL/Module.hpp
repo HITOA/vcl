@@ -1,6 +1,7 @@
 #pragma once
 
 #include <VCL/ModuleUtils.hpp>
+#include <VCL/ModuleInfo.hpp>
 #include <VCL/AST.hpp>
 #include <VCL/Logger.hpp>
 
@@ -26,6 +27,8 @@ namespace VCL {
         void Optimize(ModuleOptimizerSettings settings = {});
 
         std::string Dump();
+
+        std::shared_ptr<ModuleInfo> GetModuleInfo();
 
     private:
         friend class ExecutionSession;

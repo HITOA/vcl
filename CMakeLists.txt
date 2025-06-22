@@ -36,6 +36,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Value.hpp
 
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Aggregate.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Attribute.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/CallableTemplate.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Debug.cpp
@@ -47,6 +48,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Module.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleInfo.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleVerifier.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/NativeTarget.cpp

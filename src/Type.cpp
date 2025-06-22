@@ -183,6 +183,11 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
         return std::unexpected(Error{ "Invalid typename while parsing type" });
     }
 
+    if (type != nullptr && type->isSized()) {
+        typeInfo->rtInfo.sizeInBytes = context->GetTSModule().getModuleUnlocked()->getDataLayout().getTypeSizeInBits(type) / 8;
+        typeInfo->rtInfo.alignmentInBytes = context->GetTSModule().getModuleUnlocked()->getDataLayout().getABITypeAlign(type).value();
+    }
+
     return Type{ typeInfo, type, diType, context, isPointer};
 }
 

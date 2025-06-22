@@ -5,6 +5,7 @@
 #include <VCL/Lexer.hpp>
 #include <VCL/Logger.hpp>
 #include <VCL/Source.hpp>
+#include <VCL/Attribute.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -41,7 +42,7 @@ namespace VCL {
         std::unique_ptr<ASTStatement> ParseCompoundStatement(Lexer& lexer);
 
         std::unique_ptr<ASTFunctionArgument> ParseFunctionArgument(Lexer& lexer);
-        std::unique_ptr<ASTFunctionPrototype> ParseFunctionPrototype(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo);
+        std::unique_ptr<ASTFunctionPrototype> ParseFunctionPrototype(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo, AttributeSet& attributes);
         std::unique_ptr<ASTFunctionDeclaration> ParseFunctionDeclaration(Lexer& lexer, std::unique_ptr<ASTFunctionPrototype> prototype);
         std::unique_ptr<ASTStructureFieldDeclaration> ParseStructureFieldDeclaration(Lexer& lexer);
         std::unique_ptr<ASTTemplateParameterDeclaration> ParseTemplateParameterDeclaration(Lexer& lexer);
@@ -62,7 +63,7 @@ namespace VCL {
         std::unique_ptr<ASTExpression> ParseParentExpression(Lexer& lexer);
         std::unique_ptr<ASTLiteralExpression> ParseLiteralExpression(Lexer& lexer);
         std::unique_ptr<ASTVariableExpression> ParseVariableExpression(Lexer& lexer);
-        std::unique_ptr<ASTVariableDeclaration> ParseVariableDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo);
+        std::unique_ptr<ASTVariableDeclaration> ParseVariableDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo, AttributeSet& attributes);
         std::unique_ptr<ASTFunctionCall> ParseFunctionCall(Lexer& lexer);
         std::unique_ptr<ASTFunctionCall> TryParseTemplatedFunctionCall(Lexer& lexer);
         std::unique_ptr<ASTAggregateExpression> ParseAggregateExpression(Lexer& lexer);
@@ -70,6 +71,9 @@ namespace VCL {
         std::shared_ptr<TypeInfo> TryParseTypeInfo(Lexer& lexer, TokenType expectedAheadTokenType);
         std::shared_ptr<TypeInfo> ParseTypeInfo(Lexer& lexer);
         std::shared_ptr<TemplateArgument> ParseTemplateArgument(Lexer& lexer);
+
+        void ParseAttributes(Lexer& lexer, AttributeSet& attributeSet);
+        void ParseAttributeValues(Lexer& lexer, Attribute& attribute);
 
     private:
         std::shared_ptr<Logger> logger = nullptr;

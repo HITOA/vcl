@@ -3,6 +3,7 @@
 #include "Scope.hpp"
 
 #include <VCL/Logger.hpp>
+#include <VCL/ModuleInfo.hpp>
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -78,6 +79,11 @@ namespace VCL {
          */
         llvm::DIFile* GetDIBuiltinFile();
 
+        /**
+         * @brief Get module information.
+         */
+        std::shared_ptr<ModuleInfo> GetModuleInfo();
+
     private:
         llvm::orc::ThreadSafeModule module;
         llvm::IRBuilder<> irBuilder;
@@ -85,6 +91,7 @@ namespace VCL {
         llvm::DIFile* diBuiltinFile;
         ScopeManager sm;
         std::shared_ptr<Logger> logger;
+        std::shared_ptr<ModuleInfo> info;
         DebugInformationBasicType basicTypes;
     };
 

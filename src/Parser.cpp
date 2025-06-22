@@ -49,6 +49,9 @@ void VCL::Parser::SetLogger(std::shared_ptr<Logger> logger)
 
 std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, bool ignoreTerminator)
 {
+    AttributeSet attributes{};
+    ParseAttributes(lexer, attributes);
+
     Token currentToken = lexer.Peek();
     
     /**
@@ -75,14 +78,14 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, boo
             statement = ParseTemplateFunctionDeclaration(lexer, typeInfo);
             expectedTerminatorTokenType = TokenType::Undefined;
         } else if (lexer.Peek(1).type == TokenType::LPar) { 
-            std::unique_ptr<ASTFunctionPrototype> prototype = ParseFunctionPrototype(lexer, typeInfo);
+            std::unique_ptr<ASTFunctionPrototype> prototype = ParseFunctionPrototype(lexer, typeInfo, attributes);
             if (lexer.Peek().type == TokenType::LBracket) {
                 statement = ParseFunctionDeclaration(lexer, std::move(prototype));
                 expectedTerminatorTokenType = TokenType::Undefined;
             }
             else statement = std::move(prototype);
         } else {
-            statement = ParseVariableDeclaration(lexer, typeInfo);
+            statement = ParseVariableDeclaration(lexer, typeInfo, attributes);
         }
     } else if (currentToken.type == TokenType::Struct) {
         statement = ParseStructureDeclaration(lexer);
@@ -144,7 +147,7 @@ std::unique_ptr<VCL::ASTFunctionArgument> VCL::Parser::ParseFunctionArgument(Lex
         std::make_unique<ASTFunctionArgument>(typeInfo, argumentIdentifierToken.name), argumentIdentifierToken);
 }
 
-std::unique_ptr<VCL::ASTFunctionPrototype> VCL::Parser::ParseFunctionPrototype(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo) {
+std::unique_ptr<VCL::ASTFunctionPrototype> VCL::Parser::ParseFunctionPrototype(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo, AttributeSet& attributes) {
     Token functionIdentifierToken = lexer.Consume();
     lexer.Consume(); //LPAR
 
@@ -163,7 +166,7 @@ std::unique_ptr<VCL::ASTFunctionPrototype> VCL::Parser::ParseFunctionPrototype(L
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting closing parenthesis", token.name), token.location };
 
     return FillASTStatementDebugInformation(
-        std::make_unique<ASTFunctionPrototype>(typeInfo, functionIdentifierToken.name, std::move(arguments)), functionIdentifierToken);
+        std::make_unique<ASTFunctionPrototype>(typeInfo, functionIdentifierToken.name, std::move(arguments), attributes), functionIdentifierToken);
 }
 
 std::unique_ptr<VCL::ASTFunctionDeclaration> VCL::Parser::ParseFunctionDeclaration(Lexer& lexer, std::unique_ptr<ASTFunctionPrototype> prototype) {
@@ -561,12 +564,15 @@ std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePostfixExpression(Lexer& l
 }
 
 std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePrimaryExpression(Lexer& lexer) {
-    Token currentToken = lexer.Peek();
+    AttributeSet attributes{};
+    ParseAttributes(lexer, attributes);
 
+    Token currentToken = lexer.Peek();
+    
     std::unique_ptr<ASTExpression> expression = nullptr;
 
     if (std::shared_ptr<TypeInfo> typeInfo = TryParseTypeInfo(lexer, TokenType::Identifier)) {
-        expression = ParseVariableDeclaration(lexer, typeInfo);
+        expression = ParseVariableDeclaration(lexer, typeInfo, attributes);
     } else if (currentToken.type == TokenType::Identifier) {
         if (Token nextToken = lexer.Peek(1); nextToken.type == TokenType::Less) {
             expression = TryParseTemplatedFunctionCall(lexer);
@@ -623,7 +629,7 @@ std::unique_ptr<VCL::ASTVariableExpression> VCL::Parser::ParseVariableExpression
     return FillASTStatementDebugInformation(std::make_unique<ASTVariableExpression>(variableIdentifierToken.name), variableIdentifierToken);
 }
 
-std::unique_ptr<VCL::ASTVariableDeclaration> VCL::Parser::ParseVariableDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo) {
+std::unique_ptr<VCL::ASTVariableDeclaration> VCL::Parser::ParseVariableDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo, AttributeSet& attributes) {
     Token variableIdentifierToken = lexer.Consume();
     if (variableIdentifierToken.type != TokenType::Identifier)
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", variableIdentifierToken.name), variableIdentifierToken.location };
@@ -633,7 +639,7 @@ std::unique_ptr<VCL::ASTVariableDeclaration> VCL::Parser::ParseVariableDeclarati
         expression = ParseExpression(lexer);
     }
     return FillASTStatementDebugInformation(
-            std::make_unique<ASTVariableDeclaration>(typeInfo, variableIdentifierToken.name, std::move(expression)), variableIdentifierToken);
+            std::make_unique<ASTVariableDeclaration>(typeInfo, variableIdentifierToken.name, std::move(expression), std::move(attributes)), variableIdentifierToken);
 }
 
 std::unique_ptr<VCL::ASTFunctionCall> VCL::Parser::ParseFunctionCall(Lexer& lexer) {
@@ -835,6 +841,58 @@ std::shared_ptr<VCL::TemplateArgument> VCL::Parser::ParseTemplateArgument(Lexer&
             break;
     }
     return argument;
+}
+
+void VCL::Parser::ParseAttributes(Lexer& lexer, AttributeSet& attributeSet) {
+    if (lexer.Peek().type != TokenType::LSquareBracket)
+        return;
+
+    Token token = lexer.Consume();
+    
+    do {
+        //Parse attribute
+        Attribute attribute{};
+
+        Token identifier = lexer.Consume();
+        if (identifier.type != TokenType::Identifier)
+            throw Exception{ std::format("Unexpected token \'{}\'. Missing attribute name.", identifier.name), identifier.location};
+        attribute.name = identifier.name;
+        if (lexer.ConsumeIf(TokenType::Assignment))
+            ParseAttributeValues(lexer, attribute);
+        
+        attributeSet.insert(attribute);
+    } while (lexer.ConsumeIf(TokenType::Coma));
+
+    if (Token token = lexer.Consume(); token.type != TokenType::RSquareBracket)
+        throw Exception{ std::format("Unexpected token \'{}\'. Missing closing bracket.", token.name), token.location};
+    
+    ParseAttributes(lexer, attributeSet);
+}
+
+void VCL::Parser::ParseAttributeValues(Lexer& lexer, Attribute& attribute) {
+    Token token = lexer.Consume();
+
+    std::string tokenStr{ token.name };
+
+    if (token.type == TokenType::LiteralFloat) {
+        attribute.values.emplace_back(std::stof(tokenStr));
+        return;
+    } else if (token.type == TokenType::LiteralInt) {
+        attribute.values.emplace_back(std::stoi(tokenStr));
+        return;
+    } else if (token.type == TokenType::LiteralString) {
+        attribute.values.emplace_back(tokenStr);
+        return;
+    } else if (token.type == TokenType::LPar) {
+        do {
+            ParseAttributeValues(lexer, attribute);
+        } while (lexer.ConsumeIf(TokenType::Coma));
+        if (Token token = lexer.Consume(); token.type != TokenType::RPar)
+            throw Exception{ std::format("Unexpected token \'{}\'. Missing closing parenthesis.", token.name), token.location};
+        return;
+    } else {
+        throw Exception{ std::format("Unexpected token \'{}\'.", token.name), token.location};
+    }
 }
 
 std::unique_ptr<VCL::Parser> VCL::Parser::Create(std::shared_ptr<Logger> logger) {

@@ -405,3 +405,48 @@ TEST_CASE( "VCL const struct init", "[Array][Aggregate]" ) {
         REQUIRE(distance == 3.0f);
     }
 }
+
+TEST_CASE( "VCL attribute", "[Attribute]" ) {
+    std::shared_ptr<ConsoleLogger> logger = std::make_shared<ConsoleLogger>();
+    std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger);
+    std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger);
+    session->SetDebugInformation(true);
+    std::filesystem::path sourcepath{ "./vcl/attribute.vcl" };
+    auto source = VCL::Source::LoadFromDisk(sourcepath);
+    REQUIRE(source.has_value());
+    std::unique_ptr<VCL::ASTProgram> program;
+    REQUIRE_NOTHROW(program = parser->Parse(*source));
+    std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
+    VCL::ModuleDebugInformationSettings diSettings{};
+    diSettings.generateDebugInformation = true;
+    REQUIRE_NOTHROW(module->Emit(diSettings));
+    std::shared_ptr<VCL::ModuleInfo> moduleInfo = module->GetModuleInfo();
+    REQUIRE_NOTHROW(module->Verify());
+    session->SubmitModule(std::move(module));
+
+    SECTION("Value check") {
+        float v1 = 3.0f;
+        float v2 = 1.0f;
+
+        float r = 0.0f;
+
+        session->DefineExternSymbolPtr("v1", &v1);
+        session->DefineExternSymbolPtr("v2", &v2);
+
+        session->DefineExternSymbolPtr("r", &r);
+        
+        std::string entryPointName{};
+
+        for (auto functionInfo : moduleInfo->GetFunctions()) {
+            if (functionInfo->attributes.HasAttributeByName("EntryPoint")) {
+                entryPointName = functionInfo->name;
+                break;
+            }
+        }
+
+        if (auto f = (void(*)())(session->Lookup(entryPointName)))
+            f();
+
+        REQUIRE(r == (v1 + v2));
+    }
+}

@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <algorithm>
+#include <iostream>
 
 
 bool VCL::Lexer::Tokenize(std::shared_ptr<Source> source) {
@@ -21,9 +22,10 @@ bool VCL::Lexer::Tokenize(std::shared_ptr<Source> source) {
         TokenType currentTokenType;
         uint32_t currentTokenSize;
 
-        if (!TokenizeLiteral(currentSource, currentTokenType, currentTokenSize))
-            if (!TokenizeIdentifier(currentSource, currentTokenType, currentTokenSize))
-                TokenizePunctuator(currentSource, currentTokenType, currentTokenSize);
+        if (!TokenizeLiteralString(currentSource, currentTokenType, currentTokenSize))
+            if (!TokenizeLiteralNumber(currentSource, currentTokenType, currentTokenSize))
+                if (!TokenizeIdentifier(currentSource, currentTokenType, currentTokenSize))
+                    TokenizePunctuator(currentSource, currentTokenType, currentTokenSize);
 
         std::string_view currentTokenName{ currentSource.data(), currentTokenSize };
 
@@ -137,7 +139,7 @@ bool VCL::Lexer::TokenizeIdentifier(std::string_view source, TokenType& type, ui
     return true;
 }
 
-bool VCL::Lexer::TokenizeLiteral(std::string_view source, TokenType& type, uint32_t& size) {
+bool VCL::Lexer::TokenizeLiteralNumber(std::string_view source, TokenType& type, uint32_t& size) {
     if (!isdigit(source[0])) {
         type = TokenType::Undefined;
         size = 0;
@@ -159,6 +161,28 @@ bool VCL::Lexer::TokenizeLiteral(std::string_view source, TokenType& type, uint3
     type = isFloating ? TokenType::LiteralFloat : TokenType::LiteralInt;
     size = source.length();
     return true;
+}
+
+bool VCL::Lexer::TokenizeLiteralString(std::string_view source, TokenType& type, uint32_t& size) {
+    if (source.length() <= 1 || source[0] != '\"') {
+        type = TokenType::Undefined;
+        size = 0;
+        return false;
+    }
+    
+    for (size_t i = 1; i < source.length(); ++i) {
+        if (source[i] == '\n')
+            break;
+        if (source[i] == '\"' && source[i - 1] != '\\') {
+            type = TokenType::LiteralString;
+            size = i + 1;
+            return true;
+        }
+    }
+
+    type = TokenType::Undefined;
+    size = 0;
+    return false;
 }
 
 void VCL::Lexer::TokenizeKeyword(std::string_view identifier, TokenType& type) {

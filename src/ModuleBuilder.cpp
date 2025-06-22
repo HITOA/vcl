@@ -96,11 +96,14 @@ void VCL::ModuleBuilder::VisitFunctionPrototype(ASTFunctionPrototype* node) {
 
     Type returnType = ThrowOnError(Type::Create(node->type, context), node->location);
 
+    std::vector<std::shared_ptr<TypeInfo>> argsTypeinfo( node->arguments.size() );
     std::vector<Function::ArgInfo> argsInfo( node->arguments.size() );
+
     for (size_t i = 0; i < node->arguments.size(); ++i) {
         Type argType = ThrowOnError(Type::Create(node->arguments[i]->type, context), 
             node->arguments[i]->location);
         argsInfo[i] = Function::ArgInfo{ argType, node->arguments[i]->name };
+        argsTypeinfo[i] = node->arguments[i]->type;
     }
 
     Handle<Function> function = ThrowOnError(Function::Create(returnType, argsInfo, node->name, context), node->location);
@@ -112,6 +115,13 @@ void VCL::ModuleBuilder::VisitFunctionPrototype(ASTFunctionPrototype* node) {
             llvm::DINode::DIFlags::FlagPrototyped, llvm::DISubprogram::DISPFlags::SPFlagZero
         );
     }
+
+    std::shared_ptr<FunctionInfo> info = std::make_shared<FunctionInfo>();
+    info->name = node->name;
+    info->returnTypeinfo = node->type;
+    info->argumentsTypeinfo = argsTypeinfo;
+    info->attributes = node->attributes;
+    context->GetModuleInfo()->AddFunction(info);
 
     context->GetScopeManager().PushNamedValue(node->name, function);
     lastReturnedValue = function;
@@ -854,12 +864,19 @@ void VCL::ModuleBuilder::VisitVariableDeclaration(ASTVariableDeclaration* node) 
 
     SetCurrentDebugLocation(context, node);
 
-    if (context->GetScopeManager().IsCurrentScopeGlobal())
+    if (context->GetScopeManager().IsCurrentScopeGlobal()) {
         variable = ThrowOnError(Value::CreateGlobalVariable(type, initializer, context, name.c_str(), 
             file, node->location.line, node->location.position), node->location);
-    else
+            
+        std::shared_ptr<VariableInfo> info = std::make_shared<VariableInfo>();
+        info->name = name;
+        info->typeinfo = type.GetTypeInfo();
+        info->attributes = node->attributes;
+        context->GetModuleInfo()->AddVariable(info);
+    } else {
         variable = ThrowOnError(Value::CreateLocalVariable(type, initializer, context, name.c_str(),
             file, node->location.line, node->location.position), node->location);
+    }
 
     if (!context->GetScopeManager().PushNamedValue(node->name, variable))
         throw Exception{ std::format("Redefinition of `{}`", node->name), node->location };

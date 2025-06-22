@@ -2,6 +2,7 @@
 
 #include <VCL/Definition.hpp>
 #include <VCL/Source.hpp>
+#include <VCL/Attribute.hpp>
 
 #include <string_view>
 #include <memory>
@@ -156,14 +157,16 @@ namespace VCL {
      */
     class ASTFunctionPrototype : public ASTStatement {
     public:
-        ASTFunctionPrototype(std::shared_ptr<TypeInfo> type, std::string_view name, std::vector<std::unique_ptr<ASTFunctionArgument>> arguments) :
-            type{ type }, name{ name }, arguments{ std::move(arguments) } {};
+        ASTFunctionPrototype(
+            std::shared_ptr<TypeInfo> type, std::string_view name, std::vector<std::unique_ptr<ASTFunctionArgument>> arguments, AttributeSet attributes) :
+            type{ type }, name{ name }, arguments{ std::move(arguments) }, attributes{ attributes } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitFunctionPrototype(this); }
     public:
         std::shared_ptr<TypeInfo> type;
         std::string_view name;
         std::vector<std::unique_ptr<ASTFunctionArgument>> arguments;
+        AttributeSet attributes;
     };
 
     /**
@@ -466,8 +469,9 @@ namespace VCL {
      */
     class ASTVariableDeclaration : public ASTExpression {
     public:
-        ASTVariableDeclaration(std::shared_ptr<TypeInfo> type, std::string_view name, std::unique_ptr<ASTExpression> expression) :
-            type{ type }, name{ name }, expression{ std::move(expression) } {};
+        ASTVariableDeclaration(
+            std::shared_ptr<TypeInfo> type, std::string_view name, std::unique_ptr<ASTExpression> expression, AttributeSet attributes) :
+            type{ type }, name{ name }, expression{ std::move(expression) }, attributes{ attributes } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitVariableDeclaration(this); }
         bool IsLValue() const override { return true; }
@@ -475,6 +479,7 @@ namespace VCL {
         std::shared_ptr<TypeInfo> type;
         std::string_view name;
         std::unique_ptr<ASTExpression> expression;
+        AttributeSet attributes;
     };
 
     /**
