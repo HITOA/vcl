@@ -1,7 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_random.hpp>
-#include <VCL/VCL.hpp>
+#include <VCL/Parser.hpp>
+#include <VCL/ExecutionSession.hpp>
+#include <VCL/Module.hpp>
 #include <VCL/NativeTarget.hpp>
 #include <VCL/Error.hpp>
 #include <format>

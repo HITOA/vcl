@@ -2,7 +2,10 @@
 * This tool is made for precompiling vcl into bytecode and debugging purposes. It also serves as an exemple on how to use the library.
 */
 
-#include <VCL/VCL.hpp>
+
+#include <VCL/Parser.hpp>
+#include <VCL/ExecutionSession.hpp>
+#include <VCL/Module.hpp>
 #include <VCL/Error.hpp>
 
 #include <iostream>
