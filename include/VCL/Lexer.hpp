@@ -23,9 +23,9 @@ namespace VCL {
          */
         TokenType type;
         /**
-         * @brief provide a view on the source of the token's name.
+         * @brief provide the token's name.
          */
-        std::string_view name;
+        std::string name;
         /**
          * @brief provide information on the token's location in the source file.
          */

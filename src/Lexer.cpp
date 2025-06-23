@@ -35,7 +35,7 @@ bool VCL::Lexer::Tokenize(std::shared_ptr<Source> source) {
         if (currentTokenType != TokenType::Undefined) {
             tokens.emplace_back(Token{
                 currentTokenType,
-                currentTokenName,
+                std::string{ currentTokenName },
                 SourceLocation{
                     source,
                     position,
@@ -53,7 +53,7 @@ bool VCL::Lexer::Tokenize(std::shared_ptr<Source> source) {
 
     tokens.emplace_back(Token{
         TokenType::EndOfFile,
-        source_view,
+        std::string{},
         SourceLocation{
             source,
             position,

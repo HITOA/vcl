@@ -4,7 +4,7 @@
 #include <VCL/Source.hpp>
 #include <VCL/Attribute.hpp>
 
-#include <string_view>
+#include <string>
 #include <memory>
 #include <vector>
 
@@ -143,13 +143,13 @@ namespace VCL {
      */
     class ASTFunctionArgument : public ASTStatement {
     public:
-        ASTFunctionArgument(std::shared_ptr<TypeInfo> type, std::string_view name) :
+        ASTFunctionArgument(std::shared_ptr<TypeInfo> type, const std::string& name) :
             type{ type }, name{ name } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitFunctionArgument(this); }
     public:
         std::shared_ptr<TypeInfo> type;
-        std::string_view name;
+        std::string name;
     };
 
     /**
@@ -158,13 +158,13 @@ namespace VCL {
     class ASTFunctionPrototype : public ASTStatement {
     public:
         ASTFunctionPrototype(
-            std::shared_ptr<TypeInfo> type, std::string_view name, std::vector<std::unique_ptr<ASTFunctionArgument>> arguments, AttributeSet attributes) :
+            std::shared_ptr<TypeInfo> type, const std::string& name, std::vector<std::unique_ptr<ASTFunctionArgument>> arguments, AttributeSet attributes) :
             type{ type }, name{ name }, arguments{ std::move(arguments) }, attributes{ attributes } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitFunctionPrototype(this); }
     public:
         std::shared_ptr<TypeInfo> type;
-        std::string_view name;
+        std::string name;
         std::vector<std::unique_ptr<ASTFunctionArgument>> arguments;
         AttributeSet attributes;
     };
@@ -188,13 +188,13 @@ namespace VCL {
      */
     class ASTStructureFieldDeclaration : public ASTStatement {
     public:
-        ASTStructureFieldDeclaration(std::shared_ptr<TypeInfo> type, std::string_view name) : 
+        ASTStructureFieldDeclaration(std::shared_ptr<TypeInfo> type, const std::string& name) : 
             type{ type }, name{ name } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitStructureFieldDeclaration(this); }
     public:
         std::shared_ptr<TypeInfo> type;
-        std::string_view name;
+        std::string name;
     };
 
     /**
@@ -202,29 +202,29 @@ namespace VCL {
      */
     class ASTStructureDeclaration : public ASTStatement {
     public:
-        ASTStructureDeclaration(std::string_view name, std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields) :
+        ASTStructureDeclaration(const std::string& name, std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields) :
             name{ name }, fields{ std::move(fields) } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitStructureDeclaration(this); }
     public:
-        std::string_view name;
+        std::string name;
         std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields;
     };
 
     class ASTTemplateParameterDeclaration : public ASTStatement {
     public:
-        ASTTemplateParameterDeclaration(std::string_view name, TemplateArgument::TemplateValueType type) :
+        ASTTemplateParameterDeclaration(const std::string& name, TemplateArgument::TemplateValueType type) :
             name{ name }, type{ type } {};
         
         void Accept(ASTVisitor* visitor) override { visitor->VisitTemplateParameterDeclaration(this); }
     public:
-        std::string_view name;
+        std::string name;
         TemplateArgument::TemplateValueType type;
     };
 
     class ASTTemplateDeclaration : public ASTStructureDeclaration {
     public:
-        ASTTemplateDeclaration(std::string_view name, std::vector<std::unique_ptr<ASTTemplateParameterDeclaration>> parameters,
+        ASTTemplateDeclaration(const std::string& name, std::vector<std::unique_ptr<ASTTemplateParameterDeclaration>> parameters,
             std::vector<std::unique_ptr<ASTStructureFieldDeclaration>> fields) : 
                 ASTStructureDeclaration{ name, std::move(fields) }, parameters{ std::move(parameters) } {};
 
@@ -236,7 +236,7 @@ namespace VCL {
     class ASTTemplateFunctionDeclaration : public ASTStatement {
     public:
         ASTTemplateFunctionDeclaration(std::shared_ptr<TypeInfo> type,
-            std::string_view name,
+            const std::string& name,
             std::vector<std::unique_ptr<ASTTemplateParameterDeclaration>> parameters,
             std::vector<std::unique_ptr<ASTFunctionArgument>> arguments,
             std::unique_ptr<ASTNode> body) : type{ type }, name{ name }, 
@@ -245,7 +245,7 @@ namespace VCL {
         void Accept(ASTVisitor* visitor) override { visitor->VisitTemplateFunctionDeclaration(this); }
     public:
         std::shared_ptr<TypeInfo> type;
-        std::string_view name;
+        std::string name;
         std::vector<std::unique_ptr<ASTTemplateParameterDeclaration>> parameters;
         std::vector<std::unique_ptr<ASTFunctionArgument>> arguments;
         std::unique_ptr<ASTNode> body;
@@ -412,14 +412,14 @@ namespace VCL {
 
     class ASTFieldAccessExpression : public ASTExpression {
     public:
-        ASTFieldAccessExpression(std::unique_ptr<ASTExpression> expression, std::string_view fieldName) :
+        ASTFieldAccessExpression(std::unique_ptr<ASTExpression> expression, const std::string& fieldName) :
             expression{ std::move(expression) }, fieldName{ fieldName } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitFieldAccessExpression(this); }
         bool IsLValue() const override { return true; }
     public:
         std::unique_ptr<ASTExpression> expression;
-        std::string_view fieldName;
+        std::string fieldName;
     };
 
     class ASTSubscriptExpression : public ASTExpression {
@@ -456,12 +456,12 @@ namespace VCL {
      */
     class ASTVariableExpression : public ASTExpression {
     public:
-        ASTVariableExpression(std::string_view name) : name{ name } {};
+        ASTVariableExpression(const std::string& name) : name{ name } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitVariableExpression(this); }
         bool IsLValue() const override { return true; }
     public:
-        std::string_view name;
+        std::string name;
     };
 
     /**
@@ -470,14 +470,14 @@ namespace VCL {
     class ASTVariableDeclaration : public ASTExpression {
     public:
         ASTVariableDeclaration(
-            std::shared_ptr<TypeInfo> type, std::string_view name, std::unique_ptr<ASTExpression> expression, AttributeSet attributes) :
+            std::shared_ptr<TypeInfo> type, const std::string& name, std::unique_ptr<ASTExpression> expression, AttributeSet attributes) :
             type{ type }, name{ name }, expression{ std::move(expression) }, attributes{ attributes } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitVariableDeclaration(this); }
         bool IsLValue() const override { return true; }
     public:
         std::shared_ptr<TypeInfo> type;
-        std::string_view name;
+        std::string name;
         std::unique_ptr<ASTExpression> expression;
         AttributeSet attributes;
     };
@@ -487,14 +487,14 @@ namespace VCL {
      */
     class ASTFunctionCall : public ASTExpression {
     public:
-        ASTFunctionCall(std::string_view name, std::vector<std::unique_ptr<ASTExpression>> arguments) :
+        ASTFunctionCall(const std::string& name, std::vector<std::unique_ptr<ASTExpression>> arguments) :
             name{ name }, arguments{ std::move(arguments) }, templateArguments{} {};
-        ASTFunctionCall(std::string_view name, std::vector<std::unique_ptr<ASTExpression>> arguments, std::vector<std::shared_ptr<TemplateArgument>> templateArguments) :
+        ASTFunctionCall(const std::string& name, std::vector<std::unique_ptr<ASTExpression>> arguments, std::vector<std::shared_ptr<TemplateArgument>> templateArguments) :
             name{ name }, arguments{ std::move(arguments) }, templateArguments{ templateArguments } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitFunctionCall(this); }
     public:
-        std::string_view name;
+        std::string name;
         std::vector<std::unique_ptr<ASTExpression>> arguments;
         std::vector<std::shared_ptr<TemplateArgument>> templateArguments;
     };

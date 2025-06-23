@@ -8,8 +8,8 @@
 #include <iostream>
 
 
-VCL::StructTemplate::StructTemplate(std::string_view name, std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>>& structTemplate, 
-    std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context) :
+VCL::StructTemplate::StructTemplate(const std::string& name, std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& structTemplate, 
+    std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context) :
     name{ name }, structTemplate{ structTemplate }, templateParameters{ templateParameters }, context{ context } {}
 
 std::string VCL::StructTemplate::Mangle(std::vector<std::shared_ptr<TemplateArgument>>& args) {
@@ -53,8 +53,8 @@ std::expected<VCL::Handle<VCL::StructDefinition>, VCL::Error> VCL::StructTemplat
         return std::unexpected{ t.error() };
 }
 
-std::expected<VCL::Handle<VCL::StructTemplate>, VCL::Error> VCL::StructTemplate::Create(std::string_view name, 
-    std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>>& structTemplate, 
-    std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context) {
+std::expected<VCL::Handle<VCL::StructTemplate>, VCL::Error> VCL::StructTemplate::Create(const std::string& name, 
+    std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& structTemplate, 
+    std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context) {
     return MakeHandle<StructTemplate>(name, structTemplate, templateParameters, context);
 }

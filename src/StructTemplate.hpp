@@ -18,8 +18,8 @@ namespace VCL {
     class StructTemplate {
     public:
         StructTemplate() = delete;
-        StructTemplate(std::string_view name, std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>>& structTemplate, 
-            std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context);
+        StructTemplate(const std::string& name, std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& structTemplate, 
+            std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context);
         StructTemplate(const StructTemplate& value) = default;
         StructTemplate(StructTemplate&& value) noexcept = default;
         virtual ~StructTemplate() = default;
@@ -30,13 +30,13 @@ namespace VCL {
         std::string Mangle(std::vector<std::shared_ptr<TemplateArgument>>& args);
         std::expected<Handle<StructDefinition>, Error> Resolve(std::vector<std::shared_ptr<TemplateArgument>>& args);
 
-        static std::expected<Handle<StructTemplate>, Error> Create(std::string_view name, 
-            std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>>& structTemplate, 
-            std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context);
+        static std::expected<Handle<StructTemplate>, Error> Create(const std::string& name, 
+            std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& structTemplate, 
+            std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters, ModuleContext* context);
     private:
-        std::string_view name;
-        std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> structTemplate{};
-        std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters{};
+        std::string name;
+        std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>> structTemplate{};
+        std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>> templateParameters{};
         ModuleContext* context;
     };
 

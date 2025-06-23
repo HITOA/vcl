@@ -17,88 +17,78 @@ void VCL::ScopeManager::PopScope() {
     scopes.pop_front();
 }
 
-std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::ScopeManager::GetNamedValue(std::string_view name) const {
-    std::string nameStr{ name };
+std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::ScopeManager::GetNamedValue(const std::string& name) const {
     for (const Scope& scope : scopes) {
-        if (scope.namedValue.count(nameStr))
-            return scope.namedValue.at(nameStr);
+        if (scope.namedValue.count(name))
+            return scope.namedValue.at(name);
     }
     return std::unexpected(Error{ std::format("Undefined named value \'{}\'", name) });
 }
 
-bool VCL::ScopeManager::PushNamedValue(std::string_view name, Handle<Value> value, uint32_t offset) {
-    std::string nameStr{ name };
-    if (scopes[offset].namedValue.count(nameStr))
+bool VCL::ScopeManager::PushNamedValue(const std::string& name, Handle<Value> value, uint32_t offset) {
+    if (scopes[offset].namedValue.count(name))
         return false;
-    scopes[offset].namedValue.emplace(nameStr, value);
+    scopes[offset].namedValue.emplace(name, value);
     return true;
 }
 
-std::expected<VCL::Handle<VCL::StructDefinition>, VCL::Error> VCL::ScopeManager::GetNamedType(std::string_view name) const {
-    std::string nameStr{ name };
+std::expected<VCL::Handle<VCL::StructDefinition>, VCL::Error> VCL::ScopeManager::GetNamedType(const std::string& name) const {
     for (const Scope& scope : scopes) {
-        if (scope.namedType.count(nameStr))
-            return scope.namedType.at(nameStr);
+        if (scope.namedType.count(name))
+            return scope.namedType.at(name);
     }
     return std::unexpected(Error{ std::format("Undefined named type \'{}\'", name) });
 }
 
-bool VCL::ScopeManager::PushNamedType(std::string_view name, Handle<StructDefinition> type, uint32_t offset) {
-    std::string nameStr{ name };
-    if (scopes[offset].namedType.count(nameStr))
+bool VCL::ScopeManager::PushNamedType(const std::string& name, Handle<StructDefinition> type, uint32_t offset) {
+    if (scopes[offset].namedType.count(name))
         return false;
-    scopes[offset].namedType.emplace(nameStr, type);
+    scopes[offset].namedType.emplace(name, type);
     return true;
 }
 
-std::expected<VCL::Handle<VCL::StructTemplate>, VCL::Error> VCL::ScopeManager::GetNamedStructTemplate(std::string_view name) const {
-    std::string nameStr{ name };
+std::expected<VCL::Handle<VCL::StructTemplate>, VCL::Error> VCL::ScopeManager::GetNamedStructTemplate(const std::string& name) const {
     for (const Scope& scope : scopes) {
-        if (scope.namedStructTemplate.count(nameStr))
-            return scope.namedStructTemplate.at(nameStr);
+        if (scope.namedStructTemplate.count(name))
+            return scope.namedStructTemplate.at(name);
     }
     return std::unexpected(Error{ std::format("Undefined named template \'{}\'", name) });
 }
 
-bool VCL::ScopeManager::PushNamedStructTemplate(std::string_view name, Handle<StructTemplate> type, uint32_t offset) {
-    std::string nameStr{ name };
-    if (scopes[offset].namedStructTemplate.count(nameStr))
+bool VCL::ScopeManager::PushNamedStructTemplate(const std::string& name, Handle<StructTemplate> type, uint32_t offset) {
+    if (scopes[offset].namedStructTemplate.count(name))
         return false;
-    scopes[offset].namedStructTemplate.emplace(nameStr, type);
+    scopes[offset].namedStructTemplate.emplace(name, type);
     return true;
 }
 
-std::expected<VCL::Handle<VCL::CallableTemplate>, VCL::Error> VCL::ScopeManager::GetNamedFunctionTemplate(std::string_view name) const {
-    std::string nameStr{ name };
+std::expected<VCL::Handle<VCL::CallableTemplate>, VCL::Error> VCL::ScopeManager::GetNamedFunctionTemplate(const std::string& name) const {
     for (const Scope& scope : scopes) {
-        if (scope.namedFunctionTemplate.count(nameStr))
-            return scope.namedFunctionTemplate.at(nameStr);
+        if (scope.namedFunctionTemplate.count(name))
+            return scope.namedFunctionTemplate.at(name);
     }
     return std::unexpected(Error{ std::format("Undefined named function template \'{}\'", name) });
 }
 
-bool VCL::ScopeManager::PushNamedFunctionTemplate(std::string_view name, Handle<CallableTemplate> type, uint32_t offset) {
-    std::string nameStr{ name };
-    if (scopes[offset].namedFunctionTemplate.count(nameStr))
+bool VCL::ScopeManager::PushNamedFunctionTemplate(const std::string& name, Handle<CallableTemplate> type, uint32_t offset) {
+    if (scopes[offset].namedFunctionTemplate.count(name))
         return false;
-    scopes[offset].namedFunctionTemplate.emplace(nameStr, type);
+    scopes[offset].namedFunctionTemplate.emplace(name, type);
     return true;
 }
 
-std::expected<std::shared_ptr<VCL::TypeInfo>, VCL::Error> VCL::ScopeManager::GetNamedTypeAlias(std::string_view name) const {
-    std::string nameStr{ name };
+std::expected<std::shared_ptr<VCL::TypeInfo>, VCL::Error> VCL::ScopeManager::GetNamedTypeAlias(const std::string& name) const {
     for (const Scope& scope : scopes) {
-        if (scope.namedTypeAlias.count(nameStr))
-            return scope.namedTypeAlias.at(nameStr);
+        if (scope.namedTypeAlias.count(name))
+            return scope.namedTypeAlias.at(name);
     }
     return std::unexpected(Error{ std::format("Undefined named type alias \'{}\'", name) });
 }
 
-bool VCL::ScopeManager::PushNamedTypeAlias(std::string_view name, std::shared_ptr<TypeInfo> type, uint32_t offset) {
-    std::string nameStr{ name };
-    if (scopes[offset].namedTypeAlias.count(nameStr))
+bool VCL::ScopeManager::PushNamedTypeAlias(const std::string& name, std::shared_ptr<TypeInfo> type, uint32_t offset) {
+    if (scopes[offset].namedTypeAlias.count(name))
         return false;
-    scopes[offset].namedTypeAlias.emplace(nameStr, type);
+    scopes[offset].namedTypeAlias.emplace(name, type);
     return true;
 }
 
@@ -126,22 +116,20 @@ llvm::DIScope* VCL::ScopeManager::GetCurrentDebugInformationScope() {
     return nullptr;
 }
 
-uint32_t VCL::ScopeManager::GetNamedStructTemplateOffset(std::string_view name) const {
-    std::string nameStr{ name };
+uint32_t VCL::ScopeManager::GetNamedStructTemplateOffset(const std::string& name) const {
     uint32_t i = 0;
     for (const Scope& scope : scopes) {
-        if (scope.namedStructTemplate.count(nameStr))
+        if (scope.namedStructTemplate.count(name))
             return i;
         ++i;
     }
     return 0;
 }
 
-uint32_t VCL::ScopeManager::GetNamedFunctionTemplateOffset(std::string_view name) const {
-    std::string nameStr{ name };
+uint32_t VCL::ScopeManager::GetNamedFunctionTemplateOffset(const std::string& name) const {
     uint32_t i = 0;
     for (const Scope& scope : scopes) {
-        if (scope.namedFunctionTemplate.count(nameStr))
+        if (scope.namedFunctionTemplate.count(name))
             return i;
         ++i;
     }

@@ -9,10 +9,10 @@
 #include <iostream>
 
 
-VCL::CallableTemplate::CallableTemplate(std::string_view name, 
+VCL::CallableTemplate::CallableTemplate(const std::string& name, 
     std::shared_ptr<TypeInfo> returnType,
-    std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> functionArguments,
-    std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters,
+    std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& functionArguments,
+    std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters,
     std::unique_ptr<ASTNode> body, llvm::DIFile* file, uint32_t line, ModuleContext* context) : name{ name },
         returnType{ returnType }, functionArguments{ functionArguments }, templateParameters{ templateParameters },
         body{ std::move(body) }, file{ file }, line{ line }, context{ context } {}
@@ -129,7 +129,7 @@ std::expected<VCL::Handle<VCL::Callable>, VCL::Error> VCL::CallableTemplate::Res
 
     for (size_t i = 0; i < llvmFunction->arg_size(); ++i) {
         Type argType = function->GetArgsInfo()[i].type;
-        std::string_view argName = function->GetArgsInfo()[i].name;
+        const std::string& argName = function->GetArgsInfo()[i].name;
         std::string argNameStr{ argName };
         Handle<Value> argValue;
         if (auto r = Value::Create(llvmFunction->getArg(i), argType, context); r.has_value())
@@ -178,10 +178,10 @@ std::expected<VCL::Handle<VCL::Callable>, VCL::Error> VCL::CallableTemplate::Res
     return function;
 }
 
-std::expected<VCL::Handle<VCL::CallableTemplate>, VCL::Error> VCL::CallableTemplate::Create(std::string_view name, 
+std::expected<VCL::Handle<VCL::CallableTemplate>, VCL::Error> VCL::CallableTemplate::Create(const std::string& name, 
             std::shared_ptr<TypeInfo> returnType,
-            std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> functionArguments,
-            std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters,
+            std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& functionArguments,
+            std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters,
             std::unique_ptr<ASTNode> body, llvm::DIFile* file, uint32_t line, ModuleContext* context) {
     return MakeHandle<CallableTemplate>(name, returnType, functionArguments, templateParameters, std::move(body), file, line, context);
 }

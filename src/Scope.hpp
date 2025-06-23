@@ -59,28 +59,28 @@ namespace VCL {
          *
          * @return Either the correct value or an error if the name doesn't match any.
          */
-        std::expected<Handle<Value>, Error> GetNamedValue(std::string_view name) const;
+        std::expected<Handle<Value>, Error> GetNamedValue(const std::string& name) const;
         
         /**
          * @brief Add a named value to the current scope.
          *
          * @return true on success or false if a value already exist with this name in the current scope.
          */
-        bool PushNamedValue(std::string_view name, Handle<Value> value, uint32_t offset = 0);
+        bool PushNamedValue(const std::string& name, Handle<Value> value, uint32_t offset = 0);
 
         /**
          * @brief Get a named type by name from the current or upper scope.
          * 
          * @return Either the correct type or an error if the name doesn't match any.
          */
-        std::expected<Handle<StructDefinition>, Error> GetNamedType(std::string_view name) const;
+        std::expected<Handle<StructDefinition>, Error> GetNamedType(const std::string& name) const;
 
         /**
          * @brief Add a named type to the current scope.
          * 
          * @return true on success or false if a type already exist with this name in the current scope.
          */
-        bool PushNamedType(std::string_view name, Handle<StructDefinition> type, uint32_t offset = 0);
+        bool PushNamedType(const std::string& name, Handle<StructDefinition> type, uint32_t offset = 0);
 
 
         /**
@@ -88,42 +88,42 @@ namespace VCL {
          * 
          * @return Either the correct template or an error if the name doesn't match any.
          */
-        std::expected<Handle<StructTemplate>, Error> GetNamedStructTemplate(std::string_view name) const;
+        std::expected<Handle<StructTemplate>, Error> GetNamedStructTemplate(const std::string& name) const;
 
         /**
          * @brief Add a named template to the current scope.
          * 
          * @return true on success or false if a template already exist with this name in the current scope.
          */
-        bool PushNamedStructTemplate(std::string_view name, Handle<StructTemplate> type, uint32_t offset = 0);
+        bool PushNamedStructTemplate(const std::string& name, Handle<StructTemplate> type, uint32_t offset = 0);
 
         /**
          * @brief Get a named function template by name from the current or upper scope.
          * 
          * @return Either the correct function template or an error if the name doesn't match any.
          */
-        std::expected<Handle<CallableTemplate>, Error> GetNamedFunctionTemplate(std::string_view name) const;
+        std::expected<Handle<CallableTemplate>, Error> GetNamedFunctionTemplate(const std::string& name) const;
 
         /**
          * @brief Add a named function template to the current scope.
          * 
          * @return true on success or false if a function template already exist with this name in the current scope.
          */
-        bool PushNamedFunctionTemplate(std::string_view name, Handle<CallableTemplate> type, uint32_t offset = 0);
+        bool PushNamedFunctionTemplate(const std::string& name, Handle<CallableTemplate> type, uint32_t offset = 0);
 
         /**
          * @brief Get a named type alias by name from the current or upper scope.
          * 
          * @return Either the correct type alias or an error if the name doesn't match any.
          */
-        std::expected<std::shared_ptr<TypeInfo>, Error> GetNamedTypeAlias(std::string_view name) const;
+        std::expected<std::shared_ptr<TypeInfo>, Error> GetNamedTypeAlias(const std::string& name) const;
 
         /**
          * @brief Add a named type alias to the current scope.
          * 
          * @return true on success or false if a type alias already exist with this name in the current scope.
          */
-        bool PushNamedTypeAlias(std::string_view name, std::shared_ptr<TypeInfo> type, uint32_t offset = 0);
+        bool PushNamedTypeAlias(const std::string& name, std::shared_ptr<TypeInfo> type, uint32_t offset = 0);
 
         /**
          * @brief Get BasicBlock for transfer control if any exist.
@@ -142,8 +142,8 @@ namespace VCL {
         void SetCurrentDebugInformationScope(llvm::DIScope* scope);
         llvm::DIScope* GetCurrentDebugInformationScope();
 
-        uint32_t GetNamedStructTemplateOffset(std::string_view name) const;
-        uint32_t GetNamedFunctionTemplateOffset(std::string_view name) const;
+        uint32_t GetNamedStructTemplateOffset(const std::string& name) const;
+        uint32_t GetNamedFunctionTemplateOffset(const std::string& name) const;
 
     private:
         /**

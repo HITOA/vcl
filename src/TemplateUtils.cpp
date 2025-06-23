@@ -6,7 +6,7 @@
 
 
 std::optional<VCL::Error> VCL::TemplateArgumentMapper::Map(std::vector<std::shared_ptr<TemplateArgument>>& arguments, 
-    std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>>& templateParameters) {
+    std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters) {
 
     if (arguments.size() > templateParameters.size())
         return Error{ std::format("In template  `{}`, {} arguments were given but {} were expected.", 
@@ -55,7 +55,7 @@ std::optional<VCL::Error> VCL::TemplateArgumentMapper::InferOne(std::unordered_m
     return {};
 }
 
-std::optional<VCL::Error> VCL::TemplateArgumentMapper::Infer(std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>>& templateParameters,
+std::optional<VCL::Error> VCL::TemplateArgumentMapper::Infer(std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters,
     std::vector<std::shared_ptr<TypeInfo>>& templatedArguments, std::vector<std::shared_ptr<TypeInfo>>& resolvedArguments) {
 
     if (templatedArguments.size() != resolvedArguments.size())
@@ -76,7 +76,7 @@ std::optional<VCL::Error> VCL::TemplateArgumentMapper::Infer(std::vector<std::pa
     return {};
 }
 
-std::optional<VCL::Error> VCL::TemplateArgumentMapper::CheckParameters(std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>>& templateParameters) {
+std::optional<VCL::Error> VCL::TemplateArgumentMapper::CheckParameters(std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters) {
     for (size_t i = 0; i < templateParameters.size(); ++i) {
         std::string strn{ templateParameters[i].first };
         if (!map.count(strn))

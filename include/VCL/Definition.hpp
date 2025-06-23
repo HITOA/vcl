@@ -2,7 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string_view>
+#include <string>
 #include <memory>
 #include <vector>
 
@@ -169,7 +169,7 @@ namespace VCL {
             TYPE_DEF
         } type = TypeName::None;
 
-        std::string_view name = "";
+        std::string name = "";
         std::vector<std::shared_ptr<TemplateArgument>> arguments{};
 
         RuntimeTypeInfo rtInfo{};

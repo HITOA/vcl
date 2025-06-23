@@ -57,7 +57,7 @@ namespace VCL {
     public:
         struct ArgInfo {
             Type type;
-            std::string_view name;
+            std::string name;
         };
 
     public:

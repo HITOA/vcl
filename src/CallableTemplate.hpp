@@ -19,10 +19,10 @@ namespace VCL {
     class CallableTemplate {
     public:
         CallableTemplate() = delete;
-        CallableTemplate(std::string_view name, 
+        CallableTemplate(const std::string& name, 
             std::shared_ptr<TypeInfo> returnType,
-            std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> functionArguments,
-            std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters,
+            std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& functionArguments,
+            std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters,
             std::unique_ptr<ASTNode> body, llvm::DIFile* file, uint32_t line, ModuleContext* context);
         CallableTemplate(const CallableTemplate& value) = default;
         CallableTemplate(CallableTemplate&& value) noexcept = default;
@@ -36,16 +36,16 @@ namespace VCL {
         std::expected<Handle<Callable>, Error> Resolve(std::vector<std::shared_ptr<TemplateArgument>>& args, 
             std::vector<std::shared_ptr<TypeInfo>>& resolvedArguments);
 
-        static std::expected<Handle<CallableTemplate>, Error> Create(std::string_view name, 
+        static std::expected<Handle<CallableTemplate>, Error> Create(const std::string& name, 
             std::shared_ptr<TypeInfo> returnType,
-            std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> functionArguments,
-            std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters,
+            std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>>& functionArguments,
+            std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>>& templateParameters,
             std::unique_ptr<ASTNode> body, llvm::DIFile* file, uint32_t line, ModuleContext* context);
     private:
-        std::string_view name;
+        std::string name;
         std::shared_ptr<TypeInfo> returnType;
-        std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> functionArguments{};
-        std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters{};
+        std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>> functionArguments{};
+        std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>> templateParameters{};
         std::unique_ptr<ASTNode> body;
         llvm::DIFile* file;
         uint32_t line;

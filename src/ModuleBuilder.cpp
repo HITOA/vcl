@@ -156,7 +156,7 @@ void VCL::ModuleBuilder::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
     
     for (size_t i = 0; i < llvmFunction->arg_size(); ++i) {
         Type argType = function->GetArgsInfo()[i].type;
-        std::string_view argName = function->GetArgsInfo()[i].name;
+        const std::string& argName = function->GetArgsInfo()[i].name;
         std::string argNameStr{ argName };
         Handle<Value> argValue = ThrowOnError(Value::Create(llvmFunction->getArg(i), argType, context), node->location);
         if (argType.GetTypeInfo()->IsGivenByReference()) {
@@ -204,9 +204,9 @@ void VCL::ModuleBuilder::VisitStructureDeclaration(ASTStructureDeclaration* node
 }
 
 void VCL::ModuleBuilder::VisitTemplateDeclaration(ASTTemplateDeclaration* node) {
-    std::string_view name = node->name;
-    std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> structTemplate{};
-    std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters{};
+    const std::string& name = node->name;
+    std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>> structTemplate{};
+    std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>> templateParameters{};
 
     for (size_t i = 0; i < node->fields.size(); ++i)
         structTemplate.push_back(std::make_pair(node->fields[i]->name, node->fields[i]->type));
@@ -220,9 +220,9 @@ void VCL::ModuleBuilder::VisitTemplateDeclaration(ASTTemplateDeclaration* node) 
 }
 
 void VCL::ModuleBuilder::VisitTemplateFunctionDeclaration(ASTTemplateFunctionDeclaration* node) {
-    std::string_view name = node->name;
-    std::vector<std::pair<std::string_view, std::shared_ptr<TypeInfo>>> functionArguments{};
-    std::vector<std::pair<std::string_view, TemplateArgument::TemplateValueType>> templateParameters{};
+    const std::string& name = node->name;
+    std::vector<std::pair<std::string, std::shared_ptr<TypeInfo>>> functionArguments{};
+    std::vector<std::pair<std::string, TemplateArgument::TemplateValueType>> templateParameters{};
 
     for (size_t i = 0; i < node->arguments.size(); ++i)
         functionArguments.push_back(std::make_pair(node->arguments[i]->name, node->arguments[i]->type));
