@@ -53,6 +53,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleVerifier.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/NativeTarget.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Parser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/PrettyPrinter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Source.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructDefinition.cpp

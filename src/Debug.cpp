@@ -47,7 +47,6 @@ std::string VCL::ToString(Operator::ID id) {
     }
 }
 
-
 std::string VCL::ToString(std::shared_ptr<TypeInfo> type) {
     switch (type->type) {
         case TypeInfo::TypeName::Custom: 

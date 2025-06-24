@@ -423,7 +423,7 @@ VCL::Operator GetBinaryOperator(VCL::TokenType type) {
     case VCL::TokenType::LogicalOr:
         return VCL::Operator{  VCL::Operator::ID::LogicalOr, VCL::Operator::Kind::Logical, VCL::Operator::Associativity::Left, 3 };
     case VCL::TokenType::Assignment:
-        return VCL::Operator{  VCL::Operator::ID::Add, VCL::Operator::Kind::Assignment, VCL::Operator::Associativity::Right, 1 };
+        return VCL::Operator{  VCL::Operator::ID::Assignment, VCL::Operator::Kind::Assignment, VCL::Operator::Associativity::Right, 1 };
     default:
         return VCL::Operator{};
     }
