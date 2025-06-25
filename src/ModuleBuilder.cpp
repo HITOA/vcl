@@ -237,6 +237,9 @@ void VCL::ModuleBuilder::VisitTemplateFunctionDeclaration(ASTTemplateFunctionDec
 }
 
 void VCL::ModuleBuilder::VisitReturnStatement(ASTReturnStatement* node) {
+    if (context->GetScopeManager().IsCurrentScopeGlobal())
+        throw new Exception{ "return statement cannot be outside of a function's body.", node->location };
+
     SetCurrentDebugLocation(context, node);
     if (node->expression) {
         node->expression->Accept(this);
@@ -247,6 +250,9 @@ void VCL::ModuleBuilder::VisitReturnStatement(ASTReturnStatement* node) {
 }
 
 void VCL::ModuleBuilder::VisitIfStatement(ASTIfStatement* node) {
+    if (context->GetScopeManager().IsCurrentScopeGlobal())
+        throw new Exception{ "if statement cannot be outside of a function's body.", node->location };
+
     node->condition->Accept(this);
     std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
     typeInfo->type = TypeInfo::TypeName::Bool;
@@ -290,6 +296,9 @@ void VCL::ModuleBuilder::VisitIfStatement(ASTIfStatement* node) {
 }
 
 void VCL::ModuleBuilder::VisitWhileStatement(ASTWhileStatement* node) {
+    if (context->GetScopeManager().IsCurrentScopeGlobal())
+        throw new Exception{ "while statement cannot be outside of a function's body.", node->location };
+
     llvm::Function* function = context->GetIRBuilder().GetInsertBlock()->getParent();
 
     if (!function)
@@ -329,6 +338,9 @@ void VCL::ModuleBuilder::VisitWhileStatement(ASTWhileStatement* node) {
 }
 
 void VCL::ModuleBuilder::VisitForStatement(ASTForStatement* node) {
+    if (context->GetScopeManager().IsCurrentScopeGlobal())
+        throw new Exception{ "for statement cannot be outside of a function's body.", node->location };
+        
     llvm::Function* function = context->GetIRBuilder().GetInsertBlock()->getParent();
 
     if (!function)
