@@ -66,6 +66,10 @@ void VCL::ExecutionContext::AddModule(llvm::orc::ThreadSafeModule module, llvm::
         throw std::runtime_error{ std::format("{}", llvm::toString(std::move(err))) };
 }
 
+void VCL::ExecutionContext::Clear() {
+    llvm::cantFail(main->clear());
+}
+
 llvm::orc::ExecutorSymbolDef VCL::ExecutionContext::Lookup(std::string_view name) {
     if (auto r = session->lookup({ main }, name); !r)
         throw std::runtime_error{ std::format("{}", llvm::toString(r.takeError())) };

@@ -30,6 +30,8 @@ namespace VCL {
 
         void AddModule(llvm::orc::ThreadSafeModule module, llvm::orc::ResourceTrackerSP rt = nullptr);
 
+        void Clear();
+
         llvm::orc::ExecutorSymbolDef Lookup(std::string_view name);
 
         void DefineExternSymbolPtr(std::string_view name, void* buffer);

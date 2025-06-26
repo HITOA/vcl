@@ -26,6 +26,10 @@ void VCL::ExecutionSession::SubmitModule(std::unique_ptr<Module> module) {
     context->AddModule(std::move(module->context->GetTSModule()));
 }
 
+void VCL::ExecutionSession::Clear() {
+    context->Clear();
+}
+
 void VCL::ExecutionSession::DefineExternSymbolPtr(std::string_view name, void* buffer) {
     context->DefineExternSymbolPtr(name, buffer);
 }

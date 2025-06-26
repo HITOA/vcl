@@ -26,6 +26,11 @@ namespace VCL {
         void SubmitModule(std::unique_ptr<Module> module);
 
         /**
+         * @brief Reset the current session
+         */
+        void Clear();
+
+        /**
          * @brief Define a symbol by its address and its name.
          */
         void DefineExternSymbolPtr(std::string_view name, void* buffer);
