@@ -56,7 +56,9 @@ VCL::ExecutionContext::ExecutionContext() : context{}, dumpObject{ false } {
     DefineIntrinsic();
 }
 
-VCL::ExecutionContext::~ExecutionContext() {}
+VCL::ExecutionContext::~ExecutionContext() {
+    llvm::cantFail(session->endSession());
+}
 
 void VCL::ExecutionContext::AddModule(llvm::orc::ThreadSafeModule module, llvm::orc::ResourceTrackerSP rt) {
     if (!rt)
