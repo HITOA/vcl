@@ -63,6 +63,7 @@ namespace VCL {
         std::unique_ptr<llvm::orc::ObjectTransformLayer> dumpObjectLayer;
         std::unique_ptr<llvm::orc::IRCompileLayer> compileLayer;
         
+        
         llvm::orc::JITDylib* main;
 
         llvm::JITEventListener* gdbListener;

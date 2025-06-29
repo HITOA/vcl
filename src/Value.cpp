@@ -143,7 +143,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
         *context->GetTSModule().getModuleUnlocked(),
         type.GetLLVMType(),
         type.GetTypeInfo()->IsConst(),
-        isExtern ? llvm::GlobalValue::ExternalLinkage : llvm::GlobalValue::PrivateLinkage,
+        llvm::GlobalValue::ExternalLinkage,
         initializerValue, name
     };
 
@@ -154,6 +154,8 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
     }
 
     value->setAlignment(llvm::Align(NativeTarget::GetInstance()->GetMaxVectorByteWidth()));
+    if (!isExtern)
+        value->setDSOLocal(true);
     type.SetPointer();
 
     return Value::Create(value, type, context);
