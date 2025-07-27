@@ -1,7 +1,7 @@
 #pragma once
 
 #include <VCL/AST.hpp>
-#include <VCL/ModuleUtils.hpp>
+#include <VCL/Module.hpp>
 
 #include "Value.hpp"
 #include "ModuleContext.hpp"

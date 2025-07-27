@@ -47,28 +47,16 @@ void VCL::Parser::SetLogger(std::shared_ptr<Logger> logger)
     this->logger = logger;
 }
 
+void VCL::Parser::SetDirectiveRegistry(std::shared_ptr<DirectiveRegistry> registry) {
+    this->registry = registry;
+}
+
 std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, bool ignoreTerminator)
 {
     AttributeSet attributes{};
     ParseAttributes(lexer, attributes);
 
     Token currentToken = lexer.Peek();
-    
-    /**
-     * Statement can be:
-     * - Variable Declaration (semicolon) [X]
-     * - Function Prototype (semicolon) [X]
-     * - Function Declaration (none) [X]
-     * - Function Call (semicolon) [X]
-     * - Variable Assignment (semicolon) [X]
-     * - Structure Declaration (none) [X]
-     * - Return (semicolon) [X]
-     * - If Block (none) [X]
-     * - While Block (none) [X]
-     * - For Block (none) [X]
-     * - Break (semicolon) [X]
-     * Statement either end with semicolon or none
-     */
 
     TokenType expectedTerminatorTokenType = TokenType::Semicolon;
     std::unique_ptr<ASTStatement> statement = nullptr;
@@ -87,6 +75,9 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseStatement(Lexer &lexer, boo
         } else {
             statement = ParseVariableDeclaration(lexer, typeInfo, attributes);
         }
+    } else if (currentToken.type == TokenType::DirectiveSymbol) {
+        statement = ParseDirective(lexer);
+        expectedTerminatorTokenType = TokenType::Undefined;
     } else if (currentToken.type == TokenType::Struct) {
         statement = ParseStructureDeclaration(lexer);
         expectedTerminatorTokenType = TokenType::Undefined;
@@ -135,6 +126,21 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseCompoundStatement(Lexer& le
     }
     lexer.Consume(); //RBRACKET
     return FillASTStatementDebugInformation(std::make_unique<ASTCompoundStatement>(std::move(statements)), lbracket);
+}
+
+std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseDirective(Lexer& lexer) {
+    lexer.Consume(); //Consume directive symbol @
+    std::unique_ptr<ASTDirective> directive = nullptr;
+    Token directiveNameToken = lexer.Consume();
+
+    if (registry) {
+        std::shared_ptr<DirectiveHandler> handler = registry->GetDirective(directiveNameToken.name);
+        directive = handler->Parse(lexer, this);
+    }
+
+    if (!directive)
+        throw Exception{ std::format("Failed to parse compiler directive.", directiveNameToken.name), directiveNameToken.location};
+    return directive;
 }
 
 std::unique_ptr<VCL::ASTFunctionArgument> VCL::Parser::ParseFunctionArgument(Lexer& lexer) {

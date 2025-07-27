@@ -6,6 +6,7 @@
 #include <VCL/Logger.hpp>
 #include <VCL/Source.hpp>
 #include <VCL/Attribute.hpp>
+#include <VCL/Meta.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -33,6 +34,11 @@ namespace VCL {
         void SetLogger(std::shared_ptr<Logger> logger);
 
         /**
+         * @brief Set the directive registry class instance the parser will use to parse compiler directive.
+         */
+        void SetDirectiveRegistry(std::shared_ptr<DirectiveRegistry> registry);
+
+        /**
          * @brief Create a Parser class instance.
          */
         static std::unique_ptr<Parser> Create(std::shared_ptr<Logger> logger = nullptr);
@@ -40,6 +46,7 @@ namespace VCL {
     private:
         std::unique_ptr<ASTStatement> ParseStatement(Lexer& lexer, bool ignoreTerminator = false);
         std::unique_ptr<ASTStatement> ParseCompoundStatement(Lexer& lexer);
+        std::unique_ptr<ASTStatement> ParseDirective(Lexer& lexer);
 
         std::unique_ptr<ASTFunctionArgument> ParseFunctionArgument(Lexer& lexer);
         std::unique_ptr<ASTFunctionPrototype> ParseFunctionPrototype(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo, AttributeSet& attributes);
@@ -77,6 +84,8 @@ namespace VCL {
 
     private:
         std::shared_ptr<Logger> logger = nullptr;
+        std::shared_ptr<DirectiveRegistry> registry = nullptr;
+        
     };
 
 }

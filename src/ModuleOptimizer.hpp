@@ -1,6 +1,6 @@
 #pragma once
 
-#include <VCL/ModuleUtils.hpp>
+#include <VCL/Module.hpp>
 
 #include "ModuleContext.hpp"
 

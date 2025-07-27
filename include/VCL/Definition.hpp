@@ -70,7 +70,8 @@
     DEF(RBracket,           "}") \
     DEF(Coma,               ",") \
     DEF(LSquareBracket,     "[") \
-    DEF(RSquareBracket,     "]")
+    DEF(RSquareBracket,     "]") \
+    DEF(DirectiveSymbol,    "@")
 
 namespace VCL {
 #undef DEF

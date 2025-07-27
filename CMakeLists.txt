@@ -40,11 +40,13 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/CallableTemplate.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Debug.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Directive.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionSession.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsic.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsics.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Lexer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Meta.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Module.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.cpp

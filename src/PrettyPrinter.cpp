@@ -3,7 +3,7 @@
 
 
 namespace VCL {
-    std::string ToString(Operator::ID id) {
+    static std::string ToString(Operator::ID id) {
         switch (id)
         {
             // Binary Arithmetic
@@ -49,9 +49,9 @@ namespace VCL {
         }
     }
 
-    std::string ToString(std::shared_ptr<TemplateArgument> argument);
+    static std::string ToString(std::shared_ptr<TemplateArgument> argument);
 
-    std::string ToString(std::shared_ptr<TypeInfo> type) {
+    static std::string ToString(std::shared_ptr<TypeInfo> type) {
         std::string qualifiers = "";
         if (type->qualifiers & TypeInfo::QualifierFlag::Const)
             qualifiers += "const ";
@@ -112,7 +112,7 @@ namespace VCL {
         }
     }
 
-    std::string ToString(std::shared_ptr<TemplateArgument> argument) {
+    static std::string ToString(std::shared_ptr<TemplateArgument> argument) {
         switch (argument->type)
         {
         case TemplateArgument::TemplateValueType::Int: return std::to_string(argument->intValue);

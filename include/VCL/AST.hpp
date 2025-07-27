@@ -111,6 +111,13 @@ namespace VCL {
         virtual bool IsLValue() const { return false; }
     };
 
+    class ASTDirective : public ASTStatement {
+    public:
+        virtual ~ASTDirective() = default;
+
+        virtual std::string GetName() const = 0;
+    };
+
     /**
      * @brief represents the root of a VCL Program.
      */
