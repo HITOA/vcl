@@ -1,6 +1,12 @@
 #pragma once
 
 #include <VCL/Meta.hpp>
+#include <VCL/Error.hpp>
+#include <VCL/Source.hpp>
+
+#include <expected>
+#include <unordered_set>
+#include <unordered_map>
 
 
 namespace VCL {
@@ -9,6 +15,10 @@ namespace VCL {
     public:
         std::string GetDirectiveName() override;
         std::unique_ptr<ASTDirective> Parse(Lexer& lexer, Parser* parser) override;
+        void Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) override;
+
+    protected:
+        virtual std::expected<std::shared_ptr<Source>, Error> LoadSource(const std::string& path);
         
     public:
         class ASTImportDirective : public ASTDirective {
@@ -17,8 +27,19 @@ namespace VCL {
 
             std::string GetName() const override { return "import"; }
 
-        private:
+        public:
             std::string importPath;
+        };
+
+        class ImportDirectiveMetaComponent : public MetaComponent {
+        public:
+            ImportDirectiveMetaComponent() = default;
+            ~ImportDirectiveMetaComponent() = default;
+
+            bool TrackImport(const std::string& path);
+
+        private:
+            std::unordered_set<std::string> imports{};
         };
     };
 
@@ -26,6 +47,7 @@ namespace VCL {
     public:
         std::string GetDirectiveName() override;
         std::unique_ptr<ASTDirective> Parse(Lexer& lexer, Parser* parser) override;
+        void Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) override;
 
     public:
         class ASTDefineDirective : public ASTDirective {
@@ -35,30 +57,48 @@ namespace VCL {
 
             std::string GetName() const override { return "define"; }
 
-        private:
+        public:
             std::string name;
             std::unique_ptr<ASTLiteralExpression> expression;
         };
+
+        class DefineDirectiveMetaComponent : public MetaComponent {
+        public:
+            DefineDirectiveMetaComponent() = default;
+            ~DefineDirectiveMetaComponent() = default;
+
+            bool Defined(const std::string& name);
+            ASTLiteralExpression* GetDefine(const std::string& name);
+            bool AddDefine(const std::string& name, std::unique_ptr<ASTLiteralExpression> value);
+
+            bool AddDefineFlag(const std::string& name);
+            bool AddDefineInt(const std::string& name, int value);
+            bool AddDefineFloat(const std::string& name, float value);
+
+        public:
+            std::unordered_map<std::string, std::unique_ptr<ASTLiteralExpression>> defines{};
+        };
     };
 
-    class MacroDirective : public DirectiveHandler {
+    /*class MacroDirective : public DirectiveHandler {
     public:
         std::string GetDirectiveName() override;
         std::unique_ptr<ASTDirective> Parse(Lexer& lexer, Parser* parser) override;
+        void Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) override;
 
     public:
         class ASTMacroDirective : public ASTDirective {
         public:
-            ASTMacroDirective(const std::string& name, std::unique_ptr<ASTCompoundStatement> statements) : 
+            ASTMacroDirective(const std::string& name, std::unique_ptr<ASTStatement> statements) : 
                 name{ name }, statements{ std::move(statements) } {};
 
             std::string GetName() const override { return "macro"; }
 
-        private:
+        public:
             std::string name;
-            std::unique_ptr<ASTCompoundStatement> statements;
+            std::unique_ptr<ASTStatement> statements;
         };
-    };
+    };*/
 
     /*class ConditionalDirective : public DirectiveHandler {
     public:

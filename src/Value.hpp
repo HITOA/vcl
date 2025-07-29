@@ -65,6 +65,11 @@ namespace VCL {
          */
         bool IsValid() const;
 
+        /**
+         * @brief Check if this value can be assigned.
+         */
+        bool IsAssignable() const;
+
         /** 
          * @brief Get the underlying LLVM value. 
          * 

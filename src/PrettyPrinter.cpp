@@ -349,7 +349,7 @@ void VCL::PrettyPrinter::VisitLiteralExpression(ASTLiteralExpression* node) {
     }
 }
 
-void VCL::PrettyPrinter::VisitVariableExpression(ASTVariableExpression* node) {
+void VCL::PrettyPrinter::VisitIdentifierExpression(ASTIdentifierExpression* node) {
     buffer = node->name;
 }
 

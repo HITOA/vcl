@@ -35,10 +35,11 @@ namespace VCL {
     class ASTFieldAccessExpression;
     class ASTSubscriptExpression;
     class ASTLiteralExpression;
-    class ASTVariableExpression;
+    class ASTIdentifierExpression;
     class ASTVariableDeclaration;
     class ASTFunctionCall;
     class ASTAggregateExpression;
+    class ASTDirective;
 
     /**
      * @brief This is the base class to visite a whole AST from top to bottom.
@@ -72,13 +73,12 @@ namespace VCL {
         virtual void VisitFieldAccessExpression(ASTFieldAccessExpression* node) {};
         virtual void VisitSubscriptExpression(ASTSubscriptExpression* node) {};
         virtual void VisitLiteralExpression(ASTLiteralExpression* node) {};
-        virtual void VisitVariableExpression(ASTVariableExpression* node) {};
+        virtual void VisitIdentifierExpression(ASTIdentifierExpression* node) {};
         virtual void VisitVariableDeclaration(ASTVariableDeclaration* node) {};
         virtual void VisitFunctionCall(ASTFunctionCall* node) {};
         virtual void VisitAggregateExpression(ASTAggregateExpression* node) {};
+        virtual void VisitDirective(ASTDirective* node) {};
     };
-
-    class ASTVisitor;
 
     /**
      * @brief represents a common base node in an abstract syntax tree.
@@ -107,8 +107,6 @@ namespace VCL {
     class ASTExpression : public ASTStatement {
     public:
         virtual ~ASTExpression() = default;
-
-        virtual bool IsLValue() const { return false; }
     };
 
     class ASTDirective : public ASTStatement {
@@ -116,6 +114,8 @@ namespace VCL {
         virtual ~ASTDirective() = default;
 
         virtual std::string GetName() const = 0;
+
+        void Accept(ASTVisitor* visitor) override { visitor->VisitDirective(this); }
     };
 
     /**
@@ -423,7 +423,6 @@ namespace VCL {
             expression{ std::move(expression) }, fieldName{ fieldName } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitFieldAccessExpression(this); }
-        bool IsLValue() const override { return true; }
     public:
         std::unique_ptr<ASTExpression> expression;
         std::string fieldName;
@@ -435,7 +434,6 @@ namespace VCL {
             expression{ std::move(expression) }, index{ std::move(index) } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitSubscriptExpression(this); }
-        bool IsLValue() const override { return true; }
     public:
         std::unique_ptr<ASTExpression> expression;
         std::unique_ptr<ASTExpression> index;
@@ -459,14 +457,13 @@ namespace VCL {
     };
 
     /**
-     * @brief represents a variable value.
+     * @brief represents a value with an identifier.
      */
-    class ASTVariableExpression : public ASTExpression {
+    class ASTIdentifierExpression : public ASTExpression {
     public:
-        ASTVariableExpression(const std::string& name) : name{ name } {};
+        ASTIdentifierExpression(const std::string& name) : name{ name } {};
 
-        void Accept(ASTVisitor* visitor) override { visitor->VisitVariableExpression(this); }
-        bool IsLValue() const override { return true; }
+        void Accept(ASTVisitor* visitor) override { visitor->VisitIdentifierExpression(this); }
     public:
         std::string name;
     };
@@ -481,7 +478,6 @@ namespace VCL {
             type{ type }, name{ name }, expression{ std::move(expression) }, attributes{ attributes } {};
 
         void Accept(ASTVisitor* visitor) override { visitor->VisitVariableDeclaration(this); }
-        bool IsLValue() const override { return true; }
     public:
         std::shared_ptr<TypeInfo> type;
         std::string name;

@@ -5,8 +5,10 @@
 
 VCL::ModuleContext::ModuleContext(std::string_view name, llvm::orc::ThreadSafeContext context, std::shared_ptr<Logger> logger) :
     module{ std::make_unique<llvm::Module>(name, *context.getContext()), context }, irBuilder{ *context.getContext() },
-    diBuilder{ *module.getModuleUnlocked() }, sm{}, logger{ logger } {
+    diBuilder{ *module.getModuleUnlocked() }, sm{}, logger{ logger }, registry{ nullptr } {
     
+    state = VCL::MetaState::Create();
+
     diBuiltinFile = diBuilder.createFile("builtin", "/");
 
     basicTypes.floatDIType = diBuilder.createBasicType("float", 32, llvm::dwarf::DW_ATE_float);
@@ -58,6 +60,10 @@ std::shared_ptr<VCL::Logger> VCL::ModuleContext::GetLogger() {
     return logger;
 }
 
+void VCL::ModuleContext::SetLogger(std::shared_ptr<Logger> logger) {
+    this->logger = logger;
+}
+
 VCL::DebugInformationBasicType* VCL::ModuleContext::GetDIBasicTypes() {
     return &basicTypes;
 }
@@ -68,4 +74,20 @@ llvm::DIFile* VCL::ModuleContext::GetDIBuiltinFile() {
 
 std::shared_ptr<VCL::ModuleInfo> VCL::ModuleContext::GetModuleInfo() {
     return info;
+}
+
+std::shared_ptr<VCL::DirectiveRegistry> VCL::ModuleContext::GetDirectiveRegistry() {
+    return registry;
+}
+
+void VCL::ModuleContext::SetDirectiveRegistry(std::shared_ptr<DirectiveRegistry> registry) {
+    this->registry = registry;
+}
+
+std::shared_ptr<VCL::MetaState> VCL::ModuleContext::GetMetaState() {
+    return state;
+}
+
+void VCL::ModuleContext::SetMetaState(std::shared_ptr<MetaState> state) {
+    this->state = state;
 }

@@ -10,7 +10,7 @@ std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromDi
     std::ifstream file{ path, std::ios::binary };
 
     if (!file.is_open())
-        return std::unexpected(std::format("Unable to open source file \'{}\' from disk.", path.filename().c_str()));
+        return std::unexpected(std::format("Unable to open source file \"{}\" from disk.", path.filename().c_str()));
 
     std::stringstream buffer{};
     buffer << file.rdbuf();

@@ -3,6 +3,11 @@
 #include <VCL/Directive.hpp>
 
 
+
+std::shared_ptr<VCL::MetaState> VCL::MetaState::Create() {
+    return std::make_shared<MetaState>();
+}
+
 void VCL::DirectiveRegistry::RegisterDirective(std::shared_ptr<DirectiveHandler> handler) {
     handlers[handler->GetDirectiveName()] = handler;
 }
@@ -16,7 +21,7 @@ std::shared_ptr<VCL::DirectiveHandler> VCL::DirectiveRegistry::GetDirective(std:
 void VCL::DirectiveRegistry::RegisterDefaultDirectives() {
     RegisterDirective(std::make_shared<ImportDirective>());
     RegisterDirective(std::make_shared<DefineDirective>());
-    RegisterDirective(std::make_shared<MacroDirective>());
+    //RegisterDirective(std::make_shared<MacroDirective>());
     //RegisterDirective(std::make_shared<ConditionalDirective>());
 }
 

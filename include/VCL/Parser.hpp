@@ -43,7 +43,7 @@ namespace VCL {
          */
         static std::unique_ptr<Parser> Create(std::shared_ptr<Logger> logger = nullptr);
 
-    private:
+    public:
         std::unique_ptr<ASTStatement> ParseStatement(Lexer& lexer, bool ignoreTerminator = false);
         std::unique_ptr<ASTStatement> ParseCompoundStatement(Lexer& lexer);
         std::unique_ptr<ASTStatement> ParseDirective(Lexer& lexer);
@@ -69,7 +69,7 @@ namespace VCL {
         
         std::unique_ptr<ASTExpression> ParseParentExpression(Lexer& lexer);
         std::unique_ptr<ASTLiteralExpression> ParseLiteralExpression(Lexer& lexer);
-        std::unique_ptr<ASTVariableExpression> ParseVariableExpression(Lexer& lexer);
+        std::unique_ptr<ASTIdentifierExpression> ParseIdentifierExpression(Lexer& lexer);
         std::unique_ptr<ASTVariableDeclaration> ParseVariableDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo, AttributeSet& attributes);
         std::unique_ptr<ASTFunctionCall> ParseFunctionCall(Lexer& lexer);
         std::unique_ptr<ASTFunctionCall> TryParseTemplatedFunctionCall(Lexer& lexer);
@@ -85,7 +85,6 @@ namespace VCL {
     private:
         std::shared_ptr<Logger> logger = nullptr;
         std::shared_ptr<DirectiveRegistry> registry = nullptr;
-        
     };
 
 }

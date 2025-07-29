@@ -2,6 +2,7 @@
 
 #include <VCL/Error.hpp>
 #include <VCL/Definition.hpp>
+#include <VCL/Meta.hpp>
 
 #include <unordered_map>
 #include <string>
@@ -40,5 +41,7 @@ namespace VCL {
         std::unordered_map<std::string, std::shared_ptr<TemplateArgument>> map;
         std::string name;
     };
+
+    void ResolveDefinedTemplateArgumentAsInt(std::shared_ptr<TemplateArgument> argument, std::shared_ptr<MetaState> state);
 
 }

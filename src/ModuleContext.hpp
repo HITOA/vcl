@@ -4,6 +4,7 @@
 
 #include <VCL/Logger.hpp>
 #include <VCL/ModuleInfo.hpp>
+#include <VCL/Meta.hpp>
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -70,6 +71,11 @@ namespace VCL {
         std::shared_ptr<Logger> GetLogger();
 
         /**
+         * @brief Set the logger of this module.
+         */
+        void SetLogger(std::shared_ptr<Logger> logger);
+
+        /**
          * @brief Get debug information basic type struct.
          */
         DebugInformationBasicType* GetDIBasicTypes();
@@ -84,6 +90,26 @@ namespace VCL {
          */
         std::shared_ptr<ModuleInfo> GetModuleInfo();
 
+        /**
+         * @brief Get directive registry.
+         */
+        std::shared_ptr<DirectiveRegistry> GetDirectiveRegistry();
+
+        /**
+         * @brief Set directive registry.
+         */
+        void SetDirectiveRegistry(std::shared_ptr<DirectiveRegistry> registry);
+
+        /**
+         * @brief Get module's meta state
+         */
+        std::shared_ptr<MetaState> GetMetaState();
+
+        /**
+         * @brief Set module's meta state
+         */
+        void SetMetaState(std::shared_ptr<MetaState> state);
+
     private:
         llvm::orc::ThreadSafeModule module;
         llvm::IRBuilder<> irBuilder;
@@ -93,6 +119,8 @@ namespace VCL {
         std::shared_ptr<Logger> logger;
         std::shared_ptr<ModuleInfo> info;
         DebugInformationBasicType basicTypes;
+        std::shared_ptr<DirectiveRegistry> registry;
+        std::shared_ptr<MetaState> state;
     };
 
 }

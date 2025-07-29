@@ -45,10 +45,11 @@ namespace VCL {
         void VisitFieldAccessExpression(ASTFieldAccessExpression* node) override;
         void VisitSubscriptExpression(ASTSubscriptExpression* node) override;
         void VisitLiteralExpression(ASTLiteralExpression* node) override;
-        void VisitVariableExpression(ASTVariableExpression* node) override;
+        void VisitIdentifierExpression(ASTIdentifierExpression* node) override;
         void VisitVariableDeclaration(ASTVariableDeclaration* node) override;
         void VisitFunctionCall(ASTFunctionCall* node) override;
         void VisitAggregateExpression(ASTAggregateExpression* node) override;
+        void VisitDirective(ASTDirective* node) override;
 
         inline void SetDISettings(ModuleDebugInformationSettings diSettings) { this->diSettings = diSettings; }
 

@@ -46,3 +46,15 @@ std::string VCL::Module::Dump() {
 std::shared_ptr<VCL::ModuleInfo> VCL::Module::GetModuleInfo() {
     return context->GetModuleInfo();
 }
+
+void VCL::Module::SetLogger(std::shared_ptr<Logger> logger) {
+    context->SetLogger(logger);
+}
+
+void VCL::Module::SetDirectiveRegistry(std::shared_ptr<DirectiveRegistry> registry) {
+    context->SetDirectiveRegistry(registry);
+}
+
+void VCL::Module::SetMetaState(std::shared_ptr<MetaState> state) {
+    context->SetMetaState(state);
+}

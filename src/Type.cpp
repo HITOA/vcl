@@ -5,6 +5,7 @@
 
 #include "ModuleContext.hpp"
 #include "Utility.hpp"
+#include "TemplateUtils.hpp"
 
 #include <iostream>
 
@@ -101,6 +102,9 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
             if (typeInfo->arguments.size() != 2)
                 return std::unexpected{ std::format("Buffer type `{}` expect 2 template arguments but got {} instead.", 
                     ToString(typeInfo), typeInfo->arguments.size()) };
+            
+            ResolveDefinedTemplateArgumentAsInt(typeInfo->arguments[1], context->GetMetaState());
+            
             if (typeInfo->arguments[0]->type != TemplateArgument::TemplateValueType::Typename)
                 return std::unexpected{ std::format("Buffer type `{}` first template argument expect a typename but got `{}`.", 
                     ToString(typeInfo), ToString(typeInfo->arguments[0])) };
@@ -156,6 +160,8 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
                 return std::unexpected(Error{ std::format("Missing template arguments for generic type `{}`", typeInfo->name) });
             if (!typeInfo->arguments.empty()) {
                 if (auto t = context->GetScopeManager().GetNamedStructTemplate(typeInfo->name); t.has_value()) {
+                    for (size_t i = 0; i < typeInfo->arguments.size(); ++i)
+                        ResolveDefinedTemplateArgumentAsInt(typeInfo->arguments[i], context->GetMetaState());
                     std::string mangledName = (*t)->Mangle(typeInfo->arguments);
                     if (auto t = context->GetScopeManager().GetNamedType(mangledName); t.has_value()) {
                         type = (*t)->GetType();

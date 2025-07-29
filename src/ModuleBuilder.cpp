@@ -9,6 +9,7 @@
 #include "CallableTemplate.hpp"
 
 #include <VCL/Debug.hpp>
+#include <VCL/Directive.hpp>
 
 #include <iostream>
 
@@ -586,14 +587,14 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
 }
 
 void VCL::ModuleBuilder::VisitAssignmentExpression(ASTAssignmentExpression* node) {
-    if (!node->lhs->IsLValue())
-        throw Exception{ std::format("Left-hand side of assignment must be a variable or a memory location (l-value)."), node->location };
-
     node->lhs->Accept(this);
     Handle<Value> lhs = lastReturnedValue;
 
     node->rhs->Accept(this);
     Handle<Value> rhs = ThrowOnError(lastReturnedValue->Load(), node->location);
+
+    if (!lhs->IsAssignable())
+        throw Exception{ std::format("Left-hand side of assignment must be a variable or a memory location (l-value)."), node->location };
     
     rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
 
@@ -635,7 +636,7 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
             )(expression->GetType().GetTypeInfo()->type, expression->GetLLVMValue()), node->location);
         break;
     case Operator::ID::PreIncrement:
-        if (!node->expression->IsLValue())
+        if (!expression->IsAssignable())
             throw Exception{ std::format("Increment/decrement operator `{}` requires a numeric l-value.",
                 ToString(node->op)), node->location };
         {
@@ -655,7 +656,7 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
         }
         break;
     case Operator::ID::PreDecrement:
-        if (node->expression->IsLValue())
+        if (!expression->IsAssignable())
             throw Exception{ std::format("Increment/decrement operator `{}` requires a numeric l-value.",
                 ToString(node->op)), node->location };
         {
@@ -728,7 +729,7 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
     switch (node->op)
     {
     case Operator::ID::PostIncrement:
-        if (node->expression->IsLValue())
+        if (!expression->IsAssignable())
             throw Exception{ std::format("Increment/decrement operator `{}` requires a numeric l-value.",
                 ToString(node->op)), node->location };
         {
@@ -747,7 +748,7 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
         }
         break;
     case Operator::ID::PostDecrement:
-        if (node->expression->IsLValue())
+        if (!expression->IsAssignable())
             throw Exception{ std::format("Increment/decrement operator `{}` requires a numeric l-value.",
                 ToString(node->op)), node->location };
         {
@@ -851,10 +852,20 @@ void VCL::ModuleBuilder::VisitLiteralExpression(ASTLiteralExpression* node) {
     }
 }
 
-void VCL::ModuleBuilder::VisitVariableExpression(ASTVariableExpression* node) {
+void VCL::ModuleBuilder::VisitIdentifierExpression(ASTIdentifierExpression* node) {
     SetCurrentDebugLocation(context, node);
-    lastReturnedValue = ThrowOnError(
-        context->GetScopeManager().GetNamedValue(node->name), node->location);
+    std::shared_ptr<DefineDirective::DefineDirectiveMetaComponent> component = 
+        context->GetMetaState()->GetOrCreate<DefineDirective::DefineDirectiveMetaComponent>();
+    if (component->Defined(node->name)) {
+        ASTLiteralExpression* expression = component->GetDefine(node->name);
+        if (expression)
+            expression->Accept(this);
+        else
+            throw Exception{ "Define name is a flag and not an expression", node->location };
+    } else {
+        lastReturnedValue = ThrowOnError(
+            context->GetScopeManager().GetNamedValue(node->name), node->location);
+    }
 }
 
 
@@ -966,4 +977,17 @@ void VCL::ModuleBuilder::VisitAggregateExpression(ASTAggregateExpression* node) 
     }
     
     lastReturnedValue = ThrowOnError(Aggregate::Create(values, context), node->location);
+}
+
+void VCL::ModuleBuilder::VisitDirective(ASTDirective* node) {
+    std::shared_ptr<DirectiveRegistry> registry = context->GetDirectiveRegistry();
+    if (!registry)
+        throw Exception{ "Tried to use compiler directive but no directive registry has been given to the module context", node->location };
+    std::shared_ptr<DirectiveHandler> handler = registry->GetDirective(node->GetName());
+    if (!handler)
+        throw Exception{ "Tried to use compiler directive that is not contained in the given directive registry", node->location };
+    std::shared_ptr<MetaState> state = context->GetMetaState();
+    if (!state)
+        throw Exception{ "Tried to use compiler directive without any MetaState class instance given to the module context", node->location };
+    handler->Run(context, node, this);
 }

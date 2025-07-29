@@ -109,6 +109,16 @@ bool VCL::Value::IsValid() const {
     return value != nullptr;
 }
 
+bool VCL::Value::IsAssignable() const {
+    if (!value->getType()->isPointerTy())
+        return false;
+    llvm::Value* v = value->stripPointerCasts();
+    return  llvm::isa<llvm::AllocaInst>(v) ||
+            llvm::isa<llvm::GlobalVariable>(v) ||
+            llvm::isa<llvm::GetElementPtrInst>(v) ||
+            llvm::isa<llvm::Argument>(v);
+}
+
 llvm::Value* VCL::Value::GetLLVMValue() const {
     return value;
 }

@@ -135,6 +135,8 @@ std::unique_ptr<VCL::ASTStatement> VCL::Parser::ParseDirective(Lexer& lexer) {
 
     if (registry) {
         std::shared_ptr<DirectiveHandler> handler = registry->GetDirective(directiveNameToken.name);
+        if (!handler)
+            throw Exception{ std::format("Failed to parse compiler directive.", directiveNameToken.name), directiveNameToken.location};
         directive = handler->Parse(lexer, this);
     }
 
@@ -583,11 +585,11 @@ std::unique_ptr<VCL::ASTExpression> VCL::Parser::ParsePrimaryExpression(Lexer& l
         if (Token nextToken = lexer.Peek(1); nextToken.type == TokenType::Less) {
             expression = TryParseTemplatedFunctionCall(lexer);
             if (!expression)
-                expression = ParseVariableExpression(lexer);
+                expression = ParseIdentifierExpression(lexer);
         } else if (nextToken.type == TokenType::LPar) {
             expression = ParseFunctionCall(lexer);
         } else {
-            expression = ParseVariableExpression(lexer);
+            expression = ParseIdentifierExpression(lexer);
         }
     } else if (IsLiteralToken(currentToken)) {
         expression = ParseLiteralExpression(lexer);
@@ -628,11 +630,11 @@ std::unique_ptr<VCL::ASTLiteralExpression> VCL::Parser::ParseLiteralExpression(L
     }
 }
 
-std::unique_ptr<VCL::ASTVariableExpression> VCL::Parser::ParseVariableExpression(Lexer& lexer) {
+std::unique_ptr<VCL::ASTIdentifierExpression> VCL::Parser::ParseIdentifierExpression(Lexer& lexer) {
     Token variableIdentifierToken = lexer.Consume();
     if (variableIdentifierToken.type != TokenType::Identifier)
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting identifier.", variableIdentifierToken.name), variableIdentifierToken.location };
-    return FillASTStatementDebugInformation(std::make_unique<ASTVariableExpression>(variableIdentifierToken.name), variableIdentifierToken);
+    return FillASTStatementDebugInformation(std::make_unique<ASTIdentifierExpression>(variableIdentifierToken.name), variableIdentifierToken);
 }
 
 std::unique_ptr<VCL::ASTVariableDeclaration> VCL::Parser::ParseVariableDeclaration(Lexer& lexer, std::shared_ptr<TypeInfo> typeInfo, AttributeSet& attributes) {

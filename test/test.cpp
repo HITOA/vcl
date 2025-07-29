@@ -6,6 +6,7 @@
 #include <VCL/Module.hpp>
 #include <VCL/NativeTarget.hpp>
 #include <VCL/Error.hpp>
+#include <VCL/Directive.hpp>
 #include <format>
 #include <stdlib.h>
 #include <iostream>
@@ -37,6 +38,9 @@ public:
 #define MAKE_VCL(filename) std::shared_ptr<ConsoleLogger> logger = std::make_shared<ConsoleLogger>(); \
     std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger); \
     std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger); \
+    std::shared_ptr<VCL::DirectiveRegistry> registry = VCL::DirectiveRegistry::Create(); \
+    registry->RegisterDefaultDirectives(); \
+    parser->SetDirectiveRegistry(registry); \
     session->SetDebugInformation(true); \
     std::filesystem::path sourcepath{ filename }; \
     auto source = VCL::Source::LoadFromDisk(sourcepath); \
@@ -44,6 +48,7 @@ public:
     std::unique_ptr<VCL::ASTProgram> program; \
     REQUIRE_NOTHROW(program = parser->Parse(*source)); \
     std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program)); \
+    module->SetDirectiveRegistry(registry); \
     VCL::ModuleDebugInformationSettings diSettings{}; \
     diSettings.generateDebugInformation = true; \
     REQUIRE_NOTHROW(module->Emit(diSettings)); \
@@ -454,54 +459,48 @@ TEST_CASE( "VCL attribute", "[Attribute]" ) {
 }
 
 TEST_CASE( "VCL macro", "[Macro]" ) {
-    std::shared_ptr<ConsoleLogger> logger = std::make_shared<ConsoleLogger>();
-    std::shared_ptr<VCL::DirectiveRegistry> registry = VCL::DirectiveRegistry::Create();
-    registry->RegisterDefaultDirectives();
-    std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger);
-    parser->SetDirectiveRegistry(registry);
-    std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger);
-    session->SetDebugInformation(true);
-    std::filesystem::path sourcepath{ "./vcl/macro.vcl" };
-    auto source = VCL::Source::LoadFromDisk(sourcepath);
-    REQUIRE(source.has_value());
-    std::unique_ptr<VCL::ASTProgram> program;
-    REQUIRE_NOTHROW(program = parser->Parse(*source));
-    std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
-    VCL::ModuleDebugInformationSettings diSettings{};
-    diSettings.generateDebugInformation = true;
-    REQUIRE_NOTHROW(module->Emit(diSettings));
-    std::shared_ptr<VCL::ModuleInfo> moduleInfo = module->GetModuleInfo();
-    REQUIRE_NOTHROW(module->Verify());
-    session->SubmitModule(std::move(module));
+    MAKE_VCL("./vcl/macro.vcl");
 }
 
 TEST_CASE( "VCL preprocessor", "[Macro][Include]" ) {
+    std::shared_ptr<VCL::MetaState> state = VCL::MetaState::Create();
+
+    std::shared_ptr<VCL::DefineDirective::DefineDirectiveMetaComponent> component = 
+        state->GetOrCreate<VCL::DefineDirective::DefineDirectiveMetaComponent>();
+
+    component->AddDefineInt("SIZE_DEFINED_FROM_API", 8);
+    component->AddDefineInt("INDEX_DEFINED_FROM_API", 5);
+
     std::shared_ptr<ConsoleLogger> logger = std::make_shared<ConsoleLogger>();
-    std::shared_ptr<VCL::DirectiveRegistry> registry = VCL::DirectiveRegistry::Create();
-    registry->RegisterDefaultDirectives();
-    std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger);
-    parser->SetDirectiveRegistry(registry);
-    std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger);
-    session->SetDebugInformation(true);
-    std::filesystem::path sourcepath{ "./vcl/preprocessor.vcl" };
-    auto source = VCL::Source::LoadFromDisk(sourcepath);
-    REQUIRE(source.has_value());
-    std::unique_ptr<VCL::ASTProgram> program;
+    std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger); 
+    std::unique_ptr<VCL::ExecutionSession> session = VCL::ExecutionSession::Create(logger); 
+    std::shared_ptr<VCL::DirectiveRegistry> registry = VCL::DirectiveRegistry::Create(); 
+    registry->RegisterDefaultDirectives(); 
+    parser->SetDirectiveRegistry(registry); 
+    session->SetDebugInformation(true); 
+    std::filesystem::path sourcepath{ "./vcl/preprocessor.vcl" }; 
+    auto source = VCL::Source::LoadFromDisk(sourcepath); 
+    REQUIRE(source.has_value()); 
+    std::unique_ptr<VCL::ASTProgram> program; 
     REQUIRE_NOTHROW(program = parser->Parse(*source));
     std::unique_ptr<VCL::Module> module = session->CreateModule(std::move(program));
+    module->SetMetaState(state);
+    module->SetDirectiveRegistry(registry);
     VCL::ModuleDebugInformationSettings diSettings{};
     diSettings.generateDebugInformation = true;
     REQUIRE_NOTHROW(module->Emit(diSettings));
-    std::shared_ptr<VCL::ModuleInfo> moduleInfo = module->GetModuleInfo();
     REQUIRE_NOTHROW(module->Verify());
     session->SubmitModule(std::move(module));
     
     SECTION("Value check") {
         int output;
+        int outputArray;
 
         session->DefineExternSymbolPtr("output", &output);
+        session->DefineExternSymbolPtr("outputArray", &outputArray);
 
         ((void(*)())(session->Lookup("Main")))();
         REQUIRE(output == 54);
+        REQUIRE(outputArray == 9);
     }
 }

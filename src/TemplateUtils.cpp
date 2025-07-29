@@ -2,6 +2,7 @@
 
 #include <unordered_set>
 #include <VCL/Debug.hpp>
+#include <VCL/Directive.hpp>
 #include <iostream>
 
 
@@ -129,4 +130,19 @@ std::string VCL::TemplateArgumentMapper::Mangle() {
         mangledName += "_" + ToString(v.second);
     }
     return mangledName;
+}
+
+void VCL::ResolveDefinedTemplateArgumentAsInt(std::shared_ptr<TemplateArgument> argument, std::shared_ptr<MetaState> state) {
+    if (argument->type == TemplateArgument::TemplateValueType::Typename) {
+        std::shared_ptr<DefineDirective::DefineDirectiveMetaComponent> component = state->GetOrCreate<DefineDirective::DefineDirectiveMetaComponent>();
+        
+        if (component->Defined(argument->typeInfo->name)) {
+            ASTLiteralExpression* expression = component->GetDefine(argument->typeInfo->name);
+            if (expression->type != TypeInfo::TypeName::Int)
+                throw std::runtime_error{ std::format("Template numeric arguments must be int. But `{}` is a float", argument->typeInfo->name) };
+            argument->type = TemplateArgument::TemplateValueType::Int;
+            argument->typeInfo = nullptr;
+            argument->intValue = expression->iValue;
+        }
+    }
 }

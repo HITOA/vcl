@@ -1,12 +1,58 @@
 #include <VCL/Directive.hpp>
 
+#include <VCL/Error.hpp>
+#include <VCL/Parser.hpp>
+
+#include "ModuleContext.hpp"
+#include "String.hpp"
+
+#include <iostream>
+
 
 std::string VCL::ImportDirective::GetDirectiveName() {
     return "import";
 }
 
 std::unique_ptr<VCL::ASTDirective> VCL::ImportDirective::Parse(Lexer& lexer, Parser* parser) {
-    return nullptr;
+    Token importPathToken = lexer.Consume();
+    if (importPathToken.type != TokenType::LiteralString)
+        throw new Exception{ "@import directive should be followed by the path of the file to import", importPathToken.location };
+    
+    if (Token token = lexer.Consume(); token.type != TokenType::Semicolon)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting semicolon", token.name), token.location };
+
+    return std::make_unique<ASTImportDirective>(importPathToken.name);
+}
+
+void VCL::ImportDirective::Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) {
+    ASTImportDirective* importDirective = (ASTImportDirective*)directive;
+    std::string importPath = ParseRawString(importDirective->importPath);
+    std::shared_ptr<Source> source = nullptr;
+
+    if (auto v = LoadSource(importPath); v.has_value())
+        source = *v;
+    else
+        throw Exception{ std::format("@import error: {}", v.error()), directive->location };
+
+    std::shared_ptr<ImportDirectiveMetaComponent> state = context->GetMetaState()->GetOrCreate<ImportDirectiveMetaComponent>();
+    if (!state->TrackImport(importPath)) {
+        std::unique_ptr<Parser> parser = Parser::Create(context->GetLogger());
+        parser->SetDirectiveRegistry(context->GetDirectiveRegistry());
+        std::unique_ptr<ASTProgram> program = parser->Parse(source);
+        program->Accept(visitor);
+    }
+}
+
+std::expected<std::shared_ptr<VCL::Source>, VCL::Error> VCL::ImportDirective::LoadSource(const std::string& path) {
+    std::filesystem::path importPath{ path };
+    return VCL::Source::LoadFromDisk(importPath);
+}
+
+bool VCL::ImportDirective::ImportDirectiveMetaComponent::TrackImport(const std::string& path) {
+    if (imports.count(path))
+        return true;
+    imports.insert(path);
+    return false;
 }
 
 std::string VCL::DefineDirective::GetDirectiveName() {
@@ -14,13 +60,78 @@ std::string VCL::DefineDirective::GetDirectiveName() {
 }
 
 std::unique_ptr<VCL::ASTDirective> VCL::DefineDirective::Parse(Lexer& lexer, Parser* parser) {
-    return nullptr;
+    Token defineNameToken = lexer.Consume();
+    if (defineNameToken.type != TokenType::Identifier)
+        throw new Exception{ "@define is missing a name", defineNameToken.location };
+
+    std::unique_ptr<ASTLiteralExpression> expression = nullptr;
+
+    if (Token token = lexer.Consume(); token.type == TokenType::Assignment) {
+        expression = parser->ParseLiteralExpression(lexer);
+        if (token = lexer.Consume(); token.type != TokenType::Semicolon)
+            throw Exception{ std::format("Unexpected token \'{}\'. Expecting semicolon", token.name), token.location };
+    } else if (token.type != TokenType::Semicolon) {
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting semicolon", token.name), token.location };
+    }
+
+    return std::make_unique<ASTDefineDirective>(defineNameToken.name, std::move(expression));
 }
 
+void VCL::DefineDirective::Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) {
+    ASTDefineDirective* defineDirective = (ASTDefineDirective*)directive;
+    std::shared_ptr<DefineDirectiveMetaComponent> component = context->GetMetaState()->GetOrCreate<DefineDirectiveMetaComponent>();
+    component->AddDefine(defineDirective->name, std::move(defineDirective->expression));
+}
+
+bool VCL::DefineDirective::DefineDirectiveMetaComponent::Defined(const std::string& name) {
+    return defines.count(name) > 0;
+}
+
+VCL::ASTLiteralExpression* VCL::DefineDirective::DefineDirectiveMetaComponent::GetDefine(const std::string& name) {
+    if (!Defined(name))
+        return nullptr;
+    return defines.at(name).get();
+}
+
+bool VCL::DefineDirective::DefineDirectiveMetaComponent::AddDefine(const std::string& name, std::unique_ptr<ASTLiteralExpression> value) {
+    if (Defined(name))
+        defines[name] = std::move(value);
+    defines.insert({ name, std::move(value) });
+    return true;
+}
+
+bool VCL::DefineDirective::DefineDirectiveMetaComponent::AddDefineFlag(const std::string& name) {
+    return AddDefine(name, nullptr);
+}
+
+bool VCL::DefineDirective::DefineDirectiveMetaComponent::AddDefineInt(const std::string& name, int value) {
+    std::unique_ptr<ASTLiteralExpression> expression = std::make_unique<ASTLiteralExpression>(value);
+    return AddDefine(name, std::move(expression));
+}
+
+bool VCL::DefineDirective::DefineDirectiveMetaComponent::AddDefineFloat(const std::string& name, float value) {
+    std::unique_ptr<ASTLiteralExpression> expression = std::make_unique<ASTLiteralExpression>(value);
+    return AddDefine(name, std::move(expression));
+}
+
+/*
 std::string VCL::MacroDirective::GetDirectiveName() {
     return "macro";
 }
 
 std::unique_ptr<VCL::ASTDirective> VCL::MacroDirective::Parse(Lexer& lexer, Parser* parser) {
-    return nullptr;
+    Token macroNameToken = lexer.Consume();
+    if (macroNameToken.type != TokenType::Identifier)
+        throw new Exception{ "@macro is missing a name", macroNameToken.location };
+
+    if (Token token = lexer.Consume(); token.type != TokenType::Assignment)
+        throw Exception{ std::format("Unexpected token \'{}\'. Expecting assignment operator", token.name), token.location };
+
+    std::unique_ptr<ASTStatement> statement = parser->ParseCompoundStatement(lexer);
+
+    return std::make_unique<ASTMacroDirective>(macroNameToken.name, std::move(statement));
 }
+
+void VCL::MacroDirective::Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) {
+    
+}*/
