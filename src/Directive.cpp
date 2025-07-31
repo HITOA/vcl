@@ -5,6 +5,7 @@
 
 #include "ModuleContext.hpp"
 #include "String.hpp"
+#include "StaticExpressionVisitor.hpp"
 
 #include <iostream>
 
@@ -114,24 +115,44 @@ bool VCL::DefineDirective::DefineDirectiveMetaComponent::AddDefineFloat(const st
     return AddDefine(name, std::move(expression));
 }
 
-/*
-std::string VCL::MacroDirective::GetDirectiveName() {
-    return "macro";
+
+std::string VCL::ConditionalDirective::GetDirectiveName() {
+    return "if";
 }
 
-std::unique_ptr<VCL::ASTDirective> VCL::MacroDirective::Parse(Lexer& lexer, Parser* parser) {
-    Token macroNameToken = lexer.Consume();
-    if (macroNameToken.type != TokenType::Identifier)
-        throw new Exception{ "@macro is missing a name", macroNameToken.location };
+std::unique_ptr<VCL::ASTDirective> VCL::ConditionalDirective::Parse(Lexer& lexer, Parser* parser) {
+    std::unique_ptr<ASTExpression> expression = parser->ParseExpression(lexer);
+    std::unique_ptr<ASTStatement> thenStmt = nullptr;
+    std::unique_ptr<ASTStatement> elseStmt = nullptr;
 
-    if (Token token = lexer.Consume(); token.type != TokenType::Assignment)
-        throw Exception{ std::format("Unexpected token \'{}\'. Expecting assignment operator", token.name), token.location };
+    if (lexer.Peek().type == TokenType::LBracket) {
+        thenStmt = parser->ParseCompoundStatement(lexer);
+    } else {    
+        thenStmt = parser->ParseStatement(lexer);
+    }
 
-    std::unique_ptr<ASTStatement> statement = parser->ParseCompoundStatement(lexer);
+    if (lexer.Peek().type == TokenType::Else) {
+        lexer.Consume();
+        if (lexer.Peek().type == TokenType::If) {
+            lexer.Consume();
+            elseStmt = Parse(lexer, parser);
+        } else if (lexer.Peek().type == TokenType::LBracket) {
+            elseStmt = parser->ParseCompoundStatement(lexer);
+        } else {
+            elseStmt = parser->ParseStatement(lexer);
+        }
+    }
 
-    return std::make_unique<ASTMacroDirective>(macroNameToken.name, std::move(statement));
+    return std::make_unique<ASTConditionalDirective>(std::move(expression), std::move(thenStmt), std::move(elseStmt));
 }
 
-void VCL::MacroDirective::Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) {
-    
-}*/
+void VCL::ConditionalDirective::Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) {
+    ASTConditionalDirective* conditionalDirective = (ASTConditionalDirective*)directive;
+    StaticExpressionVisitor staticExpressionVisitor{};
+    staticExpressionVisitor.state = context->GetMetaState();
+    if (staticExpressionVisitor.Evaluate(conditionalDirective->expression.get())) {
+        conditionalDirective->thenStmt->Accept(visitor);
+    } else if (conditionalDirective->elseStmt) {
+        conditionalDirective->elseStmt->Accept(visitor);
+    }
+}

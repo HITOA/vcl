@@ -470,6 +470,7 @@ TEST_CASE( "VCL preprocessor", "[Macro][Include]" ) {
 
     component->AddDefineInt("SIZE_DEFINED_FROM_API", 8);
     component->AddDefineInt("INDEX_DEFINED_FROM_API", 5);
+    component->AddDefineFlag("DEFINE_SOME_INT");
 
     std::shared_ptr<ConsoleLogger> logger = std::make_shared<ConsoleLogger>();
     std::unique_ptr<VCL::Parser> parser = VCL::Parser::Create(logger); 

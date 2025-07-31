@@ -80,30 +80,26 @@ namespace VCL {
         };
     };
 
-    /*class MacroDirective : public DirectiveHandler {
+    class ConditionalDirective : public DirectiveHandler {
     public:
         std::string GetDirectiveName() override;
         std::unique_ptr<ASTDirective> Parse(Lexer& lexer, Parser* parser) override;
         void Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) override;
 
     public:
-        class ASTMacroDirective : public ASTDirective {
+        class ASTConditionalDirective : public ASTDirective {
         public:
-            ASTMacroDirective(const std::string& name, std::unique_ptr<ASTStatement> statements) : 
-                name{ name }, statements{ std::move(statements) } {};
+            ASTConditionalDirective(std::unique_ptr<ASTExpression> expression, std::unique_ptr<ASTStatement> thenStmt,
+                std::unique_ptr<ASTStatement> elseStmt) : 
+                expression{ std::move(expression) }, thenStmt{ std::move(thenStmt) }, elseStmt{ std::move(elseStmt) } {};
 
-            std::string GetName() const override { return "macro"; }
+            std::string GetName() const override { return "if"; }
 
         public:
-            std::string name;
-            std::unique_ptr<ASTStatement> statements;
+            std::unique_ptr<ASTExpression> expression;
+            std::unique_ptr<ASTStatement> thenStmt;
+            std::unique_ptr<ASTStatement> elseStmt;
         };
-    };*/
-
-    /*class ConditionalDirective : public DirectiveHandler {
-    public:
-        std::string GetDirectiveName() override;
-        std::unique_ptr<ASTDirective> Parse(Lexer& lexer) override;
-    };*/
+    };
 
 }

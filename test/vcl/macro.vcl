@@ -2,4 +2,6 @@
 *   VCL Test macro
 */
 
-@define SOME_INT_VALUE = 54;
+@if defined(DEFINE_SOME_INT) {
+    @define SOME_INT_VALUE = 54;
+}

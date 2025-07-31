@@ -28,6 +28,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleVerifier.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/StaticExpressionVisitor.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/String.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructDefinition.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructTemplate.hpp
@@ -59,6 +60,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PrettyPrinter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Scope.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Source.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/StaticExpressionVisitor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/String.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructDefinition.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/StructTemplate.cpp
