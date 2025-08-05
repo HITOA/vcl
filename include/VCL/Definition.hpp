@@ -185,6 +185,38 @@ namespace VCL {
             return a;
         }
 
+        inline bool operator==(const TypeInfo& typeInfo) const {
+            if (typeInfo.type != type)
+                return false;
+            if (typeInfo.type == TypeName::Custom) {
+                if (typeInfo.name != name)
+                    return false;
+                if (typeInfo.arguments.size() != arguments.size())
+                    return false;
+                for (size_t i = 0; i < arguments.size(); ++i) {
+                    std::shared_ptr<TemplateArgument> arg1 = arguments[i];
+                    std::shared_ptr<TemplateArgument> arg2 = typeInfo.arguments[i];
+                    if (arg1->type != arg2->type)
+                        return false;
+                    switch (arg1->type) {
+                        case TemplateArgument::TemplateValueType::Int:
+                            if (arg1->intValue != arg2->intValue)
+                                return false;
+                            break;
+                        case TemplateArgument::TemplateValueType::Typename:
+                            if (*(arg1->typeInfo) != *(arg2->typeInfo))
+                                return false;
+                            break;
+                    }
+                }
+            }
+            return true;
+        }
+
+        inline bool operator!=(const TypeInfo& typeInfo) const {
+            return !(*this == typeInfo);
+        }
+
         friend inline bool operator&(TypeInfo::QualifierFlag a, TypeInfo::QualifierFlag b) {
             return ((int)a & (int)b) != 0;
         }
