@@ -121,6 +121,16 @@ namespace VCL {
         default: return "unknown type";
         }
     }
+
+    static std::string Indent(const std::string& str) {
+        std::string newstr = "\t";
+        for (auto& c : str) {
+            newstr += c;
+            if (c == '\n')
+                newstr += "\t";
+        }
+        return newstr;
+    }
 }
 
 void VCL::PrettyPrinter::VisitProgram(ASTProgram* node) {
@@ -128,10 +138,12 @@ void VCL::PrettyPrinter::VisitProgram(ASTProgram* node) {
     for (auto& statement : node->statements) {
         statement->Accept(this);
         // Hacky but.. heh
-        if (buffer[buffer.size() - 1] == '}')
-            program += buffer + "\n";
-        else
-            program += buffer + ";\n";
+        if (!buffer.empty()) {
+            if (buffer[buffer.size() - 1] == '}')
+                program += buffer + "\n";
+            else
+                program += buffer + ";\n";
+        }
     }
     buffer = program;
 }
@@ -140,7 +152,7 @@ void VCL::PrettyPrinter::VisitCompoundStatement(ASTCompoundStatement* node) {
     std::string compound = "{\n";
     for (auto& statement : node->statements) {
         statement->Accept(this);
-        compound += "\t" + buffer + ";\n";
+        compound += Indent(buffer) + ";\n";
     }
     compound += "}";
     buffer = compound;
@@ -170,7 +182,7 @@ void VCL::PrettyPrinter::VisitFunctionDeclaration(ASTFunctionDeclaration* node) 
 void VCL::PrettyPrinter::VisitStructureDeclaration(ASTStructureDeclaration* node) {
     std::string r = "struct " + node->name + " {\n";
     for (auto& field : node->fields)
-        r += "\t" + ToString(field->type) + " " + field->name + ";\n";
+        r += Indent(ToString(field->type) + " " + field->name + ";\n");
     r += "}";
     buffer = r;
 }
@@ -192,7 +204,7 @@ void VCL::PrettyPrinter::VisitTemplateDeclaration(ASTTemplateDeclaration* node) 
     }
     r += "> {\n";
     for (auto& field : node->fields)
-        r += "\t" + ToString(field->type) + " " + field->name + ";\n";
+        r += Indent(ToString(field->type) + " " + field->name + ";\n");
     r += "}";
     buffer = r;
 }
@@ -256,7 +268,7 @@ void VCL::PrettyPrinter::VisitWhileStatement(ASTWhileStatement* node) {
 }
 
 void VCL::PrettyPrinter::VisitForStatement(ASTForStatement* node) {
-    std::string result = "while (";
+    std::string result = "for (";
     node->start->Accept(this);
     result += buffer + "; ";
     node->condition->Accept(this);
@@ -264,6 +276,8 @@ void VCL::PrettyPrinter::VisitForStatement(ASTForStatement* node) {
     node->end->Accept(this);
     result += buffer + ")\n";
     node->thenStmt->Accept(this);
+    if (buffer[buffer.size() - 1] != '}')
+        buffer = Indent(buffer);
     result += buffer;
     buffer = result;
 }
@@ -312,17 +326,17 @@ void VCL::PrettyPrinter::VisitAssignmentExpression(ASTAssignmentExpression* node
 }
 
 void VCL::PrettyPrinter::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpression* node) {
-    node->Accept(this);
+    node->expression->Accept(this);
     buffer = ToString(node->op) + buffer;
 }
 
 void VCL::PrettyPrinter::VisitPrefixLogicalExpression(ASTPrefixLogicalExpression* node) {
-    node->Accept(this);
+    node->expression->Accept(this);
     buffer = ToString(node->op) + buffer;
 }
 
 void VCL::PrettyPrinter::VisitPostfixArithmeticExpression(ASTPostfixArithmeticExpression* node) {
-    node->Accept(this);
+    node->expression->Accept(this);
     buffer = buffer + ToString(node->op);
 }
 
@@ -400,6 +414,10 @@ void VCL::PrettyPrinter::VisitAggregateExpression(ASTAggregateExpression* node) 
     }
     r += " }";
     buffer = r;
+}
+
+void VCL::PrettyPrinter::VisitDirective(ASTDirective* node) {
+    buffer = "";
 }
 
 std::string VCL::PrettyPrinter::GetBuffer() {

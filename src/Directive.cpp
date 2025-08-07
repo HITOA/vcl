@@ -22,7 +22,9 @@ std::unique_ptr<VCL::ASTDirective> VCL::ImportDirective::Parse(Lexer& lexer, Par
     if (Token token = lexer.Consume(); token.type != TokenType::Semicolon)
         throw Exception{ std::format("Unexpected token \'{}\'. Expecting semicolon", token.name), token.location };
 
-    return std::make_unique<ASTImportDirective>(importPathToken.name);
+    std::unique_ptr<ASTImportDirective> directive = std::make_unique<ASTImportDirective>(importPathToken.name);
+    directive->location = importPathToken.location;
+    return std::move(directive);
 }
 
 void VCL::ImportDirective::Run(ModuleContext* context, ASTDirective* directive, ASTVisitor* visitor) {

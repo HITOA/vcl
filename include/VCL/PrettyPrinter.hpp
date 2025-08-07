@@ -36,6 +36,7 @@ namespace VCL {
         void VisitVariableDeclaration(ASTVariableDeclaration* node) override;
         void VisitFunctionCall(ASTFunctionCall* node) override;
         void VisitAggregateExpression(ASTAggregateExpression* node) override;
+        void VisitDirective(ASTDirective* node) override;
 
         std::string GetBuffer();
 
