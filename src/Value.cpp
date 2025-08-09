@@ -6,7 +6,7 @@
 #include <VCL/NativeTarget.hpp>
 #include <VCL/Debug.hpp>
 
-#include <iostream>
+#include <llvm/Analysis/ValueTracking.h>
 
 
 VCL::Value::Value() : value{ nullptr }, type{ nullptr, nullptr, nullptr, nullptr, false }, context{ nullptr } {}
@@ -18,12 +18,15 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Load() {
     llvm::Value* loadedValue = value;
     std::string loadedValueName = value->getName().str() + "_loaded";
 
+    auto loadedType = Type::Create(type.GetTypeInfo(), context);
+
+    if (!loadedType.has_value())
+        return std::unexpected{ loadedType.error() };
+
     if (loadedValue->getType()->isPointerTy())
-        loadedValue = context->GetIRBuilder().CreateLoad(type.GetLLVMType(), loadedValue, loadedValueName);
-    if (auto newType = Type::Create(type.GetTypeInfo(), context); newType.has_value())
-        return Value::Create(loadedValue, *newType, context);
-    else
-        return std::unexpected{ newType.error() };
+        loadedValue = context->GetIRBuilder().CreateLoad((*loadedType).GetLLVMType(), loadedValue, loadedValueName);
+    
+    return Value::Create(loadedValue, *loadedType, context);
 }
 
 std::optional<VCL::Error> VCL::Value::Store(Handle<Value> value) {
@@ -112,7 +115,7 @@ bool VCL::Value::IsValid() const {
 bool VCL::Value::IsAssignable() const {
     if (!value->getType()->isPointerTy())
         return false;
-    llvm::Value* v = value->stripPointerCasts();
+    llvm::Value* v = llvm::getUnderlyingObject(value);
     return  llvm::isa<llvm::AllocaInst>(v) ||
             llvm::isa<llvm::GlobalVariable>(v) ||
             llvm::isa<llvm::GetElementPtrInst>(v) ||
