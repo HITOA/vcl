@@ -144,7 +144,7 @@ void VCL::ExecutionContext::DefineIntrinsic() {
     ADD_MATH_SYMBOL(log10f);
     ADD_MATH_SYMBOL(log2f);
     ADD_MATH_SYMBOL(expf);
-    ADD_MATH_SYMBOL(exp10f);
+    //ADD_MATH_SYMBOL(exp10f);
     ADD_MATH_SYMBOL(exp2f);
     ADD_MATH_SYMBOL(fabsf);
     ADD_MATH_SYMBOL(ceilf);

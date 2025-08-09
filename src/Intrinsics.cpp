@@ -135,7 +135,7 @@ void VCL::Intrinsics::Register(ModuleContext* context) {
     DEFINE_UNARY_INTRINSIC("log10",     llvm::Intrinsic::log10);
     DEFINE_UNARY_INTRINSIC("log2",      llvm::Intrinsic::log2);
     DEFINE_UNARY_INTRINSIC("exp",       llvm::Intrinsic::exp);
-    DEFINE_UNARY_INTRINSIC("exp10",     llvm::Intrinsic::exp10);
+    //DEFINE_UNARY_INTRINSIC("exp10",     llvm::Intrinsic::exp10);
     DEFINE_UNARY_INTRINSIC("exp2",      llvm::Intrinsic::exp2);
     DEFINE_UNARY_INTRINSIC("fabs",      llvm::Intrinsic::fabs);
     DEFINE_UNARY_INTRINSIC("ceil",      llvm::Intrinsic::ceil);
