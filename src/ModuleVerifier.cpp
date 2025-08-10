@@ -50,7 +50,7 @@ void VCL::ModuleVerifier::VerifySelectRecursion(ModuleContext* context, llvm::Ca
                             "select always evaluate both expression wich will likely result in infinite recursion.");
                         if (settings.selectRecursionAsError)
                             throw std::runtime_error{ errormsg };
-                        else
+                        else if (context->GetLogger())
                             context->GetLogger()->Warning("{}", errormsg);
                     }
                 }
