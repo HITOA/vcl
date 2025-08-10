@@ -6,7 +6,7 @@
 #include <iostream>
 
 
-std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromDisk(std::filesystem::path& path) {
+std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromDisk(const std::filesystem::path& path) {
     std::ifstream file{ path, std::ios::binary };
 
     if (!file.is_open())
@@ -18,6 +18,14 @@ std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromDi
     file.close();
 
     return std::make_shared<VCL::Source>(source, path);
+}
+
+std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromDisk(std::filesystem::path&& path) {
+    return LoadFromDisk(std::forward<std::filesystem::path>(path));
+}
+
+std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromMemory(const std::string& buffer) {
+    return std::make_shared<VCL::Source>(buffer, std::filesystem::path{} );
 }
 
 std::string GetLineFromString(std::string str, uint32_t line) {
