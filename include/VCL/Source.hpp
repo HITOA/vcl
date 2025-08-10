@@ -13,7 +13,7 @@ namespace VCL {
     struct Source {
         std::string source;
         std::filesystem::path path;
-
+        
         static std::expected<std::shared_ptr<Source>, std::string> LoadFromDisk(const std::filesystem::path& path);
         static std::expected<std::shared_ptr<Source>, std::string> LoadFromDisk(std::filesystem::path&& path);
         static std::expected<std::shared_ptr<Source>, std::string> LoadFromMemory(const std::string& buffer);

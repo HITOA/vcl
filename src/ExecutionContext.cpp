@@ -70,6 +70,7 @@ void VCL::ExecutionContext::AddModule(llvm::orc::ThreadSafeModule module, llvm::
 
 void VCL::ExecutionContext::Clear() {
     llvm::cantFail(main->clear());
+    DefineIntrinsic();
 }
 
 llvm::orc::ExecutorSymbolDef VCL::ExecutionContext::Lookup(std::string_view name) {
