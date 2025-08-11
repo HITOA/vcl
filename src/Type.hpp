@@ -47,12 +47,12 @@ namespace VCL {
         /**
          * @brief Compare types for equality
          */
-        bool operator==(Type& rhs) const;
+        bool operator==(Type rhs) const;
 
         /**
          * @brief Compare types for inequality
          */
-        bool operator!=(Type& rhs) const;
+        bool operator!=(Type rhs) const;
 
         /**
          * @brief Create a full Type from a TypeInfo structure and a context.

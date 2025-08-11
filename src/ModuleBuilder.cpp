@@ -7,6 +7,7 @@
 #include "StructDefinition.hpp"
 #include "StructTemplate.hpp"
 #include "CallableTemplate.hpp"
+#include "Cast.hpp"
 
 #include <VCL/Debug.hpp>
 #include <VCL/Directive.hpp>
@@ -403,7 +404,9 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
 
     SetCurrentDebugLocation(context, node);
 
-    rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
+    CastResult castResult = ThrowOnError(ArithmeticImplicitCast(lhs, rhs), node->location);
+    lhs = castResult.lhs;
+    rhs = castResult.rhs;
 
     if (!policy(lhs->GetType()) || !policy(rhs->GetType()))
         throw Exception{ std::format("Invalid operands to arithmetic operator `{}`: left operand is `{}`, right operand is `{}`.",
@@ -468,7 +471,9 @@ void VCL::ModuleBuilder::VisitBinaryLogicalExpression(ASTBinaryLogicalExpression
 
     SetCurrentDebugLocation(context, node);
 
-    rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
+    CastResult castResult = ThrowOnError(ArithmeticImplicitCast(lhs, rhs), node->location);
+    lhs = castResult.lhs;
+    rhs = castResult.rhs;
 
     if (!policy(lhs->GetType()) || !policy(rhs->GetType()))
         throw Exception{ std::format("Logical operator `{}` requires both operands to be of type `bool` or `vbool`, but got `{}` and `{}`.",
@@ -505,7 +510,9 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
 
     SetCurrentDebugLocation(context, node);
 
-    rhs = ThrowOnError(rhs->Cast(lhs->GetType()), node->rhs->location);
+    CastResult castResult = ThrowOnError(ArithmeticImplicitCast(lhs, rhs), node->location);
+    lhs = castResult.lhs;
+    rhs = castResult.rhs;
 
     llvm::Value* result;
 

@@ -36,11 +36,11 @@ llvm::DIType* VCL::Type::GetDIType() const {
     return diType;
 }
 
-bool VCL::Type::operator==(Type& rhs) const {
+bool VCL::Type::operator==(Type rhs) const {
     return this->typeInfo->type == rhs.typeInfo->type && this->typeInfo->name == rhs.typeInfo->name;
 }
 
-bool VCL::Type::operator!=(Type& rhs) const {
+bool VCL::Type::operator!=(Type rhs) const {
     return !(*this != rhs);
 }
 

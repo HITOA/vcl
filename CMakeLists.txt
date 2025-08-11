@@ -19,6 +19,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Aggregate.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/CallableTemplate.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Cast.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Handle.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsic.hpp
@@ -41,6 +42,7 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Attribute.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Callable.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/CallableTemplate.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Cast.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Debug.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Directive.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ExecutionContext.cpp
