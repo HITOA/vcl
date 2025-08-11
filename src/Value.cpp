@@ -72,36 +72,36 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Cast(Type type) {
     if (value->getType()->isPointerTy())
         return std::unexpected(Error{ "Cannot cast pointer type to non pointer type" });
 
-    if (this->type.GetTypeInfo()->type == TypeInfo::TypeName::Float) {
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::Bool)
-            return Value::Create(context->GetIRBuilder().CreateFPToSI(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::Int)
-            return Value::Create(context->GetIRBuilder().CreateFPToSI(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::VectorFloat) {
-            return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), value), type, context);
-        }
-    }
+    if (!type.GetTypeInfo()->IsVector() && this->type.GetTypeInfo()->IsVector())
+        return std::unexpected(Error{ "Cannot cast vector type to non vector type" });
 
-    if (this->type.GetTypeInfo()->type == TypeInfo::TypeName::Bool) {
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::Float)
-            return Value::Create(context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::Int)
-            return Value::Create(context->GetIRBuilder().CreateZExt(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::VectorFloat)
-            return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), 
-                context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType())), type, context);
+    if (type.GetTypeInfo()->IsVector() && !this->type.GetTypeInfo()->IsVector()) {
+        if (auto v = Splat(); v.has_value())
+            return (*v)->Cast(type);
+        else
+            return std::unexpected{ v.error() };
     }
+    
+    TypeInfo::TypeName scalarThisType = GetScalarTypeName(this->type.GetTypeInfo()->type);
+    TypeInfo::TypeName scalarTargetType = GetScalarTypeName(type.GetTypeInfo()->type);
 
-    if (this->type.GetTypeInfo()->type == TypeInfo::TypeName::Int) {
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::Float)
-            return Value::Create(context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::Bool)
-            return Value::Create(context->GetIRBuilder().CreateTrunc(value, type.GetLLVMType()), type, context);
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::VectorInt)
-            return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), value), type, context);
-        if (type.GetTypeInfo()->type == TypeInfo::TypeName::VectorFloat)
-            return Value::Create(context->GetIRBuilder().CreateVectorSplat(NativeTarget::GetInstance()->GetMaxVectorElementWidth(), 
-                context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType())), type, context);
+    switch (scalarThisType) {
+        case TypeInfo::TypeName::Float: return Value::Create(context->GetIRBuilder().CreateFPToSI(value, type.GetLLVMType()), type, context);
+        case TypeInfo::TypeName::Int:
+            if (scalarTargetType == TypeInfo::TypeName::Float)
+                return Value::Create(context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType()), type, context);
+            else if (scalarTargetType == TypeInfo::TypeName::Bool)
+                return Value::Create(context->GetIRBuilder().CreateTrunc(value, type.GetLLVMType()), type, context);
+            else
+                break;
+        case TypeInfo::TypeName::Bool:
+            if (scalarTargetType == TypeInfo::TypeName::Float)
+                return Value::Create(context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType()), type, context);
+            else if (scalarTargetType == TypeInfo::TypeName::Int)
+                return Value::Create(context->GetIRBuilder().CreateZExt(value, type.GetLLVMType()), type, context);
+            else
+                break;
+        default: break;
     }
 
     return std::unexpected(Error{ std::format("Cannot cast value of type `{}` to type `{}`: cast not supported.", 

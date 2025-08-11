@@ -505,3 +505,7 @@ TEST_CASE( "VCL preprocessor", "[Macro][Include]" ) {
         REQUIRE(outputArray == 9);
     }
 }
+
+TEST_CASE( "VCL cast", "[Cast]" ) {
+    MAKE_VCL("./vcl/cast.vcl");
+}

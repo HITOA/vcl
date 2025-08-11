@@ -45,4 +45,13 @@ namespace VCL {
             return std::unexpected(Error{ "Invalid operand(s) type for this operation." });
         }
     };
+
+    static TypeInfo::TypeName GetScalarTypeName(TypeInfo::TypeName type) {
+        switch (type) {
+            case TypeInfo::TypeName::VectorFloat: return TypeInfo::TypeName::Float;
+            case TypeInfo::TypeName::VectorInt: return TypeInfo::TypeName::Int;
+            case TypeInfo::TypeName::VectorBool: return TypeInfo::TypeName::Bool;
+            default: return type;
+        }
+    }
 }
