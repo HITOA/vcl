@@ -24,7 +24,6 @@ add_library(vcl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Handle.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsic.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsics.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/Math.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleBuilder.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleContext.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ModuleOptimizer.hpp

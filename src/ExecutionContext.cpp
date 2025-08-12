@@ -7,7 +7,7 @@
 
 #include <llvm/ExecutionEngine/JITEventListener.h>
 
-#include "Math.hpp"
+#include <cmath>
 
 
 VCL::ExecutionContext::ExecutionContext() : context{}, dumpObject{ false } {
@@ -123,58 +123,58 @@ llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> VCL::ExecutionContext::DumpO
     return std::move(buf);
 }
 
-#define ADD_MATH_SYMBOL(f) symbolMap[session->intern(#f)] = llvm::orc::ExecutorSymbolDef{ \
-        llvm::orc::ExecutorAddr::fromPtr(&VCL::f), \
+#define ADD_MATH_SYMBOL(name, ptr) symbolMap[session->intern(name)] = llvm::orc::ExecutorSymbolDef{ \
+        llvm::orc::ExecutorAddr::fromPtr(ptr), \
         llvm::JITSymbolFlags::Exported \
     }
 
 void VCL::ExecutionContext::DefineIntrinsic() {
     llvm::orc::SymbolMap symbolMap{ 22 };
 
-    //Float
-    ADD_MATH_SYMBOL(sqrtf);
-    ADD_MATH_SYMBOL(sinf);
-    ADD_MATH_SYMBOL(cosf);
-    ADD_MATH_SYMBOL(tanf);
-    ADD_MATH_SYMBOL(asinf);
-    ADD_MATH_SYMBOL(acosf);
-    ADD_MATH_SYMBOL(atanf);
-    ADD_MATH_SYMBOL(sinhf);
-    ADD_MATH_SYMBOL(coshf);
-    ADD_MATH_SYMBOL(tanhf);
-    ADD_MATH_SYMBOL(logf);
-    ADD_MATH_SYMBOL(log10f);
-    ADD_MATH_SYMBOL(log2f);
-    ADD_MATH_SYMBOL(expf);
-    ADD_MATH_SYMBOL(exp2f);
-    ADD_MATH_SYMBOL(fabsf);
-    ADD_MATH_SYMBOL(ceilf);
-    ADD_MATH_SYMBOL(floorf);
-    ADD_MATH_SYMBOL(roundf);
-    ADD_MATH_SYMBOL(powf);
-    ADD_MATH_SYMBOL(fmaf);
-    //Double
-    ADD_MATH_SYMBOL(sqrt);
-    ADD_MATH_SYMBOL(sin);
-    ADD_MATH_SYMBOL(cos);
-    ADD_MATH_SYMBOL(tan);
-    ADD_MATH_SYMBOL(asin);
-    ADD_MATH_SYMBOL(acos);
-    ADD_MATH_SYMBOL(atan);
-    ADD_MATH_SYMBOL(sinh);
-    ADD_MATH_SYMBOL(cosh);
-    ADD_MATH_SYMBOL(tanh);
-    ADD_MATH_SYMBOL(log);
-    ADD_MATH_SYMBOL(log10);
-    ADD_MATH_SYMBOL(log2);
-    ADD_MATH_SYMBOL(exp);
-    ADD_MATH_SYMBOL(exp2);
-    ADD_MATH_SYMBOL(fabs);
-    ADD_MATH_SYMBOL(ceil);
-    ADD_MATH_SYMBOL(floor);
-    ADD_MATH_SYMBOL(round);
-    ADD_MATH_SYMBOL(pow);
-    ADD_MATH_SYMBOL(fma);
+    // Float
+    ADD_MATH_SYMBOL("sqrtf",    &sqrtf);
+    ADD_MATH_SYMBOL("sinf",     &sinf);
+    ADD_MATH_SYMBOL("cosf",     &cosf);
+    ADD_MATH_SYMBOL("tanf",     &tanf);
+    ADD_MATH_SYMBOL("asinf",    &asinf);
+    ADD_MATH_SYMBOL("acosf",    &acosf);
+    ADD_MATH_SYMBOL("atanf",    &atanf);
+    ADD_MATH_SYMBOL("sinhf",    &sinhf);
+    ADD_MATH_SYMBOL("coshf",    &coshf);
+    ADD_MATH_SYMBOL("tanhf",    &tanhf);
+    ADD_MATH_SYMBOL("logf",     &logf);
+    ADD_MATH_SYMBOL("log10f",   &log10f);
+    ADD_MATH_SYMBOL("log2f",    &log2f);
+    ADD_MATH_SYMBOL("expf",     &expf);
+    ADD_MATH_SYMBOL("exp2f",    &exp2f);
+    ADD_MATH_SYMBOL("fabsf",    &fabsf);
+    ADD_MATH_SYMBOL("ceilf",    &ceilf);
+    ADD_MATH_SYMBOL("floorf",   &floorf);
+    ADD_MATH_SYMBOL("roundf",   &roundf);
+    ADD_MATH_SYMBOL("powf",     &powf);
+    ADD_MATH_SYMBOL("fmaf",     &fmaf);
+    // Double
+    ADD_MATH_SYMBOL("sqrt",     static_cast<double(*)(double)>(&sqrt));
+    ADD_MATH_SYMBOL("sin",      static_cast<double(*)(double)>(&sin));
+    ADD_MATH_SYMBOL("cos",      static_cast<double(*)(double)>(&cos));
+    ADD_MATH_SYMBOL("tan",      static_cast<double(*)(double)>(&tan));
+    ADD_MATH_SYMBOL("asin",     static_cast<double(*)(double)>(&asin));
+    ADD_MATH_SYMBOL("acos",     static_cast<double(*)(double)>(&acos));
+    ADD_MATH_SYMBOL("atan",     static_cast<double(*)(double)>(&atan));
+    ADD_MATH_SYMBOL("sinh",     static_cast<double(*)(double)>(&sinh));
+    ADD_MATH_SYMBOL("cosh",     static_cast<double(*)(double)>(&cosh));
+    ADD_MATH_SYMBOL("tanh",     static_cast<double(*)(double)>(&tanh));
+    ADD_MATH_SYMBOL("log",      static_cast<double(*)(double)>(&log));
+    ADD_MATH_SYMBOL("log10",    static_cast<double(*)(double)>(&log10));
+    ADD_MATH_SYMBOL("log2",     static_cast<double(*)(double)>(&log2));
+    ADD_MATH_SYMBOL("exp",      static_cast<double(*)(double)>(&exp));
+    ADD_MATH_SYMBOL("exp2",     static_cast<double(*)(double)>(&exp2));
+    ADD_MATH_SYMBOL("fabs",     static_cast<double(*)(double)>(&fabs));
+    ADD_MATH_SYMBOL("ceil",     static_cast<double(*)(double)>(&ceil));
+    ADD_MATH_SYMBOL("floor",    static_cast<double(*)(double)>(&floor));
+    ADD_MATH_SYMBOL("round",    static_cast<double(*)(double)>(&round));
+    ADD_MATH_SYMBOL("pow",      static_cast<double(*)(double, double)>(&pow));
+    ADD_MATH_SYMBOL("fma",      static_cast<double(*)(double, double, double)>(&fma));
 
     llvm::Error err = main->define(llvm::orc::absoluteSymbols(symbolMap));
 }
