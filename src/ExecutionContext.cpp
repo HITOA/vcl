@@ -7,7 +7,7 @@
 
 #include <llvm/ExecutionEngine/JITEventListener.h>
 
-#include <cmath>
+#include "Math.hpp"
 
 
 VCL::ExecutionContext::ExecutionContext() : context{}, dumpObject{ false } {
@@ -124,7 +124,7 @@ llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> VCL::ExecutionContext::DumpO
 }
 
 #define ADD_MATH_SYMBOL(f) symbolMap[session->intern(#f)] = llvm::orc::ExecutorSymbolDef{ \
-        llvm::orc::ExecutorAddr::fromPtr(&f), \
+        llvm::orc::ExecutorAddr::fromPtr(&VCL::f), \
         llvm::JITSymbolFlags::Exported \
     }
 
