@@ -21,7 +21,17 @@ std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromDi
 }
 
 std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromDisk(std::filesystem::path&& path) {
-    return LoadFromDisk(std::forward<std::filesystem::path>(path));
+    std::ifstream file{ path, std::ios::binary };
+
+    if (!file.is_open())
+        return std::unexpected(std::format("Unable to open source file \"{}\" from disk.", path.filename().string()));
+
+    std::stringstream buffer{};
+    buffer << file.rdbuf();
+    std::string source = buffer.str();
+    file.close();
+
+    return std::make_shared<VCL::Source>(source, path);
 }
 
 std::expected<std::shared_ptr<VCL::Source>, std::string> VCL::Source::LoadFromMemory(const std::string& buffer) {
