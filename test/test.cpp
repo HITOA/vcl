@@ -7,6 +7,7 @@
 #include <VCL/NativeTarget.hpp>
 #include <VCL/Error.hpp>
 #include <VCL/Directive.hpp>
+#include <VCL/Storage.hpp>
 #include <format>
 #include <stdlib.h>
 #include <iostream>
@@ -66,26 +67,22 @@ TEST_CASE( "VCL parsing & emit & compiling", "[IR][Compiling][Parsing]" ) {
 TEST_CASE( "VCL input & output", "[Assignment][Binding]" ) {
     MAKE_VCL("./vcl/inout.vcl");
     
-    uint32_t vectorElementWidth = VCL::NativeTarget::GetInstance()->GetMaxVectorElementWidth();
-    uint32_t vectorAlignment = VCL::NativeTarget::GetInstance()->GetMaxVectorByteWidth();
-    
     SECTION("Value check") {
         float inputFloat = GENERATE(12.0f, 0.0f, -23.0f);
         int inputInt = GENERATE(23, 0, -34);
         bool inputBool = GENERATE(true, false);
 
-        float* inputVFloat = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
-        int* inputVInt = (int*)aligned_alloc(vectorAlignment, sizeof(int) * vectorElementWidth);
-
+        VCL::VectorFloatStorage inputVFloat{};
+        VCL::VectorIntStorage inputVInt{};
 
         float outputFloat = 0.0;
         int outputInt = 0;
         bool outputBool = true;
 
-        float* outputVFloat = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
-        int* outputVInt = (int*)aligned_alloc(vectorAlignment, sizeof(int) * vectorElementWidth);
+        VCL::VectorFloatStorage outputVFloat{};
+        VCL::VectorIntStorage outputVInt{};
 
-        for (size_t i = 0; i < vectorElementWidth; ++i) {
+        for (size_t i = 0; i < inputVFloat.GetElementCount(); ++i) {
             inputVFloat[i] = rand();
             inputVInt[i] = rand();
         }
@@ -93,14 +90,14 @@ TEST_CASE( "VCL input & output", "[Assignment][Binding]" ) {
         session->DefineExternSymbolPtr("inputFloat", &inputFloat);
         session->DefineExternSymbolPtr("inputInt", &inputInt);
         session->DefineExternSymbolPtr("inputBool", &inputBool);
-        session->DefineExternSymbolPtr("inputVFloat", inputVFloat);
-        session->DefineExternSymbolPtr("inputVInt", inputVInt);
+        session->DefineExternSymbolStorage("inputVFloat", &inputVFloat);
+        session->DefineExternSymbolStorage("inputVInt", &inputVInt);
 
         session->DefineExternSymbolPtr("outputFloat", &outputFloat);
         session->DefineExternSymbolPtr("outputInt", &outputInt);
         session->DefineExternSymbolPtr("outputBool", &outputBool);
-        session->DefineExternSymbolPtr("outputVFloat", outputVFloat);
-        session->DefineExternSymbolPtr("outputVInt", outputVInt);
+        session->DefineExternSymbolStorage("outputVFloat", &outputVFloat);
+        session->DefineExternSymbolStorage("outputVInt", &outputVInt);
 
         ((void(*)())(session->Lookup("Main")))();
 
@@ -108,15 +105,10 @@ TEST_CASE( "VCL input & output", "[Assignment][Binding]" ) {
         REQUIRE(inputInt == outputInt);
         REQUIRE(inputBool == outputBool);
 
-        for (size_t i = 0; i < vectorElementWidth; ++i) {
+        for (size_t i = 0; i < inputVFloat.GetElementCount(); ++i) {
             REQUIRE(inputVFloat[i] == outputVFloat[i]);
             REQUIRE(inputVInt[i] == outputVInt[i]);
         }
-
-        free(inputVFloat);
-        free(inputVInt);
-        free(outputVFloat);
-        free(outputVInt);
     }
 }
 
@@ -130,15 +122,15 @@ TEST_CASE( "VCL factorial", "[Condition][Branching][Recursion][Arithmetic]" ) {
     MAKE_VCL("./vcl/factorial.vcl");
 
     SECTION("Value check") {
-        int input = GENERATE(0, 1, 5, 3, 10);
-        int output = 0;
+        VCL::IntStorage input{ GENERATE(0, 1, 5, 3, 10) };
+        VCL::IntStorage output{ 0 };
 
-        session->DefineExternSymbolPtr("input", &input);
-        session->DefineExternSymbolPtr("output", &output);
+        session->DefineExternSymbolStorage("input", &input);
+        session->DefineExternSymbolStorage("output", &output);
 
         ((void(*)())(session->Lookup("Main")))();
         
-        REQUIRE(Factorial(input) == output);
+        REQUIRE(Factorial(input.Get()) == output.Get());
     }
 }
 
@@ -328,22 +320,19 @@ TEST_CASE( "VCL span", "[Span]" ) {
 TEST_CASE( "VCL templated ring", "[Array][Template][Struct]" ) {
     MAKE_VCL("./vcl/templatering.vcl");
 
-    uint32_t vectorElementWidth = VCL::NativeTarget::GetInstance()->GetMaxVectorElementWidth();
-    uint32_t vectorAlignment = VCL::NativeTarget::GetInstance()->GetMaxVectorByteWidth();
-
     SECTION("Value check") {
         
-        float* firstInput = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
-        float* input = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
+        VCL::VectorFloatStorage firstInput{};
+        VCL::VectorFloatStorage input{};
         int delay = 36;
 
-        float* output = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
+        VCL::VectorFloatStorage output{};
 
-        session->DefineExternSymbolPtr("input", input);
+        session->DefineExternSymbolStorage("input", &input);
         session->DefineExternSymbolPtr("delay", &delay);
-        session->DefineExternSymbolPtr("output", output);
+        session->DefineExternSymbolStorage("output", &output);
 
-        for (size_t i = 0; i < vectorElementWidth; ++i) {
+        for (size_t i = 0; i < firstInput.GetElementCount(); ++i) {
             input[i] = (float)rand() / RAND_MAX;
             firstInput[i] = input[i];
         }
@@ -351,18 +340,15 @@ TEST_CASE( "VCL templated ring", "[Array][Template][Struct]" ) {
         ((void(*)())(session->Lookup("Main")))();
 
         for (size_t i = 0; i < delay - 1; ++i) {
-            for (size_t i = 0; i < vectorElementWidth; ++i) {
+            for (size_t i = 0; i < firstInput.GetElementCount(); ++i) {
                 input[i] = (float)rand() / RAND_MAX;
             }
             ((void(*)())(session->Lookup("Main")))();
         }
 
-        for (size_t i = 0; i < vectorElementWidth; ++i) {
+        for (size_t i = 0; i < firstInput.GetElementCount(); ++i) {
             REQUIRE(firstInput[i] == output[i]);
         }
-
-        free(input);
-        free(output);
     }
 }
 
@@ -532,36 +518,29 @@ TEST_CASE( "VCL cast", "[Cast]" ) {
 
 TEST_CASE( "VCL vdouble math", "[Cast][Arithmetic]" ) {
     MAKE_VCL("./vcl/vdoublemath.vcl");
-
-    uint32_t vectorElementWidth = VCL::NativeTarget::GetInstance()->GetMaxVectorElementWidth();
-    uint32_t vectorAlignment = VCL::NativeTarget::GetInstance()->GetMaxVectorByteWidth();
     
     SECTION("Value check") {
 
-        double* a = (double*)aligned_alloc(vectorAlignment, sizeof(double) * vectorElementWidth);
-        float* b = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
+        VCL::VectorDoubleStorage a{};
+        VCL::VectorFloatStorage b{};
 
-        double* result = (double*)aligned_alloc(vectorAlignment, sizeof(double) * vectorElementWidth);
-        double* expectedResult = (double*)aligned_alloc(vectorAlignment, sizeof(double) * vectorElementWidth);
+        VCL::VectorDoubleStorage result{};
+        VCL::VectorDoubleStorage expectedResult{};
 
-        for (size_t i = 0; i < vectorElementWidth; ++i) {
+        for (size_t i = 0; i < a.GetElementCount(); ++i) {
             a[i] = rand();
             b[i] = rand();
             expectedResult[i] = b[i] / a[i];
         }
 
-        session->DefineExternSymbolPtr("a", a);
-        session->DefineExternSymbolPtr("b", b);
-        session->DefineExternSymbolPtr("result", result);
+        session->DefineExternSymbolStorage("a", &a);
+        session->DefineExternSymbolStorage("b", &b);
+        session->DefineExternSymbolStorage("result", &result);
 
         ((void(*)())(session->Lookup("Main")))();
 
-        for (size_t i = 0; i < vectorElementWidth; ++i) {
+        for (size_t i = 0; i < a.GetElementCount(); ++i) {
             REQUIRE(result[i] == expectedResult[i]);
         }
-        
-        free(a);
-        free(b);
-        free(result);
     }
 }

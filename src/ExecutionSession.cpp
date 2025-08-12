@@ -34,6 +34,10 @@ void VCL::ExecutionSession::DefineExternSymbolPtr(std::string_view name, void* b
     context->DefineExternSymbolPtr(name, buffer);
 }
 
+void VCL::ExecutionSession::DefineExternSymbolStorage(std::string_view name, Storage* storage) {
+    context->DefineExternSymbolPtr(name, storage->GetPtr());
+}
+
 void* VCL::ExecutionSession::Lookup(std::string_view name) {
     return context->Lookup(name).getAddress().toPtr<void*>();
 }

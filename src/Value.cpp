@@ -178,7 +178,7 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
         value->addDebugInfo(diInfo);
     }
 
-    value->setAlignment(llvm::Align(NativeTarget::GetInstance()->GetMaxVectorByteWidth()));
+    //value->setAlignment(llvm::Align(NativeTarget::GetInstance()->GetMaxVectorByteWidth()));
     if (!isExtern)
         value->setDSOLocal(true);
     type.SetPointer();

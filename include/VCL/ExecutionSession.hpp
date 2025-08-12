@@ -3,6 +3,7 @@
 #include <VCL/Logger.hpp>
 #include <VCL/AST.hpp>
 #include <VCL/Module.hpp>
+#include <VCL/Storage.hpp>
 
 #include <memory>
 
@@ -34,6 +35,11 @@ namespace VCL {
          * @brief Define a symbol by its address and its name.
          */
         void DefineExternSymbolPtr(std::string_view name, void* buffer);
+
+        /**
+         * @brief Define a symbol with its storage class.
+         */
+        void DefineExternSymbolStorage(std::string_view name, Storage* storage);
 
         /**
          * @brief Lookup compiled vcl function's address by name and returns it.
