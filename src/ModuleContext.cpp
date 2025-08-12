@@ -14,6 +14,7 @@ VCL::ModuleContext::ModuleContext(std::string_view name, llvm::orc::ThreadSafeCo
     basicTypes.floatDIType = diBuilder.createBasicType("float", 32, llvm::dwarf::DW_ATE_float);
     basicTypes.intDIType = diBuilder.createBasicType("int", 32, llvm::dwarf::DW_ATE_signed);
     basicTypes.boolDIType = diBuilder.createBasicType("bool", 32, llvm::dwarf::DW_ATE_boolean);
+    basicTypes.doubleDIType = diBuilder.createBasicType("double", 64, llvm::dwarf::DW_ATE_float);
     basicTypes.voidDIType = diBuilder.createBasicType("void", 0, llvm::dwarf::DW_ATE_address);
 
     uint32_t vectorElementWidth = NativeTarget::GetInstance()->GetMaxVectorElementWidth();
@@ -25,9 +26,11 @@ VCL::ModuleContext::ModuleContext(std::string_view name, llvm::orc::ThreadSafeCo
     llvm::DICompositeType* vfloatBaseType = diBuilder.createVectorType(vectorBitWidth, vectorBitWidth, basicTypes.floatDIType, subscripts);
     llvm::DICompositeType* vintBaseType = diBuilder.createVectorType(vectorBitWidth, vectorBitWidth, basicTypes.intDIType, subscripts);
     llvm::DICompositeType* vboolBaseType = diBuilder.createVectorType(vectorBitWidth, vectorBitWidth, basicTypes.boolDIType, subscripts);
+    llvm::DICompositeType* vdoubleBaseType = diBuilder.createVectorType(vectorBitWidth, vectorBitWidth, basicTypes.doubleDIType, subscripts);
     basicTypes.vfloatDIType = diBuilder.createTypedef(vfloatBaseType, "vfloat", diBuiltinFile, 0, nullptr);
     basicTypes.vintDIType = diBuilder.createTypedef(vintBaseType, "vint", diBuiltinFile, 0, nullptr);
     basicTypes.vboolDIType = diBuilder.createTypedef(vboolBaseType, "vbool", diBuiltinFile, 0, nullptr);
+    basicTypes.vdoubleDIType = diBuilder.createTypedef(vdoubleBaseType, "vdouble", diBuiltinFile, 0, nullptr);
 
     info = std::make_shared<ModuleInfo>();
 }

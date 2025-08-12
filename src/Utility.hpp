@@ -51,6 +51,7 @@ namespace VCL {
             case TypeInfo::TypeName::VectorFloat: return TypeInfo::TypeName::Float;
             case TypeInfo::TypeName::VectorInt: return TypeInfo::TypeName::Int;
             case TypeInfo::TypeName::VectorBool: return TypeInfo::TypeName::Bool;
+            case TypeInfo::TypeName::VectorDouble: return TypeInfo::TypeName::Double;
             default: return type;
         }
     }

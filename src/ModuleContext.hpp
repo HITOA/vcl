@@ -21,10 +21,12 @@ namespace VCL {
         llvm::DIBasicType* floatDIType;
         llvm::DIBasicType* intDIType;
         llvm::DIBasicType* boolDIType;
+        llvm::DIBasicType* doubleDIType;
         llvm::DIBasicType* voidDIType;
         llvm::DIDerivedType* vfloatDIType;
         llvm::DIDerivedType* vintDIType;
         llvm::DIDerivedType* vboolDIType;
+        llvm::DIDerivedType* vdoubleDIType;
     };
 
     /**

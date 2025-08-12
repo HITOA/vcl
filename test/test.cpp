@@ -68,7 +68,7 @@ TEST_CASE( "VCL input & output", "[Assignment][Binding]" ) {
     
     uint32_t vectorElementWidth = VCL::NativeTarget::GetInstance()->GetMaxVectorElementWidth();
     uint32_t vectorAlignment = VCL::NativeTarget::GetInstance()->GetMaxVectorByteWidth();
-    logger->Error("DAMN UWU");
+    
     SECTION("Value check") {
         float inputFloat = GENERATE(12.0f, 0.0f, -23.0f);
         int inputInt = GENERATE(23, 0, -34);
@@ -228,6 +228,26 @@ TEST_CASE( "VCL distance", "[Arithmetic][Intrinsic][Struct][Template]" ) {
         ((void(*)())(session->Lookup("Main")))();
         
         REQUIRE(Distance(vecA, vecB) == distance);
+    }
+}
+
+TEST_CASE( "VCL distance double", "[Arithmetic][Intrinsic][Struct][Template]" ) {
+    MAKE_VCL("./vcl/distancedouble.vcl");
+
+    SECTION("Value check") {
+        Vector3<double> vecA{ 0.0, 10.0, 3.0 };
+        Vector3<double> vecB{ -2.0, 0.0, 4.0 };
+
+        float distance;
+
+        session->DefineExternSymbolPtr("vecA", &vecA);
+        session->DefineExternSymbolPtr("vecB", &vecB);
+
+        session->DefineExternSymbolPtr("distance", &distance);
+
+        ((void(*)())(session->Lookup("Main")))();
+        
+        REQUIRE((float)Distance(vecA, vecB) == distance);
     }
 }
 
@@ -508,4 +528,40 @@ TEST_CASE( "VCL preprocessor", "[Macro][Include]" ) {
 
 TEST_CASE( "VCL cast", "[Cast]" ) {
     MAKE_VCL("./vcl/cast.vcl");
+}
+
+TEST_CASE( "VCL vdouble math", "[Cast][Arithmetic]" ) {
+    MAKE_VCL("./vcl/vdoublemath.vcl");
+
+    uint32_t vectorElementWidth = VCL::NativeTarget::GetInstance()->GetMaxVectorElementWidth();
+    uint32_t vectorAlignment = VCL::NativeTarget::GetInstance()->GetMaxVectorByteWidth();
+    
+    SECTION("Value check") {
+
+        double* a = (double*)aligned_alloc(vectorAlignment, sizeof(double) * vectorElementWidth);
+        float* b = (float*)aligned_alloc(vectorAlignment, sizeof(float) * vectorElementWidth);
+
+        double* result = (double*)aligned_alloc(vectorAlignment, sizeof(double) * vectorElementWidth);
+        double* expectedResult = (double*)aligned_alloc(vectorAlignment, sizeof(double) * vectorElementWidth);
+
+        for (size_t i = 0; i < vectorElementWidth; ++i) {
+            a[i] = rand();
+            b[i] = rand();
+            expectedResult[i] = b[i] / a[i];
+        }
+
+        session->DefineExternSymbolPtr("a", a);
+        session->DefineExternSymbolPtr("b", b);
+        session->DefineExternSymbolPtr("result", result);
+
+        ((void(*)())(session->Lookup("Main")))();
+
+        for (size_t i = 0; i < vectorElementWidth; ++i) {
+            REQUIRE(result[i] == expectedResult[i]);
+        }
+        
+        free(a);
+        free(b);
+        free(result);
+    }
 }

@@ -62,10 +62,12 @@ std::string VCL::ToString(std::shared_ptr<TypeInfo> type) {
         case TypeInfo::TypeName::Float: return "float";
         case TypeInfo::TypeName::Bool: return "bool";
         case TypeInfo::TypeName::Int: return "int";
+        case TypeInfo::TypeName::Double: return "double";
         case TypeInfo::TypeName::Void: return "void";
         case TypeInfo::TypeName::VectorFloat: return "vfloat";
         case TypeInfo::TypeName::VectorBool: return "vbool";
         case TypeInfo::TypeName::VectorInt: return "vint";
+        case TypeInfo::TypeName::VectorDouble: return "vdouble";
         case TypeInfo::TypeName::Array: {
             std::string name{ "array" };
             for (auto argument : type->arguments)

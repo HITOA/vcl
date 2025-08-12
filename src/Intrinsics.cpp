@@ -142,7 +142,7 @@ void VCL::Intrinsics::Register(ModuleContext* context) {
     DEFINE_UNARY_INTRINSIC("floor",     llvm::Intrinsic::floor);
     DEFINE_UNARY_INTRINSIC("round",     llvm::Intrinsic::round);
     sm.PushNamedValue("len", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<LenIntrinsicImpl>(), context)));
-
+    
     DEFINE_BINARY_INTRINSIC("pow",      llvm::Intrinsic::pow);
     sm.PushNamedValue("fmod", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<FModIntrinsicImpl>(), context)));
 

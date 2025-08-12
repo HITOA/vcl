@@ -22,17 +22,22 @@ std::expected<VCL::CastResult, VCL::Error> VCL::ArithmeticImplicitCast(Handle<Va
         TypeInfo::TypeName lhsScalarTypeName = GetScalarTypeName(lhs->GetType().GetTypeInfo()->type);
         TypeInfo::TypeName rhsScalarTypeName = GetScalarTypeName(rhs->GetType().GetTypeInfo()->type);
 
-        if (lhsScalarTypeName != TypeInfo::TypeName::Float && rhsScalarTypeName == TypeInfo::TypeName::Float) {
+        if ((lhsScalarTypeName != TypeInfo::TypeName::Double && rhsScalarTypeName == TypeInfo::TypeName::Double) ||
+            (lhsScalarTypeName != TypeInfo::TypeName::Float && rhsScalarTypeName == TypeInfo::TypeName::Float)) {
             casted = lhs;
             target = rhs;
             isLHSCasted = true;
         }
     }
 
-    TypeInfo::TypeName targetScalarTypeName = GetScalarTypeName(lhs->GetType().GetTypeInfo()->type);
-    TypeInfo::TypeName castedScalarTypeName = GetScalarTypeName(rhs->GetType().GetTypeInfo()->type);
+    TypeInfo::TypeName targetScalarTypeName = GetScalarTypeName(target->GetType().GetTypeInfo()->type);
+    TypeInfo::TypeName castedScalarTypeName = GetScalarTypeName(casted->GetType().GetTypeInfo()->type);
 
-    if (targetScalarTypeName != TypeInfo::TypeName::Float && castedScalarTypeName == TypeInfo::TypeName::Float)
+    if (targetScalarTypeName != TypeInfo::TypeName::Double && castedScalarTypeName == TypeInfo::TypeName::Double)
+        return std::unexpected{ Error{ std::format("Implicit conversion from `{}` to `{}` may lead to loss of precision",
+            ToString(casted->GetType().GetTypeInfo()), ToString(target->GetType().GetTypeInfo())) } };
+    else if (targetScalarTypeName != TypeInfo::TypeName::Float && targetScalarTypeName != TypeInfo::TypeName::Double && 
+        castedScalarTypeName == TypeInfo::TypeName::Float)
         return std::unexpected{ Error{ std::format("Implicit conversion from `{}` to `{}` may lead to loss of precision",
             ToString(casted->GetType().GetTypeInfo()), ToString(target->GetType().GetTypeInfo())) } };
 

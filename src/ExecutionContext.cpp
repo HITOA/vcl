@@ -131,6 +131,7 @@ llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> VCL::ExecutionContext::DumpO
 void VCL::ExecutionContext::DefineIntrinsic() {
     llvm::orc::SymbolMap symbolMap{ 22 };
 
+    //Float
     ADD_MATH_SYMBOL(sqrtf);
     ADD_MATH_SYMBOL(sinf);
     ADD_MATH_SYMBOL(cosf);
@@ -145,7 +146,6 @@ void VCL::ExecutionContext::DefineIntrinsic() {
     ADD_MATH_SYMBOL(log10f);
     ADD_MATH_SYMBOL(log2f);
     ADD_MATH_SYMBOL(expf);
-    //ADD_MATH_SYMBOL(exp10f);
     ADD_MATH_SYMBOL(exp2f);
     ADD_MATH_SYMBOL(fabsf);
     ADD_MATH_SYMBOL(ceilf);
@@ -153,6 +153,28 @@ void VCL::ExecutionContext::DefineIntrinsic() {
     ADD_MATH_SYMBOL(roundf);
     ADD_MATH_SYMBOL(powf);
     ADD_MATH_SYMBOL(fmaf);
+    //Double
+    ADD_MATH_SYMBOL(sqrt);
+    ADD_MATH_SYMBOL(sin);
+    ADD_MATH_SYMBOL(cos);
+    ADD_MATH_SYMBOL(tan);
+    ADD_MATH_SYMBOL(asin);
+    ADD_MATH_SYMBOL(acos);
+    ADD_MATH_SYMBOL(atan);
+    ADD_MATH_SYMBOL(sinh);
+    ADD_MATH_SYMBOL(cosh);
+    ADD_MATH_SYMBOL(tanh);
+    ADD_MATH_SYMBOL(log);
+    ADD_MATH_SYMBOL(log10);
+    ADD_MATH_SYMBOL(log2);
+    ADD_MATH_SYMBOL(exp);
+    ADD_MATH_SYMBOL(exp2);
+    ADD_MATH_SYMBOL(fabs);
+    ADD_MATH_SYMBOL(ceil);
+    ADD_MATH_SYMBOL(floor);
+    ADD_MATH_SYMBOL(round);
+    ADD_MATH_SYMBOL(pow);
+    ADD_MATH_SYMBOL(fma);
 
     llvm::Error err = main->define(llvm::orc::absoluteSymbols(symbolMap));
 }

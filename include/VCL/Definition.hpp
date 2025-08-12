@@ -16,10 +16,12 @@
     DEF(Float,              "float") \
     DEF(Bool,               "bool") \
     DEF(Int,                "int") \
+    DEF(Double,             "double") \
     DEF(Void,               "void") \
     DEF(VectorFloat,        "vfloat") \
     DEF(VectorBool,         "vbool") \
     DEF(VectorInt,          "vint") \
+    DEF(VectorDouble,       "vdouble") \
     DEF(Array,              "array") \
     DEF(Span,               "span")
 
@@ -242,7 +244,8 @@ namespace VCL {
         }
 
         inline bool IsVector() const {
-            return type == TypeName::VectorFloat || type == TypeName::VectorBool || type == TypeName::VectorInt;
+            return type == TypeName::VectorFloat || type == TypeName::VectorBool || 
+                type == TypeName::VectorInt || type == TypeName::VectorDouble;
         }
 
         inline bool IsGivenByValue() const {

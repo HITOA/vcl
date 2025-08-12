@@ -14,6 +14,7 @@ namespace VCL {
             switch (typeInfo->type) {
             case TypeInfo::TypeName::Float:
             case TypeInfo::TypeName::Int:
+            case TypeInfo::TypeName::Double:
                 return true;
             }
         }
@@ -22,6 +23,7 @@ namespace VCL {
             switch (typeInfo->type) {
             case TypeInfo::TypeName::VectorFloat:
             case TypeInfo::TypeName::VectorInt:
+            case TypeInfo::TypeName::VectorDouble:
                 return true;
             }
         }
@@ -56,6 +58,8 @@ namespace VCL {
             {
             case TypeInfo::TypeName::Float:
             case TypeInfo::TypeName::VectorFloat:
+            case TypeInfo::TypeName::Double:
+            case TypeInfo::TypeName::VectorDouble:
                 return true;
             }
         }

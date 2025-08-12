@@ -420,7 +420,9 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(Float, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
-                BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFAdd),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFAdd)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Sub:
@@ -428,7 +430,9 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(Float, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSub),
-                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFSub),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFSub)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Mul:
@@ -436,7 +440,9 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(Float, CreateFMul),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFMul),
                 BINARY_DISPATCH_FUNCTION(Int, CreateMul),
-                BINARY_DISPATCH_FUNCTION(VectorInt, CreateMul)
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateMul),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFMul),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFMul)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Div:
@@ -444,7 +450,9 @@ void VCL::ModuleBuilder::VisitBinaryArithmeticExpression(ASTBinaryArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(Float, CreateFDiv),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFDiv),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSDiv),
-                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSDiv)
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSDiv),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFDiv),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFDiv)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Remainder:
@@ -524,7 +532,9 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(Bool, CreateICmpUGT),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOGT),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpUGT),
-                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpUGT)
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpUGT),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFCmpOGT),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFCmpOGT)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Less:
@@ -534,7 +544,9 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(Bool, CreateICmpULT),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOLT),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpULT),
-                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpULT)
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpULT),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFCmpOLT),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFCmpOLT)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::GreaterEqual:
@@ -544,7 +556,9 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(Bool, CreateICmpUGE),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOGE),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpUGE),
-                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpUGE)
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpUGE),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFCmpOGE),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFCmpOGE)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::LessEqual:
@@ -554,7 +568,9 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(Bool, CreateICmpULE),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOLE),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpULE),
-                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpULE)
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpULE),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFCmpOLE),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFCmpOLE)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::Equal:
@@ -564,7 +580,9 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(Bool, CreateICmpEQ),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpOEQ),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpEQ),
-                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpEQ)
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpEQ),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFCmpOEQ),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFCmpOEQ)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         case Operator::ID::NotEqual:
@@ -574,7 +592,9 @@ void VCL::ModuleBuilder::VisitBinaryComparisonExpression(ASTBinaryComparisonExpr
                 BINARY_DISPATCH_FUNCTION(Bool, CreateICmpNE),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFCmpONE),
                 BINARY_DISPATCH_FUNCTION(VectorInt, CreateICmpNE),
-                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpNE)
+                BINARY_DISPATCH_FUNCTION(VectorBool, CreateICmpNE),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFCmpONE),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFCmpONE)
             )(lhs->GetType().GetTypeInfo()->type, lhs->GetLLVMValue(), rhs->GetLLVMValue()), node->location);
             break;
         default:
@@ -639,7 +659,9 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 UNARY_DISPATCH_FUNCTION(Float, CreateFNeg),
                 UNARY_DISPATCH_FUNCTION(VectorFloat, CreateFNeg),
                 UNARY_DISPATCH_FUNCTION(Int, CreateNeg),
-                UNARY_DISPATCH_FUNCTION(VectorInt, CreateNeg)
+                UNARY_DISPATCH_FUNCTION(VectorInt, CreateNeg),
+                UNARY_DISPATCH_FUNCTION(Double, CreateFNeg),
+                UNARY_DISPATCH_FUNCTION(VectorDouble, CreateFNeg)
             )(expression->GetType().GetTypeInfo()->type, expression->GetLLVMValue()), node->location);
         break;
     case Operator::ID::PreIncrement:
@@ -652,7 +674,9 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(Float, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
-                BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFAdd),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFAdd)
             )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location);
             Handle<Value> incrementedValue = ThrowOnError(Value::Create(incrementedValueResult, expression->GetType(), context), node->location);
             
@@ -672,7 +696,9 @@ void VCL::ModuleBuilder::VisitPrefixArithmeticExpression(ASTPrefixArithmeticExpr
                 BINARY_DISPATCH_FUNCTION(Float, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSub),
-                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFSub),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFSub)
             )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location);
             Handle<Value> decrementedValue = ThrowOnError(Value::Create(decrementedValueResult, expression->GetType(), context), node->location);
             if (auto err = expression->Store(decrementedValue); err.has_value())
@@ -745,7 +771,9 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
                 BINARY_DISPATCH_FUNCTION(Float, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFAdd),
                 BINARY_DISPATCH_FUNCTION(Int, CreateAdd),
-                BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd)
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateAdd),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFAdd),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFAdd)
             )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location);
             Handle<Value> incrementedValue = ThrowOnError(Value::Create(incrementedValueResult, expression->GetType(), context), node->location);
             if (auto err = expression->Store(incrementedValue); err.has_value())
@@ -764,7 +792,9 @@ void VCL::ModuleBuilder::VisitPostfixArithmeticExpression(ASTPostfixArithmeticEx
                 BINARY_DISPATCH_FUNCTION(Float, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(VectorFloat, CreateFSub),
                 BINARY_DISPATCH_FUNCTION(Int, CreateSub),
-                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub)
+                BINARY_DISPATCH_FUNCTION(VectorInt, CreateSub),
+                BINARY_DISPATCH_FUNCTION(Double, CreateFSub),
+                BINARY_DISPATCH_FUNCTION(VectorDouble, CreateFSub)
             )(loadedExpression->GetType().GetTypeInfo()->type, loadedExpression->GetLLVMValue(), one->GetLLVMValue()), node->location);
             Handle<Value> decrementedValue = ThrowOnError(Value::Create(decrementedValueResult, expression->GetType(), context), node->location);
             if (auto err = expression->Store(decrementedValue); err.has_value())

@@ -53,6 +53,9 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Splat() {
         case TypeInfo::TypeName::Int:
             typeInfo->type = TypeInfo::TypeName::VectorInt;
             break;
+        case TypeInfo::TypeName::Double:
+            typeInfo->type = TypeInfo::TypeName::VectorDouble;
+            break;
         default:
             return Value::Create(value, type, context);
     }
@@ -86,21 +89,30 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::Cast(Type type) {
     TypeInfo::TypeName scalarTargetType = GetScalarTypeName(type.GetTypeInfo()->type);
 
     switch (scalarThisType) {
-        case TypeInfo::TypeName::Float: return Value::Create(context->GetIRBuilder().CreateFPToSI(value, type.GetLLVMType()), type, context);
+        case TypeInfo::TypeName::Float: 
+            if (scalarTargetType == TypeInfo::TypeName::Double)
+                return Value::Create(context->GetIRBuilder().CreateFPExt(value, type.GetLLVMType()), type, context);
+            else
+                return Value::Create(context->GetIRBuilder().CreateFPToSI(value, type.GetLLVMType()), type, context);
         case TypeInfo::TypeName::Int:
-            if (scalarTargetType == TypeInfo::TypeName::Float)
+            if (scalarTargetType == TypeInfo::TypeName::Float || scalarTargetType == TypeInfo::TypeName::Double)
                 return Value::Create(context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType()), type, context);
             else if (scalarTargetType == TypeInfo::TypeName::Bool)
                 return Value::Create(context->GetIRBuilder().CreateTrunc(value, type.GetLLVMType()), type, context);
             else
                 break;
         case TypeInfo::TypeName::Bool:
-            if (scalarTargetType == TypeInfo::TypeName::Float)
+            if (scalarTargetType == TypeInfo::TypeName::Float || scalarTargetType == TypeInfo::TypeName::Double)
                 return Value::Create(context->GetIRBuilder().CreateSIToFP(value, type.GetLLVMType()), type, context);
             else if (scalarTargetType == TypeInfo::TypeName::Int)
                 return Value::Create(context->GetIRBuilder().CreateZExt(value, type.GetLLVMType()), type, context);
             else
                 break;
+        case TypeInfo::TypeName::Double:
+            if (scalarTargetType == TypeInfo::TypeName::Float)
+                return Value::Create(context->GetIRBuilder().CreateFPTrunc(value, type.GetLLVMType()), type, context);
+            else
+                return Value::Create(context->GetIRBuilder().CreateFPToSI(value, type.GetLLVMType()), type, context);
         default: break;
     }
 

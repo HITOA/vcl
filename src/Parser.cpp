@@ -779,6 +779,10 @@ std::shared_ptr<VCL::TypeInfo> VCL::Parser::ParseTypeInfo(Lexer& lexer) {
                 typeInfo->type = TypeInfo::TypeName::Int;
                 complete = true;
                 break;
+            case TokenType::Double:
+                typeInfo->type = TypeInfo::TypeName::Double;
+                complete = true;
+                break;
             case TokenType::Void:
                 typeInfo->type = TypeInfo::TypeName::Void;
                 complete = true;
@@ -793,6 +797,10 @@ std::shared_ptr<VCL::TypeInfo> VCL::Parser::ParseTypeInfo(Lexer& lexer) {
                 break;
             case TokenType::VectorInt:
                 typeInfo->type = TypeInfo::TypeName::VectorInt;
+                complete = true;
+                break;
+            case TokenType::VectorDouble:
+                typeInfo->type = TypeInfo::TypeName::VectorDouble;
                 complete = true;
                 break;
             case TokenType::Array:

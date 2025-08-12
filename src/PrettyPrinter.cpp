@@ -82,10 +82,12 @@ namespace VCL {
             case TypeInfo::TypeName::Float: return qualifiers + "float";
             case TypeInfo::TypeName::Bool: return qualifiers + "bool";
             case TypeInfo::TypeName::Int: return qualifiers + "int";
+            case TypeInfo::TypeName::Double: return qualifiers + "double";
             case TypeInfo::TypeName::Void: return qualifiers + "void";
             case TypeInfo::TypeName::VectorFloat: return qualifiers + "vfloat";
             case TypeInfo::TypeName::VectorBool: return qualifiers + "vbool";
             case TypeInfo::TypeName::VectorInt: return qualifiers + "vint";
+            case TypeInfo::TypeName::VectorDouble: return qualifiers + "vdouble";
             case TypeInfo::TypeName::Array: {
                 std::string name{ "array<" };
                 bool b = false;

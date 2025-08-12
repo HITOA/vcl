@@ -78,6 +78,10 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
         type = llvm::Type::getInt32Ty(*context->GetTSContext().getContext());
         diType = context->GetDIBasicTypes()->intDIType;
         break;
+    case TypeInfo::TypeName::Double:
+        type = llvm::Type::getDoubleTy(*context->GetTSContext().getContext());
+        diType = context->GetDIBasicTypes()->doubleDIType;
+        break;
     case TypeInfo::TypeName::Void:
         type = llvm::Type::getVoidTy(*context->GetTSContext().getContext());
         diType = context->GetDIBasicTypes()->voidDIType;
@@ -96,6 +100,11 @@ std::expected<VCL::Type, VCL::Error> VCL::Type::Create(std::shared_ptr<TypeInfo>
         type = llvm::FixedVectorType::get(llvm::Type::getInt32Ty(*context->GetTSContext().getContext()), 
             NativeTarget::GetInstance()->GetMaxVectorElementWidth());
         diType = context->GetDIBasicTypes()->vintDIType;
+        break;
+    case TypeInfo::TypeName::VectorDouble:
+        type = llvm::FixedVectorType::get(llvm::Type::getDoubleTy(*context->GetTSContext().getContext()), 
+            NativeTarget::GetInstance()->GetMaxVectorElementWidth());
+        diType = context->GetDIBasicTypes()->vdoubleDIType;
         break;
     case TypeInfo::TypeName::Array:
         {
