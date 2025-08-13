@@ -14,16 +14,20 @@ std::expected<VCL::CastResult, VCL::Error> VCL::ArithmeticImplicitCast(Handle<Va
     if (lhs->GetType() == rhs->GetType())
         return CastResult{ lhs, casted };
 
-    if (!lhs->GetType().GetTypeInfo()->IsVector(); rhs->GetType().GetTypeInfo()->IsVector()) {
+    if (!lhs->GetType().GetTypeInfo()->IsVector() && rhs->GetType().GetTypeInfo()->IsVector()) {
         casted = lhs;
         target = rhs;
         isLHSCasted = true;
     } else if (lhs->GetType().GetTypeInfo()->IsVector() == rhs->GetType().GetTypeInfo()->IsVector()) {
         TypeInfo::TypeName lhsScalarTypeName = GetScalarTypeName(lhs->GetType().GetTypeInfo()->type);
         TypeInfo::TypeName rhsScalarTypeName = GetScalarTypeName(rhs->GetType().GetTypeInfo()->type);
-
-        if ((lhsScalarTypeName != TypeInfo::TypeName::Double && rhsScalarTypeName == TypeInfo::TypeName::Double) ||
-            (lhsScalarTypeName != TypeInfo::TypeName::Float && rhsScalarTypeName == TypeInfo::TypeName::Float)) {
+        
+        if (lhsScalarTypeName != TypeInfo::TypeName::Double && rhsScalarTypeName == TypeInfo::TypeName::Double) {
+            casted = lhs;
+            target = rhs;
+            isLHSCasted = true;
+        } else if (lhsScalarTypeName != TypeInfo::TypeName::Float && lhsScalarTypeName != TypeInfo::TypeName::Double && 
+                rhsScalarTypeName == TypeInfo::TypeName::Float) {
             casted = lhs;
             target = rhs;
             isLHSCasted = true;

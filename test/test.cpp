@@ -523,24 +523,28 @@ TEST_CASE( "VCL vdouble math", "[Cast][Arithmetic]" ) {
 
         VCL::VectorDoubleStorage a{};
         VCL::VectorFloatStorage b{};
+        VCL::FloatStorage c{ (float)rand() / (float)INT_MAX };
+        VCL::DoubleStorage d{ (float)rand() / (float)INT_MAX };
 
         VCL::VectorDoubleStorage result{};
         VCL::VectorDoubleStorage expectedResult{};
 
         for (size_t i = 0; i < a.GetElementCount(); ++i) {
-            a[i] = rand();
-            b[i] = rand();
-            expectedResult[i] = b[i] / a[i];
+            a[i] = (float)rand() / (float)INT_MAX;
+            b[i] = (float)rand() / (float)INT_MAX;
+            expectedResult[i] = (a[i] + d.Get()) * a[i] * 2 * b[i] * c.Get();
         }
 
         session->DefineExternSymbolStorage("a", &a);
         session->DefineExternSymbolStorage("b", &b);
+        session->DefineExternSymbolStorage("c", &c);
+        session->DefineExternSymbolStorage("d", &d);
         session->DefineExternSymbolStorage("result", &result);
 
         ((void(*)())(session->Lookup("Main")))();
 
         for (size_t i = 0; i < a.GetElementCount(); ++i) {
-            REQUIRE(result[i] == expectedResult[i]);
+            REQUIRE(fabs(result[i] - expectedResult[i]) < std::numeric_limits<double>::epsilon());
         }
     }
 }

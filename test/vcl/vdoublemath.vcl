@@ -4,9 +4,12 @@
 
 in vdouble a;
 in vfloat b;
+in float c;
+in double d;
 
 out vdouble result;
 
+
 void Main() {
-    result = b / a;
+    result = (a + d) * a * 2 * b * c;
 }
