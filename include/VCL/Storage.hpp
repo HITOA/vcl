@@ -52,7 +52,8 @@ namespace VCL {
             if (ptr != nullptr)
                 free(ptr);
             ptr = std::move(other.ptr);
-            other.ptr = nullptr;    
+            other.ptr = nullptr;
+            return *this;
         }
 
         virtual void* GetPtr() override { return ptr; }
@@ -99,7 +100,8 @@ namespace VCL {
                 ALIGNED_FREE(ptr);
             elemCount = std::move(other.elemCount);
             ptr = std::move(other.ptr);
-            other.ptr = nullptr;    
+            other.ptr = nullptr;
+            return *this;
         }
 
         virtual void* GetPtr() override { return ptr; }
