@@ -58,6 +58,18 @@ bool VCL::ImportDirective::ImportDirectiveMetaComponent::TrackImport(const std::
     return false;
 }
 
+void VCL::ImportDirective::ImportDirectiveMetaComponent::CopyTo(std::shared_ptr<MetaComponent> component) {
+    std::shared_ptr<ImportDirectiveMetaComponent> c = std::static_pointer_cast<ImportDirectiveMetaComponent>(component);
+    for (auto& import : imports)
+        c->imports.insert(import);
+}
+
+std::shared_ptr<VCL::MetaComponent> VCL::ImportDirective::ImportDirectiveMetaComponent::Clone() {
+    std::shared_ptr<ImportDirectiveMetaComponent> c = std::make_shared<ImportDirectiveMetaComponent>();
+    CopyTo(c);
+    return c;
+}
+
 std::string VCL::DefineDirective::GetDirectiveName() {
     return "define";
 }
@@ -117,6 +129,25 @@ bool VCL::DefineDirective::DefineDirectiveMetaComponent::AddDefineFloat(const st
     return AddDefine(name, std::move(expression));
 }
 
+void VCL::DefineDirective::DefineDirectiveMetaComponent::CopyTo(std::shared_ptr<MetaComponent> component) {
+    std::shared_ptr<DefineDirectiveMetaComponent> c = std::static_pointer_cast<DefineDirectiveMetaComponent>(component);
+    for (auto& define : defines) {
+        std::unique_ptr<ASTLiteralExpression> expression = nullptr;
+        switch(define.second->type) {
+            case TypeInfo::TypeName::Float:
+                expression = std::make_unique<ASTLiteralExpression>( define.second->fValue );
+            case TypeInfo::TypeName::Int:
+                expression = std::make_unique<ASTLiteralExpression>( define.second->iValue );
+        }
+        c->defines[define.first] = std::move(expression);
+    }
+}
+
+std::shared_ptr<VCL::MetaComponent> VCL::DefineDirective::DefineDirectiveMetaComponent::Clone() {
+    std::shared_ptr<DefineDirectiveMetaComponent> c = std::make_shared<DefineDirectiveMetaComponent>();
+    CopyTo(c);
+    return c;
+}
 
 std::string VCL::ConditionalDirective::GetDirectiveName() {
     return "if";

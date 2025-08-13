@@ -38,6 +38,9 @@ namespace VCL {
 
             bool TrackImport(const std::string& path);
 
+            virtual void CopyTo(std::shared_ptr<MetaComponent> component) override;
+            virtual std::shared_ptr<MetaComponent> Clone() override;
+
         private:
             std::unordered_set<std::string> imports{};
         };
@@ -74,6 +77,9 @@ namespace VCL {
             bool AddDefineFlag(const std::string& name);
             bool AddDefineInt(const std::string& name, int value);
             bool AddDefineFloat(const std::string& name, float value);
+
+            virtual void CopyTo(std::shared_ptr<MetaComponent> component) override;
+            virtual std::shared_ptr<MetaComponent> Clone() override;
 
         public:
             std::unordered_map<std::string, std::unique_ptr<ASTLiteralExpression>> defines{};

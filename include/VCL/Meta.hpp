@@ -11,7 +11,11 @@ namespace VCL {
     class Parser;
     class ModuleContext;
     
-    class MetaComponent {};
+    class MetaComponent {
+    public:
+        virtual void CopyTo(std::shared_ptr<MetaComponent> component) = 0;
+        virtual std::shared_ptr<MetaComponent> Clone() = 0;
+    };
 
     class MetaState {
     public:
@@ -27,6 +31,9 @@ namespace VCL {
             components.insert({ index, component });
             return component;
         }
+
+        void CopyTo(std::shared_ptr<MetaState> state);
+        std::shared_ptr<MetaState> Clone();
 
         static std::shared_ptr<MetaState> Create();
 
