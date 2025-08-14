@@ -162,10 +162,12 @@ VCL::Intrinsic::Intrinsic(std::unique_ptr<IntrinsicImpl> impl, Type type, Module
 
 std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Intrinsic::Call(std::vector<Handle<Value>>& argsv) {
     for (size_t i = 0; i < argsv.size(); ++i) {
-        if (auto loadedArgv = argsv[i]->Load(); loadedArgv.has_value())
-            argsv[i] = *loadedArgv;
-        else
-            return std::unexpected{ loadedArgv.error() };
+        if (!IsArgGivenByReference(i)) {
+            if (auto loadedArgv = argsv[i]->Load(); loadedArgv.has_value())
+                argsv[i] = *loadedArgv;
+            else
+                return std::unexpected{ loadedArgv.error() };
+        }
     }
     return impl->Call(argsv, GetModuleContext());
 }
@@ -176,6 +178,10 @@ bool VCL::Intrinsic::CheckArgType(uint32_t index, Type type) {
 
 bool VCL::Intrinsic::CheckArgCount(uint32_t count) {
     return impl->CheckArgCount(count);
+}
+
+bool VCL::Intrinsic::IsArgGivenByReference(uint32_t index) {
+    return impl->IsArgGivenByReference(index);
 }
 
 VCL::CallableType VCL::Intrinsic::GetCallableType() {

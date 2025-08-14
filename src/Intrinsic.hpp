@@ -41,6 +41,7 @@ namespace VCL {
         virtual std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv, ModuleContext* context) = 0;
         virtual bool CheckArgType(uint32_t index, Type type) = 0;
         virtual bool CheckArgCount(uint32_t count) = 0;
+        virtual bool IsArgGivenByReference(uint32_t index) { return false; };
     };
 
     class Intrinsic : public Callable {
@@ -57,6 +58,8 @@ namespace VCL {
         bool CheckArgType(uint32_t index, Type type) override;
 
         bool CheckArgCount(uint32_t count) override;
+
+        bool IsArgGivenByReference(uint32_t index);
 
         CallableType GetCallableType() override;
 

@@ -986,7 +986,7 @@ void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
     }
 
     for (uint32_t i = 0; i < argsv.size(); ++i) {
-        if (!callee->CheckArgType(i, argsv[i]->GetType()))
+        if (!callee->CheckArgType(i, argsv[i]->GetType())) {
             if (callee->GetCallableType() == CallableType::Function) {
                 if (HandleCast<Function>(callee)->GetArgType(i).GetTypeInfo()->IsGivenByReference() && !argsv[i]->GetType().IsPointerType()) {
                     throw Exception{ "Cannot pass r-value by reference.", node->location };
@@ -998,6 +998,7 @@ void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
             } else {
                 throw Exception{ std::format("Argument number {} is of wrong type", i), node->location };
             }
+        }
     }
     
     SetCurrentDebugLocation(context, node);

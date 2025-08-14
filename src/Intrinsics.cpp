@@ -4,8 +4,10 @@
 #include "Utility.hpp"
 
 #include <VCL/Debug.hpp>
+#include <VCL/NativeTarget.hpp>
 
 #include <format>
+#include <iostream>
 
 #define DEFINE_UNARY_INTRINSIC(name, intrinsic) sm.PushNamedValue(name, ThrowOnErrorRE(Intrinsic::CreateUnaryIntrinsic(intrinsic, context)))
 #define DEFINE_BINARY_INTRINSIC(name, intrinsic) sm.PushNamedValue(name, ThrowOnErrorRE(Intrinsic::CreateBinaryIntrinsic(intrinsic, context)))
@@ -38,8 +40,6 @@ namespace VCL {
         bool CheckArgCount(uint32_t count) override {
             return count == 2;
         }
-    private:
-        llvm::Intrinsic::ID intrinsicId;
     };
 
     class SelectIntrinsicImpl : public IntrinsicImpl {
@@ -72,8 +72,6 @@ namespace VCL {
         bool CheckArgCount(uint32_t count) override {
             return count == 3;
         }
-    private:
-        llvm::Intrinsic::ID intrinsicId;
     };
 
     class LenIntrinsicImpl : public IntrinsicImpl {
@@ -92,21 +90,128 @@ namespace VCL {
                     return Value::Create(idx, *t, context);
                 else
                     return std::unexpected{ t.error() };
+            } else if (value->GetType().GetTypeInfo()->IsVector()) {
+                uint32_t vectorElementWidth = NativeTarget::GetInstance()->GetMaxVectorElementWidth();
+                return Value::CreateConstantInt32((int)vectorElementWidth, context);
             } else {
                 return std::unexpected{ Error{ std::format("Cannot take length of `{}`.", ToString(value->GetType().GetTypeInfo())) } };
             }
         }
         
         bool CheckArgType(uint32_t index, Type type) override {
-            IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Buffer};
+            IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Buffer | IntrinsicArgumentPolicy::Vector };
             return policy(type);
         }
 
         bool CheckArgCount(uint32_t count) override {
             return count == 1;
         }
-    private:
-        llvm::Intrinsic::ID intrinsicId;
+    };
+
+    class ExtractIntrinsicImpl : public IntrinsicImpl {
+    public:
+        std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv, ModuleContext* context) override {
+            Handle<Value> vector = argsv[0];
+            Handle<Value> index = argsv[1];
+            std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+            typeInfo->type = GetScalarTypeName(vector->GetType().GetTypeInfo()->type);
+            if (auto t = Type::Create(typeInfo, context); t.has_value())
+                return Value::Create(context->GetIRBuilder().CreateExtractElement(
+                    vector->GetLLVMValue(), index->GetLLVMValue()), *t, context);
+            else
+                return std::unexpected{ t.error() };
+        }
+        
+        bool CheckArgType(uint32_t index, Type type) override {
+            if (index == 0)
+                return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Vector }(type);
+            return type.GetTypeInfo()->type == TypeInfo::TypeName::Int;
+        }
+
+        bool CheckArgCount(uint32_t count) override {
+            return count == 2;
+        }
+    };
+
+    class InsertIntrinsicImpl : public IntrinsicImpl {
+    public:
+        std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv, ModuleContext* context) override {
+            Handle<Value> vector = argsv[0];
+            Handle<Value> index = argsv[1];
+            Handle<Value> value = argsv[2];
+
+            if (value->GetType().GetTypeInfo()->type != GetScalarTypeName(vector->GetType().GetTypeInfo()->type))
+                return std::unexpected{ VCL::Error{ std::format("Cannot insert an element of type `{}` into a vector of type `{}`",
+                    ToString(value->GetType().GetTypeInfo()), ToString(vector->GetType().GetTypeInfo())) } };
+            if (auto r = vector->Load(); r.has_value()) {
+                llvm::Value* inserted = context->GetIRBuilder().CreateInsertElement((*r)->GetLLVMValue(), value->GetLLVMValue(), index->GetLLVMValue());
+                context->GetIRBuilder().CreateStore(inserted, vector->GetLLVMValue());
+                return vector;
+            } else {
+                return std::unexpected{ r.error() };
+            }
+        }
+        
+        bool CheckArgType(uint32_t index, Type type) override {
+            if (index == 0)
+                return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Vector }(type);
+            else if (index == 1)
+                return type.GetTypeInfo()->type == TypeInfo::TypeName::Int;
+            return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Numeric }(type);
+        }
+
+        bool CheckArgCount(uint32_t count) override {
+            return count == 3;
+        }
+
+        bool IsArgGivenByReference(uint32_t index) override { 
+            if (index == 0)
+                return true;
+            return false; 
+        };
+    };
+
+    class StepIntrinsicImpl : public IntrinsicImpl {
+    public:
+        std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv, ModuleContext* context) override {
+            std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+            typeInfo->type = TypeInfo::TypeName::VectorInt;
+            if (auto t = Type::Create(typeInfo, context); t.has_value()) {
+                return Value::Create(context->GetIRBuilder().CreateStepVector(t->GetLLVMType()), *t, context);
+            } else {
+                return std::unexpected{ t.error() };
+            }
+        }
+        
+        bool CheckArgType(uint32_t index, Type type) override {
+            return true;
+        }
+
+        bool CheckArgCount(uint32_t count) override {
+            return count == 0;
+        }
+    };
+
+    class ReverseIntrinsicImpl : public IntrinsicImpl {
+    public:
+        std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv, ModuleContext* context) override {
+            Handle<Value> vector = argsv[0];
+            std::shared_ptr<TypeInfo> typeInfo = std::make_shared<TypeInfo>();
+            typeInfo->type = vector->GetType().GetTypeInfo()->type;
+            if (auto t = Type::Create(typeInfo, context); t.has_value()) {
+                return Value::Create(context->GetIRBuilder().CreateVectorReverse(vector->GetLLVMValue()), *t, context);
+            } else {
+                return std::unexpected{ t.error() };
+            }
+        }
+        
+        bool CheckArgType(uint32_t index, Type type) override {
+            return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Vector }(type);
+        }
+
+        bool CheckArgCount(uint32_t count) override {
+            return count == 1;
+        }
     };
 
 }
@@ -120,6 +225,8 @@ inline T ThrowOnErrorRE(std::expected<T, VCL::Error> value) {
 
 void VCL::Intrinsics::Register(ModuleContext* context) {
     ScopeManager& sm = context->GetScopeManager();
+
+    sm.PushNamedValue("step", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<StepIntrinsicImpl>(), context)));
 
     DEFINE_UNARY_INTRINSIC("sqrt",      llvm::Intrinsic::sqrt);
     DEFINE_UNARY_INTRINSIC("sin",       llvm::Intrinsic::sin);
@@ -142,10 +249,13 @@ void VCL::Intrinsics::Register(ModuleContext* context) {
     DEFINE_UNARY_INTRINSIC("floor",     llvm::Intrinsic::floor);
     DEFINE_UNARY_INTRINSIC("round",     llvm::Intrinsic::round);
     sm.PushNamedValue("len", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<LenIntrinsicImpl>(), context)));
+    sm.PushNamedValue("reverse", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<ReverseIntrinsicImpl>(), context)));
     
     DEFINE_BINARY_INTRINSIC("pow",      llvm::Intrinsic::pow);
     sm.PushNamedValue("fmod", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<FModIntrinsicImpl>(), context)));
+    sm.PushNamedValue("extract", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<ExtractIntrinsicImpl>(), context)));
 
     DEFINE_TRINARY_INTRINSIC("fma",     llvm::Intrinsic::fma);
     sm.PushNamedValue("select", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<SelectIntrinsicImpl>(), context)));
+    sm.PushNamedValue("insert", ThrowOnErrorRE(Intrinsic::Create(std::make_unique<InsertIntrinsicImpl>(), context)));
 }

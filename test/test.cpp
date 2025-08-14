@@ -548,3 +548,50 @@ TEST_CASE( "VCL vdouble math", "[Cast][Arithmetic]" ) {
         }
     }
 }
+
+TEST_CASE( "VCL extract insert", "[Intrinsic]" ) {
+    MAKE_VCL("./vcl/extractinsert.vcl");
+    
+    SECTION("Value check") {
+
+        VCL::VectorFloatStorage a{};
+        VCL::VectorDoubleStorage b{};
+
+        VCL::VectorDoubleStorage result{};
+        VCL::VectorDoubleStorage expectedResult{};
+
+        for (size_t i = 0; i < expectedResult.GetElementCount(); ++i) {
+            a[i] = (float)rand() / (float)INT_MAX;
+            b[i] = (float)rand() / (float)INT_MAX;
+            expectedResult[i] = a[i] * b[i] / (double)(i + 1);
+        }
+
+        session->DefineExternSymbolStorage("a", &a);
+        session->DefineExternSymbolStorage("b", &b);
+        session->DefineExternSymbolStorage("result", &result);
+
+        ((void(*)())(session->Lookup("Main")))();
+
+        for (size_t i = 0; i < a.GetElementCount(); ++i) {
+            REQUIRE(fabs(result[i] - expectedResult[i]) < std::numeric_limits<double>::epsilon());
+        }
+    }
+}
+
+
+TEST_CASE( "VCL step reverse", "[Intrinsic]" ) {
+    MAKE_VCL("./vcl/stepreverse.vcl");
+    
+    SECTION("Value check") {
+
+        VCL::VectorIntStorage output{};
+
+        session->DefineExternSymbolStorage("output", &output);
+
+        ((void(*)())(session->Lookup("Main")))();
+
+        for (size_t i = 0; i < output.GetElementCount(); ++i) {
+            REQUIRE(output[i] == (7 - i));
+        }
+    }
+}
