@@ -39,7 +39,14 @@ void VCL::StaticExpressionVisitor::VisitPrefixArithmeticExpression(ASTPrefixArit
 }
 
 void VCL::StaticExpressionVisitor::VisitPrefixLogicalExpression(ASTPrefixLogicalExpression* node) {
-
+    node->expression->Accept(this);
+    switch (node->op) {
+        case Operator::ID::Not:
+            lastValueDefined = !lastValueDefined;
+            if (lastValueType == LastValueType::Flag)   
+                lastFlagValue = !lastFlagValue;
+            break;
+    }
 }
 
 void VCL::StaticExpressionVisitor::VisitPostfixArithmeticExpression(ASTPostfixArithmeticExpression* node) {

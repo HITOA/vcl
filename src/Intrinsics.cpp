@@ -32,9 +32,9 @@ namespace VCL {
             return Value::Create(r, argsv[0]->GetType(), context);
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
             IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Numeric | IntrinsicArgumentPolicy::Vector };
-            return policy(type);
+            return policy(value->GetType());
         }
 
         bool CheckArgCount(uint32_t count) override {
@@ -62,11 +62,11 @@ namespace VCL {
                 return std::unexpected(v2.error());
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
             IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Numeric | IntrinsicArgumentPolicy::Vector };
             if (index == 0)
                 policy.policy = IntrinsicArgumentPolicy::Mask;
-            return policy(type);
+            return policy(value->GetType());
         }
 
         bool CheckArgCount(uint32_t count) override {
@@ -98,9 +98,9 @@ namespace VCL {
             }
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
             IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::Buffer | IntrinsicArgumentPolicy::Vector };
-            return policy(type);
+            return policy(value->GetType());
         }
 
         bool CheckArgCount(uint32_t count) override {
@@ -122,10 +122,10 @@ namespace VCL {
                 return std::unexpected{ t.error() };
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
             if (index == 0)
-                return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Vector }(type);
-            return type.GetTypeInfo()->type == TypeInfo::TypeName::Int;
+                return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Vector }(value->GetType());
+            return value->GetType().GetTypeInfo()->type == TypeInfo::TypeName::Int;
         }
 
         bool CheckArgCount(uint32_t count) override {
@@ -152,12 +152,12 @@ namespace VCL {
             }
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
             if (index == 0)
-                return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Vector }(type);
+                return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Vector }(value->GetType());
             else if (index == 1)
-                return type.GetTypeInfo()->type == TypeInfo::TypeName::Int;
-            return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Numeric }(type);
+                return value->GetType().GetTypeInfo()->type == TypeInfo::TypeName::Int;
+            return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Numeric }(value->GetType());
         }
 
         bool CheckArgCount(uint32_t count) override {
@@ -183,7 +183,7 @@ namespace VCL {
             }
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
             return true;
         }
 
@@ -205,8 +205,8 @@ namespace VCL {
             }
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
-            return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Vector }(type);
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
+            return IntrinsicArgumentPolicy{ IntrinsicArgumentPolicy::Vector }(value->GetType());
         }
 
         bool CheckArgCount(uint32_t count) override {

@@ -1,6 +1,8 @@
 #include <VCL/Parser.hpp>
 #include <VCL/Error.hpp>
 
+#include "String.hpp"
+
 #include <expected>
 #include <iostream>
 
@@ -897,7 +899,7 @@ void VCL::Parser::ParseAttributeValues(Lexer& lexer, Attribute& attribute) {
         attribute.values.emplace_back(std::stoi(tokenStr));
         return;
     } else if (token.type == TokenType::LiteralString) {
-        attribute.values.emplace_back(tokenStr);
+        attribute.values.emplace_back(ParseRawString(tokenStr));
         return;
     } else if (token.type == TokenType::LPar) {
         do {

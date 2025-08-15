@@ -76,9 +76,9 @@ namespace VCL {
             return Value::Create(r, argsv[0]->GetType(), context);
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
             IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::FloatOnly };
-            return policy(type);
+            return policy(value->GetType());
         }
 
         bool CheckArgCount(uint32_t count) override {
@@ -108,9 +108,9 @@ namespace VCL {
             return Value::Create(r, argsv[0]->GetType(), context);
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
             IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::FloatOnly };
-            return policy(type);
+            return policy(value->GetType());
         }
 
         bool CheckArgCount(uint32_t count) override {
@@ -140,9 +140,9 @@ namespace VCL {
             return Value::Create(r, argsv[0]->GetType(), context);
         }
         
-        bool CheckArgType(uint32_t index, Type type) override {
+        bool CheckArgType(uint32_t index, Handle<Value> value) override {
             IntrinsicArgumentPolicy policy{ IntrinsicArgumentPolicy::FloatOnly };
-            return policy(type);
+            return policy(value->GetType());
         }
 
         bool CheckArgCount(uint32_t count) override {
@@ -172,8 +172,8 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Intrinsic::Call(std::vec
     return impl->Call(argsv, GetModuleContext());
 }
 
-bool VCL::Intrinsic::CheckArgType(uint32_t index, Type type) {
-    return impl->CheckArgType(index, type);
+bool VCL::Intrinsic::CheckArgType(uint32_t index, Handle<Value> value) {
+    return impl->CheckArgType(index, value);
 }
 
 bool VCL::Intrinsic::CheckArgCount(uint32_t count) {

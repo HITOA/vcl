@@ -21,7 +21,7 @@ std::shared_ptr<VCL::TypeInfo> VCL::Type::GetTypeInfo() const {
 }
 
 bool VCL::Type::IsPointerType() const {
-    return isPointer;
+    return type->isPointerTy() || isPointer;
 }
 
 void VCL::Type::SetPointer() {

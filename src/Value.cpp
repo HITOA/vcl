@@ -181,7 +181,6 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateGlobalVaria
     //value->setAlignment(llvm::Align(NativeTarget::GetInstance()->GetMaxVectorByteWidth()));
     if (!isExtern)
         value->setDSOLocal(true);
-    type.SetPointer();
 
     return Value::Create(value, type, context);
 }
@@ -211,7 +210,6 @@ std::expected<VCL::Handle<VCL::Value>, VCL::Error> VCL::Value::CreateLocalVariab
             return std::unexpected(t.error());
     }
 
-    type.SetPointer();
     return Value::Create(alloca, type, context);
 }
 

@@ -40,7 +40,7 @@ namespace VCL {
          * This might be better to use instead of manually checking with GetArgType
          * because some callable might support more than one arguments type.
          */
-        virtual bool CheckArgType(uint32_t index, Type type) = 0;
+        virtual bool CheckArgType(uint32_t index, Handle<Value> value) = 0;
 
         /**
          * @brief Check if the given number of argument are valid for this callable.
@@ -72,7 +72,7 @@ namespace VCL {
         
         std::expected<Handle<Value>, Error> Call(std::vector<Handle<Value>>& argsv) override;
 
-        bool CheckArgType(uint32_t index, Type type) override;
+        bool CheckArgType(uint32_t index, Handle<Value> value) override;
 
         bool CheckArgCount(uint32_t count) override;
 

@@ -833,6 +833,7 @@ void VCL::ModuleBuilder::VisitFieldAccessExpression(ASTFieldAccessExpression* no
         llvm::Value* r = context->GetIRBuilder().CreateStructGEP(structDefinition->GetType(), expression->GetLLVMValue(), fieldIndex, fieldName);
         
         Type fieldType = structDefinition->GetFieldType(fieldIndex);
+        fieldType.SetPointer();
         lastReturnedValue = ThrowOnError(Value::Create(r, fieldType, context), node->location);
     } else {
         throw std::runtime_error{ "Compiler internal error." };
@@ -986,10 +987,11 @@ void VCL::ModuleBuilder::VisitFunctionCall(ASTFunctionCall* node) {
     }
 
     for (uint32_t i = 0; i < argsv.size(); ++i) {
-        if (!callee->CheckArgType(i, argsv[i]->GetType())) {
+        if (!callee->CheckArgType(i, argsv[i])) {
             if (callee->GetCallableType() == CallableType::Function) {
-                if (HandleCast<Function>(callee)->GetArgType(i).GetTypeInfo()->IsGivenByReference() && !argsv[i]->GetType().IsPointerType()) {
-                    throw Exception{ "Cannot pass r-value by reference.", node->location };
+                if (HandleCast<Function>(callee)->GetArgType(i).GetTypeInfo()->IsGivenByReference() && !argsv[i]->IsAssignable()) {
+                    argsv[i]->GetLLVMValue()->dump();
+                    throw Exception{ "Cannot pass r-value by reference.", node->arguments[i]->location };
                 } else if (HandleCast<Function>(callee)->GetArgType(i).GetTypeInfo()->IsGivenByValue()) {
                     argsv[i] = ThrowOnError(argsv[i]->Cast(HandleCast<Function>(callee)->GetArgType(i)), node->location);
                 } else {

@@ -44,10 +44,10 @@ bool VCL::Function::CheckArgCount(uint32_t count) {
     return count == argsType.size();
 }
 
-bool VCL::Function::CheckArgType(uint32_t index, Type type) {
-    if (argsType[index].type.GetTypeInfo()->IsGivenByReference() && !type.IsPointerType())
+bool VCL::Function::CheckArgType(uint32_t index, Handle<Value> value) {
+    if (argsType[index].type.GetTypeInfo()->IsGivenByReference() && !value->IsAssignable())
         return false;
-    return argsType[index].type == type;
+    return argsType[index].type == value->GetType();
 }
 
 VCL::CallableType VCL::Function::GetCallableType() {
