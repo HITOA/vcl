@@ -1,0 +1,13 @@
+#ifndef SOURCE_ERROR
+    #define SOURCE_ERROR(x, y)
+#endif
+#ifndef LEXER_ERROR
+    #define LEXER_ERROR(x, y)
+#endif
+
+SOURCE_ERROR(FileNotFound,                  "File not found")
+SOURCE_ERROR(MemoryBufferCreationFailed,    "Memory buffer creation failed")
+SOURCE_ERROR(InvalidSourceID,               "Invalid source id")
+
+LEXER_ERROR(InvalidCharacter,               "Invalid character")
+LEXER_ERROR(UnterminatedString,             "Unterminated string")
