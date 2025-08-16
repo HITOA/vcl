@@ -5,11 +5,11 @@
     #define PUNCTUATOR(x, y) TOK(x)
 #endif
 #ifndef KEYWORD
-    #define KEYWORD(x) TOK(Keyword_ ## x)
+    #define KEYWORD(x) TOK(Keyword_##x)
 #endif
 
 TOK(Unknown)
-TOK(EndOfLine)
+TOK(EndOfFile)
 TOK(Comment)
 TOK(Identifier)
 TOK(NumericConstant)
@@ -66,3 +66,7 @@ KEYWORD(int32)
 KEYWORD(int64)
 KEYWORD(bool)
 KEYWORD(void)
+
+#undef TOK
+#undef PUNCTUATOR
+#undef KEYWORD

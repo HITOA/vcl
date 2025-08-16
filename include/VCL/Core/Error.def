@@ -11,3 +11,7 @@ SOURCE_ERROR(InvalidSourceID,               "Invalid source id")
 
 LEXER_ERROR(InvalidCharacter,               "Invalid character")
 LEXER_ERROR(UnterminatedString,             "Unterminated string")
+LEXER_ERROR(NumericConstantTooMuchText,     "Too much text after expected end of numeric constant")
+
+#undef SOURCE_ERROR
+#undef LEXER_ERROR
