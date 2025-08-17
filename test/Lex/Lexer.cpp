@@ -13,6 +13,15 @@ void LexerTokenKindTest(VCL::TokenKind kind, llvm::StringRef value) {
     REQUIRE(token.kind == kind);
 }
 
+void LexerTokenErrorTest(VCL::LexerError error, llvm::StringRef value) {
+    VCL::Handle<VCL::Source> source = *VCL::Source::LoadFromMemory(value);
+    VCL::Lexer lexer{ source->GetBufferRef() };
+    VCL::Token token{};
+    VCL::LexerError err = lexer.Lex(token);
+    REQUIRE(err == error);
+}
+
+
 TEST_CASE("Lexer Token Check EndOfFile", "[Lexer][Token]") {
     LexerTokenKindTest(VCL::TokenKind::EndOfFile, "");
 }
@@ -40,3 +49,16 @@ TEST_CASE("Lexer Token Check Numeric Constant", "[Lexer][Token]") {
     LexerTokenKindTest(VCL::TokenKind::x, y);\
 }
 #include <VCL/Core/TokenKind.def>
+
+TEST_CASE("Lexer Token Check Unterminated String", "[Lexer][Token]") {
+    LexerTokenErrorTest(VCL::LexerError::UnterminatedString, "\"Unterminated String");
+    LexerTokenErrorTest(VCL::LexerError::UnterminatedString, "\"Unterminated String\n\"");
+}
+
+TEST_CASE("Lexer Token Check Invalid Character", "[Lexer][Token]") {
+    LexerTokenErrorTest(VCL::LexerError::InvalidCharacter, "§");
+}
+
+TEST_CASE("Lexer Token Check Numeric Constant Too Much Text", "[Lexer][Token]") {
+    LexerTokenErrorTest(VCL::LexerError::NumericConstantTooMuchText, "234.2302.423");
+}

@@ -46,8 +46,6 @@ namespace VCL {
         inline llvm::StringRef GetBufferIdentifier() const {
             return buffer->getBufferIdentifier();
         }
-        
-        std::pair<uint32_t, uint32_t> GetLineColumn(uint32_t offset) const;
 
         /** 
          * Load a Source from disk.
@@ -60,13 +58,9 @@ namespace VCL {
          * a name can also be given and will be the Source's buffer identifier.
          */
         static std::expected<Handle<Source>, SourceError> LoadFromMemory(llvm::StringRef buffer, llvm::StringRef name = "");
-
-    private:
-        void CalculateLineOffsets();
         
     private:
         std::unique_ptr<llvm::MemoryBuffer> buffer{};
-        std::vector<uint32_t> lineOffsets{};
     };
 
 }
