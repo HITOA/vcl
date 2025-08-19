@@ -1,7 +1,5 @@
 #pragma once
 
-#include <VCL/Core/Handle.hpp>
-#include <VCL/Core/SourceError.hpp>
 #include <VCL/Core/SourceLocation.hpp>
 
 #include <llvm/ADT/StringRef.h>
@@ -24,13 +22,14 @@ namespace VCL {
      */
     class Source {
     public:
-        Source() = default;
-        Source(const Source& source) = default;
-        Source(Source&& source) = default;
+        Source() = delete;
+        Source(std::unique_ptr<llvm::MemoryBuffer> buffer) : buffer{ std::move(buffer) } {}
+        Source(const Source& other) = delete;
+        Source(Source&& other) = default;
         ~Source() = default;
 
-        inline Source& operator=(const Source& source) = default;
-        inline Source& operator=(Source&& source) = default;
+        inline Source& operator=(const Source& other) = delete;
+        inline Source& operator=(Source&& other) = default;
 
         /** Get a reference to the stored MemoryBuffer containing the source */
         inline llvm::MemoryBufferRef GetBufferRef() const {
@@ -46,18 +45,6 @@ namespace VCL {
         inline llvm::StringRef GetBufferIdentifier() const {
             return buffer->getBufferIdentifier();
         }
-
-        /** 
-         * Load a Source from disk.
-         * If this file doesn't exist or cannot be opened, a SourceError with the corresponding
-         * error will be returned instead.
-         */
-        static std::expected<Handle<Source>, SourceError> LoadFromDisk(llvm::StringRef path);
-        /**
-         * Load a Source from memory from the given buffer.
-         * a name can also be given and will be the Source's buffer identifier.
-         */
-        static std::expected<Handle<Source>, SourceError> LoadFromMemory(llvm::StringRef buffer, llvm::StringRef name = "");
         
     private:
         std::unique_ptr<llvm::MemoryBuffer> buffer{};

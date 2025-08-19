@@ -12,4 +12,15 @@ namespace VCL {
         TokenKindMax
     };
 
+    /**
+     * Get the name of the given enum value as a string
+     */
+    inline const char* ToString(TokenKind kind) {
+        switch (kind) {
+            #define TOK(x) case TokenKind::x: return #x;
+            #include <VCL/Core/TokenKind.def>
+            default: return "Unknown";
+        }
+    }
+
 }

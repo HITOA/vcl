@@ -3,54 +3,50 @@
 #include <VCL/Lex/TokenKindLookup.hpp>
 
 
-VCL::Lexer::Lexer(const llvm::MemoryBufferRef& buffer) {
+VCL::Lexer::Lexer(const llvm::MemoryBufferRef& buffer, DiagnosticReporter& reporter) : reporter{ reporter } {
     range.start = (uintptr_t)buffer.getBufferStart();
     range.end = (uintptr_t)buffer.getBufferEnd();
     currentLocation = range.start;
 }
 
-VCL::Lexer::Lexer(const SourceRange& range) : range{ range } {
+VCL::Lexer::Lexer(const SourceRange& range, DiagnosticReporter& reporter) : range{ range }, reporter{ reporter } {
     currentLocation = range.start;
 }
 
-void VCL::Lexer::Seek(SourceLocation location) {
-    currentLocation = location;
-}
-
-VCL::LexerError VCL::Lexer::Lex(Token& token) noexcept {
+bool VCL::Lexer::Lex(Token& token) noexcept {
     while (currentLocation < range.end && isspace(currentLocation.GetChar()))
         ++currentLocation;
     if (currentLocation >= range.end) {
         token.kind = TokenKind::EndOfFile;
         token.range.start = currentLocation;
         token.range.end = currentLocation;
-        return LexerError::None;
+        return true;
     }
     char currentChar = currentLocation.GetChar();
     if (isalpha(currentChar) || currentChar == '_') {
-        if (LexerError err = LexIdentifier(token); err != LexerError::None) {
+        if (!LexIdentifier(token)) {
             currentLocation = token.range.end;
-            return err;
+            return false;
         }
         currentLocation = token.range.end;
         return LexKeyword(token);
     } else if (currentChar == '\"') {
-        LexerError err = LexString(token);
+        bool r = LexString(token);
         currentLocation = token.range.end;
-        return err;
+        return r;
     } else if (isdigit(currentChar)) {
-        LexerError err = LexNumeric(token);
+        bool r = LexNumeric(token);
         currentLocation = token.range.end;
-        return err;
+        return r;
     }
 
     // Must be a punctuator
-    LexerError err = LexPunctuator(token);
+    bool r = LexPunctuator(token);
     currentLocation = token.range.end;
-    return err;
+    return r;
 }
 
-VCL::LexerError VCL::Lexer::LexIdentifier(Token& token) noexcept {
+bool VCL::Lexer::LexIdentifier(Token& token) noexcept {
     token.kind = TokenKind::Identifier;
     token.range.start = currentLocation;
     token.range.end = currentLocation;
@@ -59,19 +55,19 @@ VCL::LexerError VCL::Lexer::LexIdentifier(Token& token) noexcept {
         ++token.range.end; 
         c = token.range.end.GetChar();
     }
-    return LexerError::None;
+    return true;
 }
 
-VCL::LexerError VCL::Lexer::LexKeyword(Token& token) noexcept {
+bool VCL::Lexer::LexKeyword(Token& token) noexcept {
     const char* startPtr = token.range.start.GetPtr();
     const char* endPtr = token.range.end.GetPtr();
     llvm::StringRef name{ startPtr, (size_t)(endPtr - startPtr) };
     if (TokenKind kind = TokenKindLookupKeyword(name); kind != TokenKind::Unknown)
         token.kind = kind;
-    return LexerError::None;
+    return true;
 }
 
-VCL::LexerError VCL::Lexer::LexString(Token& token) noexcept {
+bool VCL::Lexer::LexString(Token& token) noexcept {
     token.kind = TokenKind::StringLiteral;
     token.range.start = currentLocation;
     token.range.end = currentLocation;
@@ -79,19 +75,22 @@ VCL::LexerError VCL::Lexer::LexString(Token& token) noexcept {
         ++token.range.end;
         char c = token.range.end.GetChar();
         if (c == '\"')
-            return LexerError::None;
+            return true;
         if (c == '\n')
-            return LexerError::UnterminatedString;
+            return reporter.Error(Diagnostic::UnterminatedString, 
+                std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });
         if (c == '\\') {
             ++token.range.end;
             if (token.range.end >= range.end)
-                return LexerError::UnterminatedString;
+                return reporter.Error(Diagnostic::UnterminatedString, 
+                    std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });
         }
     }
-    return LexerError::UnterminatedString;
+    return reporter.Error(Diagnostic::UnterminatedString, 
+                std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });
 }
 
-VCL::LexerError VCL::Lexer::LexNumeric(Token& token) noexcept {
+bool VCL::Lexer::LexNumeric(Token& token) noexcept {
     token.kind = TokenKind::NumericConstant;
     token.range.start = currentLocation;
     token.range.end = currentLocation;
@@ -102,17 +101,19 @@ VCL::LexerError VCL::Lexer::LexNumeric(Token& token) noexcept {
         c = token.range.end.GetChar();
         if (c == '.') {
             if (floating)
-                return LexerError::NumericConstantTooMuchText;
+                return reporter.Error(Diagnostic::NumericConstantTooMuchText, 
+                    std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });;
             floating = true;
         }
     }
-    return LexerError::None;
+    return true;
 }
 
-VCL::LexerError VCL::Lexer::LexPunctuator(Token& token) noexcept {
+bool VCL::Lexer::LexPunctuator(Token& token) noexcept {
     token.kind = TokenKind::Unknown;
     token.range.start = currentLocation;
     token.range.end = currentLocation;
+    SourceLocation okEndRange = currentLocation;
     uint32_t size = 0;
     while (token.range.end < range.end && size < 3) { 
         ++token.range.end;
@@ -120,11 +121,15 @@ VCL::LexerError VCL::Lexer::LexPunctuator(Token& token) noexcept {
         const char* endPtr = token.range.end.GetPtr();
         llvm::StringRef name{ startPtr, (size_t)(endPtr - startPtr) };
         TokenKind kind = TokenKindLookupPunctuator(name);
-        if (kind != TokenKind::Unknown)
+        if (kind != TokenKind::Unknown) {
             token.kind = kind;
+            okEndRange = token.range.end;
+        }
         ++size;
     }
     if (token.kind == TokenKind::Unknown)
-        return LexerError::InvalidCharacter;
-    return LexerError::None;
+        return reporter.Error(Diagnostic::InvalidCharacter, 
+            std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });;
+    token.range.end = okEndRange;
+    return true;
 }

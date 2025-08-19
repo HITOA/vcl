@@ -1,0 +1,20 @@
+#ifndef DIAGNOSTIC
+    #define DIAGNOSTIC(x, y)
+#endif
+#ifndef SOURCE_DIAGNOSTIC
+    #define SOURCE_DIAGNOSTIC(x, y) DIAGNOSTIC(x, y)
+#endif
+#ifndef LEXER_DIAGNOSTIC
+    #define LEXER_DIAGNOSTIC(x, y) DIAGNOSTIC(x, y)
+#endif
+
+SOURCE_DIAGNOSTIC(FileNotFound,                  "could not open '{}'; file not found")
+SOURCE_DIAGNOSTIC(MemoryBufferCreationFailed,    "memory buffer creation failed")
+
+LEXER_DIAGNOSTIC(InvalidCharacter,               "'{}' is an invalid character")
+LEXER_DIAGNOSTIC(UnterminatedString,             "'{}' is an unterminated string")
+LEXER_DIAGNOSTIC(NumericConstantTooMuchText,     "'{}' has too much text after expected end of numeric constant")
+
+#undef SOURCE_DIAGNOSTIC
+#undef LEXER_DIAGNOSTIC
+#undef DIAGNOSTIC
