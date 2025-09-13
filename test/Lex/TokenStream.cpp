@@ -4,6 +4,8 @@
 #include <VCL/Core/Source.hpp>
 #include <VCL/Lex/TokenStream.hpp>
 
+#include "../Common/ExpectedDiagnostic.hpp"
+
 #include <string>
 
 void AssertTokenKindAndNoError(VCL::TokenStream& stream, VCL::TokenKind kind) {
@@ -13,7 +15,8 @@ void AssertTokenKindAndNoError(VCL::TokenStream& stream, VCL::TokenKind kind) {
 }
 
 TEST_CASE("Token Stream A Bunch Of Token", "[Core][Source]") {
-    VCL::DiagnosticsEngine engine{};
+    ExpectedNoDiagnostic consumer{};
+    VCL::DiagnosticsEngine engine{ &consumer };
     VCL::DiagnosticReporter reporter{ engine };
     VCL::SourceManager manager{ reporter };
     VCL::Source* source = manager.LoadFromMemory("int32 v = 0;");
@@ -37,7 +40,8 @@ TEST_CASE("Token Stream A Bunch Of Token", "[Core][Source]") {
 }
 
 TEST_CASE("Token Stream Save & Restore", "[Core][Source]") {
-    VCL::DiagnosticsEngine engine{};
+    ExpectedNoDiagnostic consumer{};
+    VCL::DiagnosticsEngine engine{ &consumer };
     VCL::DiagnosticReporter reporter{ engine };
     VCL::SourceManager manager{ reporter };
     VCL::Source* source = manager.LoadFromMemory("int32 v = 0;");
@@ -71,7 +75,8 @@ TEST_CASE("Token Stream Save & Restore", "[Core][Source]") {
 }
 
 TEST_CASE("Token Stream Save & Commit", "[Core][Source]") {
-    VCL::DiagnosticsEngine engine{};
+    ExpectedNoDiagnostic consumer{};
+    VCL::DiagnosticsEngine engine{ &consumer };
     VCL::DiagnosticReporter reporter{ engine };
     VCL::SourceManager manager{ reporter };
     VCL::Source* source = manager.LoadFromMemory("int32 v = 0;");

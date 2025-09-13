@@ -36,6 +36,9 @@ namespace VCL {
          */
         Source* LoadFromMemory(llvm::StringRef buffer, llvm::StringRef name = "");
 
+        Source* GetSourceFromLocation(SourceLocation location);
+        inline Source* GetSourceFromRange(SourceRange range) { return GetSourceFromLocation(range.start); }
+
     private:
         DiagnosticReporter& reporter;
         std::vector<Source> sources{};

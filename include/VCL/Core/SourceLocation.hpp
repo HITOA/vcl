@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 
 
 namespace VCL {
@@ -58,6 +59,24 @@ namespace VCL {
             --id;
             return loc;
         }
+        inline SourceLocation operator+(size_t offset) {
+            SourceLocation loc{ *this };
+            loc.id += offset;
+            return loc;
+        }
+        inline SourceLocation operator-(size_t offset) {
+            SourceLocation loc{ *this };
+            loc.id -= offset;
+            return loc;
+        }
+        inline SourceLocation& operator+=(size_t offset) {
+            id += offset;
+            return *this;
+        }
+        inline SourceLocation& operator-=(size_t offset) {
+            id -= offset;
+            return *this;
+        }
 
 
     private:
@@ -70,6 +89,12 @@ namespace VCL {
     struct SourceRange {
         SourceLocation start;
         SourceLocation end;
+    };
+
+    template<typename T>
+    struct WithFullLoc {
+        T value{};
+        SourceRange range{};
     };
 
 }

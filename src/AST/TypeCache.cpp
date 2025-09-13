@@ -19,10 +19,18 @@ VCL::BuiltinType* VCL::TypeCache::GetOrCreateBuiltinType(BuiltinType::Kind kind)
     return GetOrCreateInFoldingSet(typeAllocator, builtinTypeCache, kind);
 }
 
-VCL::VectorType* VCL::TypeCache::GetOrCreateVectorType(Type* ofType) {
+VCL::VectorType* VCL::TypeCache::GetOrCreateVectorType(QualType ofType) {
     return GetOrCreateInFoldingSet(typeAllocator, vectorTypeCache, ofType);
 }
 
-VCL::ArrayType* VCL::TypeCache::GetOrCreateArrayType(Type* ofType, uint64_t ofSize) {
+VCL::ArrayType* VCL::TypeCache::GetOrCreateArrayType(QualType ofType, uint64_t ofSize) {
     return GetOrCreateInFoldingSet(typeAllocator, arrayTypeCache, ofType, ofSize);
+}
+
+VCL::TemplateTypeParamType* VCL::TypeCache::GetOrCreateTemplateTypeParamType(TemplateTypeParamDecl* decl) {
+    return GetOrCreateInFoldingSet(typeAllocator, templateTypeParamTypeCache, decl);
+}
+
+VCL::TemplateSpecializationType* VCL::TypeCache::GetOrCreateTemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args) {
+    return GetOrCreateInFoldingSet(typeAllocator, templateSpecializationTypeTypeCache, decl, args);
 }

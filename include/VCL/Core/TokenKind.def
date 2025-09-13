@@ -56,10 +56,13 @@ KEYWORD(in)
 KEYWORD(out)
 KEYWORD(inout)
 KEYWORD(const)
+
 // Type
-KEYWORD(vec)
-KEYWORD(array)
-KEYWORD(span)
+
+KEYWORD(Vec)
+KEYWORD(Array)
+KEYWORD(Span)
+
 KEYWORD(float32)
 KEYWORD(float64)
 KEYWORD(int8)

@@ -4,9 +4,12 @@
 #include <VCL/Core/Source.hpp>
 #include <VCL/Lex/Lexer.hpp>
 
+#include "../Common/ExpectedDiagnostic.hpp"
+
 
 void LexerTokenKindTest(VCL::TokenKind kind, llvm::StringRef value) {
-    VCL::DiagnosticsEngine engine{};
+    ExpectedNoDiagnostic consumer{};
+    VCL::DiagnosticsEngine engine{ &consumer };
     VCL::DiagnosticReporter reporter{ engine };
     VCL::SourceManager manager{ reporter };
     VCL::Source* source = manager.LoadFromMemory(value);

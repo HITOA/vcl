@@ -32,8 +32,15 @@ namespace VCL {
          */
         Token* GetTok(uint32_t n = 0);
 
-        /** Lex the next nth token(s) and return itself for chaining. */
+        /** Lex the next nth token(s). */
         bool Next(uint32_t n = 1);
+
+        /** Combine a Next call and GetTok call */
+        inline Token* NextAndGetTok() {
+            if (!Next())
+                return nullptr;
+            return GetTok();
+        }
 
         /** Push the current position to the stack. */
         void Save();
@@ -55,6 +62,36 @@ namespace VCL {
         Lexer& lexer;
         std::vector<Token> buffer{};
         std::stack<uint32_t> savePoints{};
+    };
+
+    /**
+     * Simple helper guard class that save the current TokenStream cursor on 
+     * construction and restore it on destruction IF it has not been commited.
+     */
+    class TokenStreamSavePointGuard {
+    public:
+        TokenStreamSavePointGuard() = delete;
+        TokenStreamSavePointGuard(TokenStream& stream) : stream{ stream }, hasBeenCommited{ false } {
+            stream.Save();
+        }
+        TokenStreamSavePointGuard(const TokenStreamSavePointGuard& other) = delete;
+        TokenStreamSavePointGuard(TokenStreamSavePointGuard&& other) = delete;
+        ~TokenStreamSavePointGuard() {
+            if (!hasBeenCommited)
+                stream.Restore();
+        }
+
+        TokenStreamSavePointGuard& operator=(const TokenStreamSavePointGuard& other) = delete;
+        TokenStreamSavePointGuard& operator=(TokenStreamSavePointGuard&& other) = delete;
+
+        inline void Commit() {
+            stream.Commit();
+            hasBeenCommited = true;
+        }
+
+    private:
+        TokenStream& stream;
+        bool hasBeenCommited;
     };
 
 }

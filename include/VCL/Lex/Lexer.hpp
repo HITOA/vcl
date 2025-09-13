@@ -1,7 +1,7 @@
 #pragma once
 
 #include <VCL/Core/SourceLocation.hpp>
-#include <VCL/Core/Diagnostic.hpp>
+#include <VCL/Core/CompilerContext.hpp>
 #include <VCL/Lex/Token.hpp>
 
 #include <llvm/Support/MemoryBufferRef.h>
@@ -18,8 +18,8 @@ namespace VCL {
     class Lexer {
     public:
         Lexer() = delete;
-        Lexer(const llvm::MemoryBufferRef& buffer, DiagnosticReporter& reporter);
-        Lexer(const SourceRange& range, DiagnosticReporter& reporter);
+        Lexer(const llvm::MemoryBufferRef& buffer, CompilerContext& cc);
+        Lexer(const SourceRange& range, CompilerContext& cc);
         Lexer(const Lexer& other) = delete;
         Lexer(Lexer&& other) = delete;
         ~Lexer() = default;
@@ -35,15 +35,17 @@ namespace VCL {
 
     private:
         bool LexIdentifier(Token& token) noexcept;
-        bool LexKeyword(Token& token) noexcept;
         bool LexString(Token& token) noexcept;
         bool LexNumeric(Token& token) noexcept;
         bool LexPunctuator(Token& token) noexcept;
 
+        bool SkipWhitespace() noexcept;
+        bool SkipComment() noexcept;
+
     private:
         SourceRange range;
         SourceLocation currentLocation;
-        DiagnosticReporter& reporter;
+        CompilerContext& cc;
     };
 
 }

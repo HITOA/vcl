@@ -6,6 +6,11 @@
 
 
 namespace VCL {
+    
+    class TemplateTypeParamDecl;
+    class TemplateDecl;
+    class TemplateArgumentList;
+    class QualType;
 
     /**
      * Represent any kind of VCL Type in the AST and provide an interface to work with it.
@@ -13,10 +18,11 @@ namespace VCL {
     class Type {
     public:
         enum TypeClass {
-            BuiltinType,
-            VectorType,
-            ArrayType,
-            TemplateTypeParamType
+            BuiltinTypeClass,
+            VectorTypeClass,
+            ArrayTypeClass,
+            TemplateTypeParamTypeClass,
+            TemplateSpecializationTypeClass
         };
 
     public:
@@ -30,12 +36,51 @@ namespace VCL {
         Type& operator=(Type&& other) = delete;
         
 
-        inline TypeClass GetTypeClass() const {
-            return typeClass;
-        }
+        inline TypeClass GetTypeClass() const { return typeClass; }
 
     protected:
         TypeClass typeClass;
+    };
+
+
+    /**
+     * Qualifier flag
+     */
+    enum Qualifier : uint32_t {
+        None = 0x0,
+        Const = 0x1,
+        Mask = Const
+    };
+
+    inline Qualifier operator|(Qualifier lhs, Qualifier rhs) {
+        return (Qualifier)((uint32_t)lhs | (uint32_t)rhs);
+    }
+    
+    /**
+     * Just a wrapper around a Type* and a bitfield for qualifiers
+     */
+    class QualType {
+    public:
+        QualType() = default;
+        QualType(Type* type) : ptr{ (uintptr_t)type } {}
+        QualType(Type* type, Qualifier qual) : ptr{ (uintptr_t)type | qual } {}
+        QualType(const QualType& other) = default;
+        QualType(QualType&& other) = default;
+
+        QualType& operator=(const QualType& other) = default;
+        QualType& operator=(QualType&& other) = default;
+        
+        inline void* GetAsOpaquePtr() const { return (void*)ptr; }
+        inline Type* GetType() const { return (Type*)(ptr & ~Qualifier::Mask); }
+
+        inline void AddQualifier(Qualifier qual) { ptr |= qual; }
+        inline bool HasQualifier(Qualifier qual) { return ptr & qual; }
+
+        inline bool operator==(const QualType& rhs) { return ptr == rhs.ptr; }
+        inline bool operator!=(const QualType& rhs) { return !(*this == rhs); }
+
+    private:
+        uintptr_t ptr;
     };
 
     /**
@@ -50,15 +95,10 @@ namespace VCL {
         };
 
     public:
-        BuiltinType() = delete;
-        BuiltinType(Kind kind) : kind{ kind }, Type{ Type::BuiltinType } {}
-        BuiltinType(const BuiltinType& other) = delete;
-        BuiltinType(BuiltinType&& other) = delete;
+        BuiltinType(Kind kind) : kind{ kind }, Type{ Type::BuiltinTypeClass } {}
         ~BuiltinType() = default;
 
-        BuiltinType& operator=(const BuiltinType& other) = delete;
-        BuiltinType& operator=(BuiltinType&& other) = delete;
-
+        inline Kind GetKind() const { return kind; }
 
         inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, kind);}
         inline static void Profile(llvm::FoldingSetNodeID& id, Kind kind) {
@@ -74,24 +114,18 @@ namespace VCL {
      */
     class VectorType : public Type, public llvm::FoldingSetNode {
     public:
-        VectorType() = delete;
-        VectorType(Type* ofType) : ofType{ ofType }, Type{ Type::VectorType } {}
-        VectorType(const VectorType& other) = delete;
-        VectorType(VectorType&& other) = delete;
+        VectorType(QualType ofType) : ofType{ ofType }, Type{ Type::VectorTypeClass } {}
         ~VectorType() = default;
-
-        VectorType& operator=(const VectorType& other) = delete;
-        VectorType& operator=(VectorType&& other) = delete;
         
-
+        inline QualType GetElementType() const { return ofType; }
         
         inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, ofType);}
-        inline static void Profile(llvm::FoldingSetNodeID& id, Type* ofType) {
-            id.AddPointer(ofType);
+        inline static void Profile(llvm::FoldingSetNodeID& id, QualType ofType) {
+            id.AddPointer(ofType.GetAsOpaquePtr());
         }
 
     private:
-        Type* ofType = nullptr;
+        QualType ofType;
     };
 
     /**
@@ -99,33 +133,56 @@ namespace VCL {
      */
     class ArrayType : public Type, public llvm::FoldingSetNode {
     public:
-        ArrayType() = delete;
-        ArrayType(Type* ofType, uint64_t ofSize) : ofType{ ofType }, ofSize{ ofSize }, Type{ Type::ArrayType } {}
-        ArrayType(const ArrayType& other) = delete;
-        ArrayType(ArrayType&& other) = delete;
+        ArrayType(QualType ofType, uint64_t ofSize) : ofType{ ofType }, ofSize{ ofSize }, Type{ Type::ArrayTypeClass } {}
         ~ArrayType() = default;
 
-        ArrayType& operator=(const ArrayType& other) = delete;
-        ArrayType& operator=(ArrayType&& other) = delete;
+        inline QualType GetElementType() const { return ofType; }
+        inline uint64_t GetElementCount() const { return ofSize; }
         
-
-        
-        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, ofType, ofSize);}
-        inline static void Profile(llvm::FoldingSetNodeID& id, Type* ofType, uint64_t ofSize) {
-            id.AddPointer(ofType);
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, ofType, ofSize); }
+        inline static void Profile(llvm::FoldingSetNodeID& id, QualType ofType, uint64_t ofSize) {
+            id.AddPointer(ofType.GetAsOpaquePtr());
             id.AddInteger(ofSize);
         }
 
     private:
-        Type* ofType = nullptr;
-        uint64_t ofSize = 0;  
+        QualType ofType;
+        uint64_t ofSize;  
     };
 
-    /**
-     * Represent a template type parameter
-     */
     class TemplateTypeParamType : public Type, public llvm::FoldingSetNode {
+    public:
+        TemplateTypeParamType(TemplateTypeParamDecl* decl) : decl{ decl }, Type{ Type::TemplateTypeParamTypeClass } {}
+        ~TemplateTypeParamType() = default;
+        
+        inline TemplateTypeParamDecl* GetTemplateTypeParamDecl() const { return decl; }
+        
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, decl); }
+        inline static void Profile(llvm::FoldingSetNodeID& id, TemplateTypeParamDecl* decl) {
+            id.AddPointer(decl);
+        }
 
+    private:
+        TemplateTypeParamDecl* decl;
     };
 
+    class TemplateSpecializationType : public Type, public llvm::FoldingSetNode {
+    public:
+        TemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args)
+            : decl{ decl }, args{ args }, Type{ Type::TemplateSpecializationTypeClass } {}
+        ~TemplateSpecializationType() = default;
+
+        inline TemplateDecl* GetTemplateDecl() const { return decl; }
+        inline TemplateArgumentList* GetTemplateArgumentList() const { return args; }
+        inline Type* GetInstantiatedType() const { return instantiatedType; }
+        inline void SetInstantiatedType(Type* instantiatedType) { this->instantiatedType = instantiatedType; } 
+
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, decl, args); }
+        static void Profile(llvm::FoldingSetNodeID& id, TemplateDecl* decl, TemplateArgumentList* args);
+
+    private:
+        TemplateDecl* decl;
+        TemplateArgumentList* args;
+        Type* instantiatedType;
+    };
 }

@@ -3,19 +3,20 @@
 #include <VCL/Lex/TokenKindLookup.hpp>
 
 
-VCL::Lexer::Lexer(const llvm::MemoryBufferRef& buffer, DiagnosticReporter& reporter) : reporter{ reporter } {
+VCL::Lexer::Lexer(const llvm::MemoryBufferRef& buffer, CompilerContext& cc) : cc{ cc } {
     range.start = (uintptr_t)buffer.getBufferStart();
     range.end = (uintptr_t)buffer.getBufferEnd();
     currentLocation = range.start;
 }
 
-VCL::Lexer::Lexer(const SourceRange& range, DiagnosticReporter& reporter) : range{ range }, reporter{ reporter } {
+VCL::Lexer::Lexer(const SourceRange& range, CompilerContext& cc) : range{ range }, cc{ cc } {
     currentLocation = range.start;
 }
 
 bool VCL::Lexer::Lex(Token& token) noexcept {
-    while (currentLocation < range.end && isspace(currentLocation.GetChar()))
-        ++currentLocation;
+    token.identifier = nullptr;
+    token.isFloatingPoint = false;
+    while (SkipComment() || SkipWhitespace()) {}
     if (currentLocation >= range.end) {
         token.kind = TokenKind::EndOfFile;
         token.range.start = currentLocation;
@@ -24,12 +25,9 @@ bool VCL::Lexer::Lex(Token& token) noexcept {
     }
     char currentChar = currentLocation.GetChar();
     if (isalpha(currentChar) || currentChar == '_') {
-        if (!LexIdentifier(token)) {
-            currentLocation = token.range.end;
-            return false;
-        }
+        bool r = LexIdentifier(token);
         currentLocation = token.range.end;
-        return LexKeyword(token);
+        return r;
     } else if (currentChar == '\"') {
         bool r = LexString(token);
         currentLocation = token.range.end;
@@ -55,15 +53,13 @@ bool VCL::Lexer::LexIdentifier(Token& token) noexcept {
         ++token.range.end; 
         c = token.range.end.GetChar();
     }
-    return true;
-}
 
-bool VCL::Lexer::LexKeyword(Token& token) noexcept {
     const char* startPtr = token.range.start.GetPtr();
     const char* endPtr = token.range.end.GetPtr();
     llvm::StringRef name{ startPtr, (size_t)(endPtr - startPtr) };
-    if (TokenKind kind = TokenKindLookupKeyword(name); kind != TokenKind::Unknown)
-        token.kind = kind;
+    
+    token.identifier = cc.GetIdentifierTable().Get(name);
+
     return true;
 }
 
@@ -77,17 +73,26 @@ bool VCL::Lexer::LexString(Token& token) noexcept {
         if (c == '\"')
             return true;
         if (c == '\n')
-            return reporter.Error(Diagnostic::UnterminatedString, 
-                std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });
+            return cc.GetDiagnosticReporter().Error(Diagnostic::UnterminatedString, 
+                std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
+                .AddHint(DiagnosticHint{ token.range })
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
         if (c == '\\') {
             ++token.range.end;
             if (token.range.end >= range.end)
-                return reporter.Error(Diagnostic::UnterminatedString, 
-                    std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });
+                return cc.GetDiagnosticReporter().Error(Diagnostic::UnterminatedString, 
+                    std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
+                    .AddHint(DiagnosticHint{ token.range })
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .Report();
         }
     }
-    return reporter.Error(Diagnostic::UnterminatedString, 
-                std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });
+    return cc.GetDiagnosticReporter().Error(Diagnostic::UnterminatedString, 
+                std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
+                .AddHint(DiagnosticHint{ token.range })
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
 }
 
 bool VCL::Lexer::LexNumeric(Token& token) noexcept {
@@ -101,11 +106,15 @@ bool VCL::Lexer::LexNumeric(Token& token) noexcept {
         c = token.range.end.GetChar();
         if (c == '.') {
             if (floating)
-                return reporter.Error(Diagnostic::NumericConstantTooMuchText, 
-                    std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });;
+                return cc.GetDiagnosticReporter().Error(Diagnostic::NumericConstantTooMuchText, 
+                    std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
+                    .AddHint(DiagnosticHint{ token.range })
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .Report();
             floating = true;
         }
     }
+    token.isFloatingPoint = floating;
     return true;
 }
 
@@ -128,8 +137,36 @@ bool VCL::Lexer::LexPunctuator(Token& token) noexcept {
         ++size;
     }
     if (token.kind == TokenKind::Unknown)
-        return reporter.Error(Diagnostic::InvalidCharacter, 
-            std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() });;
+        return cc.GetDiagnosticReporter().Error(Diagnostic::InvalidCharacter, std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
+            .AddHint(DiagnosticHint{ token.range })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
     token.range.end = okEndRange;
+    return true;
+}
+
+bool VCL::Lexer::SkipWhitespace() noexcept {
+    bool skipped = false;
+    while (currentLocation < range.end && isspace(currentLocation.GetChar())) {
+        ++currentLocation;
+        skipped = true;
+    }
+    return skipped;
+}
+
+bool VCL::Lexer::SkipComment() noexcept {
+    if (currentLocation + 2 >= range.end || currentLocation.GetChar() != '/')
+        return false;
+    std::string end{};
+    if ((currentLocation + 1).GetChar() == '/')
+        end = "\n";
+    else if ((currentLocation + 1).GetChar() == '*')
+        end = "*/";
+    else
+        return false;
+    currentLocation += 2;
+    while ((currentLocation + end.size()) < range.end && memcmp(currentLocation.GetPtr(), end.data(), end.size()))
+        ++currentLocation;
+    currentLocation += end.size();
     return true;
 }

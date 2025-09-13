@@ -1,20 +1,53 @@
 #ifndef DIAGNOSTIC
     #define DIAGNOSTIC(x, y)
 #endif
+#ifndef DIAGNOSTIC_HINT
+    #define DIAGNOSTIC_HINT(x, y)
+#endif
 #ifndef SOURCE_DIAGNOSTIC
     #define SOURCE_DIAGNOSTIC(x, y) DIAGNOSTIC(x, y)
 #endif
 #ifndef LEXER_DIAGNOSTIC
     #define LEXER_DIAGNOSTIC(x, y) DIAGNOSTIC(x, y)
 #endif
+#ifndef PARSER_DIAGNOSTIC
+    #define PARSER_DIAGNOSTIC(x, y) DIAGNOSTIC(x, y)
+#endif
+#ifndef SEMA_DIAGNOSTIC
+    #define SEMA_DIAGNOSTIC(x, y) DIAGNOSTIC(x, y)
+#endif
 
-SOURCE_DIAGNOSTIC(FileNotFound,                  "could not open '{}'; file not found")
+DIAGNOSTIC_HINT(PreviouslyDeclared,              "previously declared here")
+
+DIAGNOSTIC(MissingImplementation,                "missing implementation")
+
+SOURCE_DIAGNOSTIC(FileNotFound,                  "could not open '%0'; file not found")
 SOURCE_DIAGNOSTIC(MemoryBufferCreationFailed,    "memory buffer creation failed")
 
-LEXER_DIAGNOSTIC(InvalidCharacter,               "'{}' is an invalid character")
-LEXER_DIAGNOSTIC(UnterminatedString,             "'{}' is an unterminated string")
-LEXER_DIAGNOSTIC(NumericConstantTooMuchText,     "'{}' has too much text after expected end of numeric constant")
+LEXER_DIAGNOSTIC(InvalidCharacter,               "'%0' is an invalid character")
+LEXER_DIAGNOSTIC(UnterminatedString,             "'%0' is an unterminated string")
+LEXER_DIAGNOSTIC(NumericConstantTooMuchText,     "'%0' has too much text after expected end of numeric constant")
 
-#undef SOURCE_DIAGNOSTIC
+PARSER_DIAGNOSTIC(UnexpectedToken,               "unexpected token '%0'")
+PARSER_DIAGNOSTIC(UnexpectedTokenAfter,          "unexpected token '%0' after '%1'")
+PARSER_DIAGNOSTIC(WrongTemplateArgument,         "wrong template argument")
+PARSER_DIAGNOSTIC(FloatTemplateArgument,         "numeric constant template argument cannot be float")
+
+SEMA_DIAGNOSTIC(InternalSemaError,               "internal compiler error")
+SEMA_DIAGNOSTIC(InvalidType,                     "'%0' is not a valid type name")
+SEMA_DIAGNOSTIC(Redeclaration,                   "redeclaration of '%0'")
+SEMA_DIAGNOSTIC(TooManyTemplateArgument,         "too many template arguments")
+SEMA_DIAGNOSTIC(MissingTemplateArgument,         "missing template argument(s)")
+SEMA_DIAGNOSTIC(TemplateArgumentWrongType,       "wrong type of template argument")
+SEMA_DIAGNOSTIC(WrongVectorType,                 "wrong vector type; vector are only allowed for float32, float64, int32 and bool")
+SEMA_DIAGNOSTIC(BuiltinTypeIsNotTemplated,       "builtin type '%0' is not templated")
+SEMA_DIAGNOSTIC(ExpectedAKeyword,                "expected a keyword but got '%0'")
+SEMA_DIAGNOSTIC(IdentifierUndefined,             "identifier '%0' is undefined")
+SEMA_DIAGNOSTIC(InvalidCast,                     "invalid cast of type '%0' to type '%1'")
+
+#undef DIAGNOSTIC_HINT
+#undef SEMA_DIAGNOSTIC
+#undef PARSER_DIAGNOSTIC
 #undef LEXER_DIAGNOSTIC
+#undef SOURCE_DIAGNOSTIC
 #undef DIAGNOSTIC

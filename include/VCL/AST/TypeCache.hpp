@@ -26,15 +26,21 @@ namespace VCL {
         /** Get a BuiltinType of the given kind. if it does not exists, create it and return it instead. */
         BuiltinType* GetOrCreateBuiltinType(BuiltinType::Kind kind);
         /** Get a VectorType of the given type. if it does not exists, create it and return it instead. */
-        VectorType* GetOrCreateVectorType(Type* ofType);
+        VectorType* GetOrCreateVectorType(QualType ofType);
         /** Get a ArrayType of the given type and size. if it does not exists, create it and return it instead. */
-        ArrayType* GetOrCreateArrayType(Type* ofType, uint64_t ofSize);
+        ArrayType* GetOrCreateArrayType(QualType ofType, uint64_t ofSize);
+        /** Get a TemplateTypeParamType of the given decl. if it does not exists, create it and return it instead. */
+        TemplateTypeParamType* GetOrCreateTemplateTypeParamType(TemplateTypeParamDecl* decl);
+        /** Get a TemplateSpecializationType of the given decl and argument list. if it does not exists, create it and return it instead. */
+        TemplateSpecializationType* GetOrCreateTemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args);
 
     private:
         llvm::BumpPtrAllocator typeAllocator{};
         llvm::FoldingSet<BuiltinType> builtinTypeCache{};
         llvm::FoldingSet<VectorType> vectorTypeCache{};
         llvm::FoldingSet<ArrayType> arrayTypeCache{};
+        llvm::FoldingSet<TemplateTypeParamType> templateTypeParamTypeCache{};
+        llvm::FoldingSet<TemplateSpecializationType> templateSpecializationTypeTypeCache{};
     };
 
 }

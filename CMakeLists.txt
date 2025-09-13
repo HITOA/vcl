@@ -28,6 +28,7 @@ target_link_libraries(vcl ${llvm_libs})
 target_include_directories(vcl PRIVATE ${LLVM_INCLUDE_DIRS})
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/test")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/cvcl")
 
 option(VCL_BUILD_DOC "Build VCL documentation" OFF)
 

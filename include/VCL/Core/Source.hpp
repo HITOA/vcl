@@ -22,8 +22,17 @@ namespace VCL {
      */
     class Source {
     public:
+        struct Line {
+            uint32_t offset = 0;
+            uint32_t length = 0;
+            uint32_t lineNumber = 0;
+        };
+        
+    public:
         Source() = delete;
-        Source(std::unique_ptr<llvm::MemoryBuffer> buffer) : buffer{ std::move(buffer) } {}
+        Source(std::unique_ptr<llvm::MemoryBuffer> buffer) : buffer{ std::move(buffer) } {
+            CalculateLineOffsets();
+        }
         Source(const Source& other) = delete;
         Source(Source&& other) = default;
         ~Source() = default;
@@ -45,9 +54,26 @@ namespace VCL {
         inline llvm::StringRef GetBufferIdentifier() const {
             return buffer->getBufferIdentifier();
         }
-        
+
+        inline bool ContainLocation(SourceLocation location) const {
+            const char* start = GetBufferRef().getBufferStart();
+            const char* end = GetBufferRef().getBufferEnd();
+            const char* loc = location.GetPtr();
+            return loc >= start && loc <= end;
+        }
+
+        inline bool ContainRange(SourceRange range) const {
+            return ContainLocation(range.start) && ContainLocation(range.end);
+        }
+
+        Line GetLine(SourceLocation location) const;
+    
+    private:
+        void CalculateLineOffsets();
+
     private:
         std::unique_ptr<llvm::MemoryBuffer> buffer{};
+        std::vector<uint32_t> lineOffsets{};
     };
 
 }
