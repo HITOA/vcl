@@ -29,6 +29,8 @@ namespace VCL {
         VectorType* GetOrCreateVectorType(QualType ofType);
         /** Get a ArrayType of the given type and size. if it does not exists, create it and return it instead. */
         ArrayType* GetOrCreateArrayType(QualType ofType, uint64_t ofSize);
+        /** Get a RecordType of the given decl. if it does not exists, create it and return it instead. */
+        RecordType* GetOrCreateRecordType(RecordDecl* decl);
         /** Get a TemplateTypeParamType of the given decl. if it does not exists, create it and return it instead. */
         TemplateTypeParamType* GetOrCreateTemplateTypeParamType(TemplateTypeParamDecl* decl);
         /** Get a TemplateSpecializationType of the given decl and argument list. if it does not exists, create it and return it instead. */
@@ -39,6 +41,7 @@ namespace VCL {
         llvm::FoldingSet<BuiltinType> builtinTypeCache{};
         llvm::FoldingSet<VectorType> vectorTypeCache{};
         llvm::FoldingSet<ArrayType> arrayTypeCache{};
+        llvm::FoldingSet<RecordType> recordTypeCache{};
         llvm::FoldingSet<TemplateTypeParamType> templateTypeParamTypeCache{};
         llvm::FoldingSet<TemplateSpecializationType> templateSpecializationTypeTypeCache{};
     };

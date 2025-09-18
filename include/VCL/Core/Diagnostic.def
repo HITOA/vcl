@@ -18,6 +18,7 @@
 #endif
 
 DIAGNOSTIC_HINT(PreviouslyDeclared,              "previously declared here")
+DIAGNOSTIC_HINT(Declared,                        "declared here")
 
 DIAGNOSTIC(MissingImplementation,                "missing implementation")
 
@@ -31,19 +32,23 @@ LEXER_DIAGNOSTIC(NumericConstantTooMuchText,     "'%0' has too much text after e
 PARSER_DIAGNOSTIC(UnexpectedToken,               "unexpected token '%0'")
 PARSER_DIAGNOSTIC(UnexpectedTokenAfter,          "unexpected token '%0' after '%1'")
 PARSER_DIAGNOSTIC(WrongTemplateArgument,         "wrong template argument")
+PARSER_DIAGNOSTIC(WrongTemplateParameter,        "wrong template parameter")
 PARSER_DIAGNOSTIC(FloatTemplateArgument,         "numeric constant template argument cannot be float")
 
 SEMA_DIAGNOSTIC(InternalSemaError,               "internal compiler error")
 SEMA_DIAGNOSTIC(InvalidType,                     "'%0' is not a valid type name")
 SEMA_DIAGNOSTIC(Redeclaration,                   "redeclaration of '%0'")
+SEMA_DIAGNOSTIC(ReservedIdentifier,              "'%0' is a reserved identifier")
 SEMA_DIAGNOSTIC(TooManyTemplateArgument,         "too many template arguments")
-SEMA_DIAGNOSTIC(MissingTemplateArgument,         "missing template argument(s)")
+SEMA_DIAGNOSTIC(MissingTemplateArgument,         "missing template argument for '%0'")
 SEMA_DIAGNOSTIC(TemplateArgumentWrongType,       "wrong type of template argument")
-SEMA_DIAGNOSTIC(WrongVectorType,                 "wrong vector type; vector are only allowed for float32, float64, int32 and bool")
 SEMA_DIAGNOSTIC(BuiltinTypeIsNotTemplated,       "builtin type '%0' is not templated")
 SEMA_DIAGNOSTIC(ExpectedAKeyword,                "expected a keyword but got '%0'")
 SEMA_DIAGNOSTIC(IdentifierUndefined,             "identifier '%0' is undefined")
 SEMA_DIAGNOSTIC(InvalidCast,                     "invalid cast of type '%0' to type '%1'")
+SEMA_DIAGNOSTIC(DoesNotTakeTemplateArgList,      "'%0' does not take a template argument list")
+SEMA_DIAGNOSTIC(NotTypeDecl,                     "'%0' is not a type declaration")
+SEMA_DIAGNOSTIC(TemplateRedeclared,              "template parameter '%0' cannot be redeclared in this scope")
 
 #undef DIAGNOSTIC_HINT
 #undef SEMA_DIAGNOSTIC

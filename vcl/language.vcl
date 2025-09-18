@@ -39,6 +39,8 @@ struct MyStruct {
     int64 f1; // or here
 }
 
+MyStruct myStruct1;
+
 // Initialization with numeric constant
 
 float32 if32 = 1.0;             // initialized to 1.0
@@ -48,7 +50,7 @@ Vec<float32> ivf32 = 1.0;       // each element of the vector are initialized to
 
 Array<float32, 4> iaf32 = { 0.0, 1.0, 2.0, 3.0 };   // each element of the array are initialized with the corresponding element of the aggregate
 Array<int32, 4> iai32 = {};                         // each element without value in the aggregate are gonna be null initialized
-MyStruct myStruct = { { 0.0, 0.0 }, 0 };            // the same apply for struct, and aggregate value can be nested and can contain multiple type
+MyStruct myStruct2 = { { 0.0, 0.0 }, 0 };            // the same apply for struct, and aggregate value can be nested and can contain multiple type
 
 // Function Decl
 void Dummy() {}

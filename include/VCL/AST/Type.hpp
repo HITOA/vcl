@@ -10,6 +10,7 @@ namespace VCL {
     class TemplateTypeParamDecl;
     class TemplateDecl;
     class TemplateArgumentList;
+    class RecordDecl;
     class QualType;
 
     /**
@@ -21,6 +22,7 @@ namespace VCL {
             BuiltinTypeClass,
             VectorTypeClass,
             ArrayTypeClass,
+            RecordTypeClass,
             TemplateTypeParamTypeClass,
             TemplateSpecializationTypeClass
         };
@@ -148,6 +150,22 @@ namespace VCL {
     private:
         QualType ofType;
         uint64_t ofSize;  
+    };
+
+    class RecordType : public Type, public llvm::FoldingSetNode {
+    public:
+        RecordType(RecordDecl* decl) : decl{ decl }, Type{ Type::RecordTypeClass } {}
+        ~RecordType() = default;
+        
+        inline RecordDecl* GetRecordDecl() const { return decl; }
+
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, decl); }
+        inline static void Profile(llvm::FoldingSetNodeID& id, RecordDecl* decl) {
+            id.AddPointer(decl);
+        }
+
+    private:
+        RecordDecl* decl;
     };
 
     class TemplateTypeParamType : public Type, public llvm::FoldingSetNode {

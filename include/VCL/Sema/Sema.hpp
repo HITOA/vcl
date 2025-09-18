@@ -39,11 +39,22 @@ namespace VCL {
 
         void AddBuiltinIntrinsicTemplateDecl();
 
+        bool PushDeclContextScope(DeclContext* context);
+        bool PopDeclContextScope(DeclContext* context);
+
+        RecordDecl* ActOnRecordDecl(IdentifierInfo* identifier, SourceRange range);
+        TemplateRecordDecl* ActOnTemplateRecordDecl(IdentifierInfo* identifier, TemplateParameterList* params, SourceRange range);
+        FieldDecl* ActOnFieldDecl(QualType type, IdentifierInfo* identifier, SourceRange range);
+
         VarDecl* ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range);
         QualType ActOnQualType(Type* type, Qualifier qualifiers, SourceRange range);
         Type* ActOnType(IdentifierInfo* identifier, TemplateArgumentList* list, SourceRange range);
         
+        TemplateParameterList* ActOnTemplateParameterList(llvm::ArrayRef<NamedDecl*> params, SourceRange range);
         TemplateArgumentList* ActOnTemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range);
+
+        TemplateTypeParamDecl* ActOnTemplateTypeParamDecl(IdentifierInfo* identifier, SourceRange range);
+        NonTypeTemplateParamDecl* ActOnNonTypeTemplateParamDecl(BuiltinType* type, IdentifierInfo* identifier, SourceRange range);
 
         Expr* ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator& op);
 
@@ -58,7 +69,6 @@ namespace VCL {
         Expr* ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRange range);
 
         NamedDecl* LookupNamedDecl(IdentifierInfo* identifier, int depth = -1);
-        TypeDecl* LookupTypeDecl(IdentifierInfo* identifier, int depth = -1);
         IntrinsicTemplateDecl* LookupIntrinsicTemplateDecl(IdentifierInfo* identifier, int depth = -1);
         VarDecl* LookupVarDecl(IdentifierInfo* identifier, int depth = -1);
 

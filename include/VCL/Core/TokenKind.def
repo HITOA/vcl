@@ -51,7 +51,10 @@ KEYWORD(while)
 KEYWORD(for)
 KEYWORD(break)
 KEYWORD(struct)
+KEYWORD(typename)
+
 // Type Qualifiers
+
 KEYWORD(in)
 KEYWORD(out)
 KEYWORD(inout)

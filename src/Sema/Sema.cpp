@@ -2,6 +2,8 @@
 
 #include <VCL/AST/ExprEvaluator.hpp>
 
+#include <llvm/ADT/SmallPtrSet.h>
+
 
 VCL::Sema::Sema(ASTContext& astContext, CompilerContext& cc) : astContext{ astContext }, cc{ cc } {
     sm.EmplaceScopeFront(astContext.GetTranslationUnitDecl());
@@ -16,7 +18,7 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
 
     // Vec
     NamedDecl* vecOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
-    TemplateParameterList* vecParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 });
+    TemplateParameterList* vecParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
     IntrinsicTemplateDecl* vecDecl = IntrinsicTemplateDecl::Create(astContext, vecParamList, cc.GetIdentifierTable().GetKeyword(TokenKind::Keyword_Vec));
     astContext.GetTranslationUnitDecl()->InsertBack(vecDecl);
 
@@ -24,20 +26,72 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
     NamedDecl* arrayOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
     NamedDecl* arrayOfSize = NonTypeTemplateParamDecl::Create(astContext, ofSizeType, ofSizeIdentifier, SourceRange{});
     llvm::SmallVector<NamedDecl*> arrayParams{ arrayOfType, arrayOfSize };
-    TemplateParameterList* arrayParamList = TemplateParameterList::Create(astContext, arrayParams);
+    TemplateParameterList* arrayParamList = TemplateParameterList::Create(astContext, arrayParams, SourceRange{});
     IntrinsicTemplateDecl* arrayDecl = IntrinsicTemplateDecl::Create(astContext, arrayParamList, cc.GetIdentifierTable().GetKeyword(TokenKind::Keyword_Array));
     astContext.GetTranslationUnitDecl()->InsertBack(arrayDecl);
 
     // Span
     NamedDecl* spanOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
-    TemplateParameterList* spanParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 });
+    TemplateParameterList* spanParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
     IntrinsicTemplateDecl* spanDecl = IntrinsicTemplateDecl::Create(astContext, vecParamList, cc.GetIdentifierTable().GetKeyword(TokenKind::Keyword_Span));
     astContext.GetTranslationUnitDecl()->InsertBack(spanDecl);
 
 }
 
+bool VCL::Sema::PushDeclContextScope(DeclContext* context) {
+    sm.EmplaceScopeFront(context);
+    return true;
+}
+
+bool VCL::Sema::PopDeclContextScope(DeclContext* context) {
+    if (sm.GetScopeFront()->GetDeclContext() != context)  {
+        cc.GetDiagnosticReporter().Error(Diagnostic::InternalSemaError)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return false;
+    }
+    sm.PopScopeFront(context);
+    return true;
+}
+
+VCL::RecordDecl* VCL::Sema::ActOnRecordDecl(IdentifierInfo* identifier, SourceRange range) {
+    RecordDecl* decl = RecordDecl::Create(astContext, identifier, range);
+    sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    return decl;
+}
+
+VCL::TemplateRecordDecl* VCL::Sema::ActOnTemplateRecordDecl(IdentifierInfo* identifier, TemplateParameterList* params, SourceRange range) {
+    TemplateRecordDecl* decl = TemplateRecordDecl::Create(astContext, identifier, params, range);
+    sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    return decl;
+}
+
+VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identifier, SourceRange range) {
+    NamedDecl* decl = LookupNamedDecl(identifier, 1);
+    if (decl) {
+        SourceRange redeclRange = decl->GetSourceRange();
+        cc.GetDiagnosticReporter().Error(Diagnostic::Redeclaration, identifier->GetName().str())
+            .AddHint(DiagnosticHint{ range })
+            .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+
+    decl = FieldDecl::Create(astContext, identifier, type, range);
+    sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    return (FieldDecl*)decl;
+}
+
 VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range) {
-    VarDecl* decl = LookupVarDecl(identifier, 1);
+    if (identifier->IsKeyword()) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
+            .AddHint(DiagnosticHint{ range })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+    NamedDecl* decl = LookupNamedDecl(identifier, 1);
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
         cc.GetDiagnosticReporter().Error(Diagnostic::Redeclaration, identifier->GetName().str())
@@ -50,7 +104,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
 
     decl = VarDecl::Create(astContext, type, identifier, varAttrBitfield, range);
     sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
-    return decl;
+    return (VarDecl*)decl;
 }
 
 VCL::QualType VCL::Sema::ActOnQualType(Type* type, Qualifier qualifiers, SourceRange range) {
@@ -66,7 +120,7 @@ VCL::QualType VCL::Sema::ActOnQualType(Type* type, Qualifier qualifiers, SourceR
                 
 VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList* list, SourceRange range) {
     if (!identifier->IsKeyword()) {
-        TypeDecl* decl = LookupTypeDecl(identifier);
+        NamedDecl* decl = LookupNamedDecl(identifier);
         if (decl == nullptr) {
             cc.GetDiagnosticReporter().Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
                 .AddHint(DiagnosticHint{ range })
@@ -74,11 +128,35 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
                 .Report();
             return nullptr;
         }
-        cc.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
-            .AddHint(DiagnosticHint{ range })
-            .SetCompilerInfo(__FILE__, __func__, __LINE__)
-            .Report();
-        return nullptr;
+        if (list && !decl->IsTemplateDecl()) {
+            cc.GetDiagnosticReporter().Error(Diagnostic::DoesNotTakeTemplateArgList, identifier->GetName().str())
+                .AddHint(DiagnosticHint{ range })
+                .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+        if (!list && decl->IsTemplateDecl()) {
+            cc.GetDiagnosticReporter().Error(Diagnostic::MissingTemplateArgument, identifier->GetName().str())
+                .AddHint(DiagnosticHint{ range })
+                .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+        if (!list && !decl->IsTypeDecl()) {
+            cc.GetDiagnosticReporter().Error(Diagnostic::NotTypeDecl, identifier->GetName().str())
+                .AddHint(DiagnosticHint{ range })
+                .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+
+        if (!list)
+            return ((TypeDecl*)decl)->GetType();
+        else
+            return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType((TemplateDecl*)decl, list);
     }
 
     switch (identifier->GetTokenKind()) {
@@ -131,8 +209,41 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
     }
 }
 
+VCL::TemplateParameterList* VCL::Sema::ActOnTemplateParameterList(llvm::ArrayRef<NamedDecl*> params, SourceRange range) {
+    llvm::SmallPtrSet<IdentifierInfo*, 4> set{};
+    
+    for (auto param : params) {
+        if (set.count(param->GetIdentifierInfo())) {
+            NamedDecl* previous = nullptr;
+            for (size_t i = 0; i < params.size(); ++i) {
+                if (params[i]->GetIdentifierInfo() == param->GetIdentifierInfo()) {
+                    previous = params[i];
+                    break;
+                }
+            }
+            cc.GetDiagnosticReporter().Error(Diagnostic::TemplateRedeclared, param->GetIdentifierInfo()->GetName().str())
+                .AddHint(DiagnosticHint{ param->GetSourceRange() })
+                .AddHint(DiagnosticHint{ previous->GetSourceRange(), DiagnosticHint::PreviouslyDeclared })
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+        set.insert(param->GetIdentifierInfo());
+    }
+
+    return TemplateParameterList::Create(astContext, params, range);
+}
+
 VCL::TemplateArgumentList* VCL::Sema::ActOnTemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range) {
     return TemplateArgumentList::Create(astContext, args, range);
+}
+
+VCL::TemplateTypeParamDecl* VCL::Sema::ActOnTemplateTypeParamDecl(IdentifierInfo* identifier, SourceRange range) {
+    return TemplateTypeParamDecl::Create(astContext, identifier, range);
+}
+
+VCL::NonTypeTemplateParamDecl* VCL::Sema::ActOnNonTypeTemplateParamDecl(BuiltinType* type, IdentifierInfo* identifier, SourceRange range) {
+    return NonTypeTemplateParamDecl::Create(astContext, type, identifier, range);
 }
 
 VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator& op) {
@@ -228,15 +339,15 @@ VCL::Expr* VCL::Sema::ActOnNumericConstant(Token* value) {
 }
 
 VCL::Expr* VCL::Sema::ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRange range) {
-    VarDecl* decl = LookupVarDecl(identifier);
-    if (decl == nullptr) {
+    NamedDecl* decl = LookupNamedDecl(identifier);
+    if (decl == nullptr || !decl->IsValueDecl()) {
         cc.GetDiagnosticReporter().Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
         return nullptr;
     }
-    VariableRefExpr* expr = VariableRefExpr::Create(astContext, decl, range);
+    DeclRefExpr* expr = DeclRefExpr::Create(astContext, (ValueDecl*)decl, range);
     return expr;
 }
 
@@ -257,26 +368,6 @@ VCL::NamedDecl* VCL::Sema::LookupNamedDecl(IdentifierInfo* identifier, int depth
         ++currentDepth;
     }
     
-    return nullptr;
-}
-
-VCL::TypeDecl* VCL::Sema::LookupTypeDecl(IdentifierInfo* identifier, int depth) {
-    Scope* currentScope = sm.GetScopeFront();
-
-    int currentDepth = 0;
-    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
-        DeclContext* declContext = currentScope->GetDeclContext();
-        for (auto it = declContext->Begin(); it != declContext->End(); ++it) {
-            if (!it->IsTypeDecl())
-                continue;
-            TypeDecl* decl = (TypeDecl*)it.Get();
-            if (identifier == decl->GetIdentifierInfo())
-                return decl;
-        }
-        currentScope = currentScope->GetParentScope();
-        ++currentDepth;
-    }
-
     return nullptr;
 }
 

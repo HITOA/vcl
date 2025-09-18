@@ -9,7 +9,7 @@ namespace VCL {
     class ExprEvaluator {
     public:
         ConstantValue* VisitNumericLiteralExpr(NumericLiteralExpr* expr);
-        ConstantValue* VisitVariableRefExpr(VariableRefExpr* expr);
+        ConstantValue* VisitDeclRefExpr(DeclRefExpr* expr);
         ConstantValue* VisitCastExpr(CastExpr* expr);
         ConstantValue* VisitBinaryArithmeticExpr(BinaryArithmeticExpr* expr);
     };

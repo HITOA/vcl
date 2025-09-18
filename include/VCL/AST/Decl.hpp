@@ -10,16 +10,18 @@
 
 
 namespace VCL {
-    
     class Decl {
     public:
         enum DeclClass {
             TranslationUnitDeclClass,
+            FieldDeclClass,
+            RecordDeclClass,
             VarDeclClass,
 
             TemplateTypeParamDeclClass,
             NonTypeTemplateParamDeclClass,
-            IntrinsicTemplateDeclClass
+            IntrinsicTemplateDeclClass,
+            TemplateRecordDeclClass
         };
     
     public:
@@ -43,7 +45,9 @@ namespace VCL {
         inline void SetNamedDecl(bool isNamedDecl) { bitfield.isNamedDecl = isNamedDecl; }
         inline bool IsTypeDecl() const { return bitfield.isTypeDecl; }
         inline void SetTypeDecl(bool isTypeDecl) { bitfield.isTypeDecl = isTypeDecl; }
-        inline bool IsTemplateDecl() const { return bitfield.isTypeDecl; }
+        inline bool IsValueDecl() const { return bitfield.isValueDecl; }
+        inline void SetValueDecl(bool isValueDecl) { bitfield.isValueDecl = isValueDecl; }
+        inline bool IsTemplateDecl() const { return bitfield.isTemplateDecl; }
         inline void SetTemplateDecl(bool isTemplateDecl) { bitfield.isTemplateDecl = isTemplateDecl; }
 
     private:
@@ -54,6 +58,7 @@ namespace VCL {
         struct DeclBitfield {
             unsigned isNamedDecl : 1 = 0;
             unsigned isTypeDecl : 1 = 0;
+            unsigned isValueDecl : 1 = 0;
             unsigned isTemplateDecl : 1 = 0;
         } bitfield{};
     };
@@ -96,7 +101,51 @@ namespace VCL {
         Type* type;
     };
 
-    class VarDecl : public NamedDecl {
+    class ValueDecl : public NamedDecl {
+    public:
+        ValueDecl(Type* valueType, IdentifierInfo* identifier, DeclClass declClass) : valueType{ valueType }, NamedDecl{ identifier, declClass } {
+            SetValueDecl(true);
+        }
+        ~ValueDecl() = default;
+
+        inline Type* GetValueType() const { return valueType; }
+
+    private:
+        Type* valueType;
+    };
+
+    class FieldDecl : public NamedDecl {
+    public:
+        FieldDecl(IdentifierInfo* identifier, QualType type) : ofType{ type }, NamedDecl{ identifier, DeclClass::FieldDeclClass } {}
+        ~FieldDecl() = default;
+
+        inline QualType GetType() const { return ofType; }
+
+        static inline FieldDecl* Create(ASTContext& context, IdentifierInfo* identifier, QualType type, SourceRange range) {
+            FieldDecl* decl = context.AllocateNode<FieldDecl>(identifier, type);
+            decl->SetSourceRange(range);
+            return decl;
+        }
+
+    private:
+        QualType ofType;
+    };
+
+    class RecordDecl : public TypeDecl, public DeclContext {
+    public:
+        RecordDecl(IdentifierInfo* identifier) : TypeDecl{ nullptr, identifier, Decl::RecordDeclClass } {}
+        ~RecordDecl() = default;
+
+        static inline RecordDecl* Create(ASTContext& context, IdentifierInfo* identifier, SourceRange range) {
+            RecordDecl* decl = context.AllocateNode<RecordDecl>(identifier);
+            RecordType* type = context.GetTypeCache().GetOrCreateRecordType(decl);
+            decl->SetType(type);
+            decl->SetSourceRange(range);
+            return decl;
+        }
+    };
+
+    class VarDecl : public ValueDecl {
     public:
         struct VarAttrBitfield {
             unsigned int hasInAttribute : 1;
@@ -105,7 +154,7 @@ namespace VCL {
         
     public:
         VarDecl(QualType type, IdentifierInfo* identifier, VarAttrBitfield attr) : 
-            type{ type }, varAttrBitfield{ attr }, NamedDecl{ identifier, Decl::VarDeclClass } {}
+            type{ type }, varAttrBitfield{ attr }, ValueDecl{ type.GetType(), identifier, Decl::VarDeclClass } {}
         ~VarDecl() = default;
 
         inline QualType GetType() const { return type; }

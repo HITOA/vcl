@@ -6,7 +6,7 @@ VCL::ConstantValue* VCL::ExprEvaluator::VisitNumericLiteralExpr(NumericLiteralEx
     return expr->GetValue();
 }
 
-VCL::ConstantValue* VCL::ExprEvaluator::VisitVariableRefExpr(VariableRefExpr* expr) {
+VCL::ConstantValue* VCL::ExprEvaluator::VisitDeclRefExpr(DeclRefExpr* expr) {
     return nullptr;
 }
 

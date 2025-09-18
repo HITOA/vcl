@@ -27,6 +27,10 @@ VCL::ArrayType* VCL::TypeCache::GetOrCreateArrayType(QualType ofType, uint64_t o
     return GetOrCreateInFoldingSet(typeAllocator, arrayTypeCache, ofType, ofSize);
 }
 
+VCL::RecordType* VCL::TypeCache::GetOrCreateRecordType(RecordDecl* decl) {
+    return GetOrCreateInFoldingSet(typeAllocator, recordTypeCache, decl);
+}
+
 VCL::TemplateTypeParamType* VCL::TypeCache::GetOrCreateTemplateTypeParamType(TemplateTypeParamDecl* decl) {
     return GetOrCreateInFoldingSet(typeAllocator, templateTypeParamTypeCache, decl);
 }

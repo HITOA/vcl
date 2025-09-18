@@ -22,16 +22,22 @@ namespace VCL {
         }
     };
 
-    class NonTypeTemplateParamDecl : public TypeDecl {
+    class NonTypeTemplateParamDecl : public ValueDecl {
     public:
-        NonTypeTemplateParamDecl(BuiltinType* type, IdentifierInfo* identifier) : TypeDecl{ type, identifier, Decl::NonTypeTemplateParamDeclClass } {}
+        NonTypeTemplateParamDecl(BuiltinType* type, IdentifierInfo* identifier) 
+            : ofType{ type }, ValueDecl{ type, identifier, Decl::NonTypeTemplateParamDeclClass } {}
         ~NonTypeTemplateParamDecl() = default;
+        
+        inline BuiltinType* GetType() const { return ofType; }
 
         static inline NonTypeTemplateParamDecl* Create(ASTContext& context, BuiltinType* type, IdentifierInfo* identifier, SourceRange range) {
             NonTypeTemplateParamDecl* decl = context.AllocateNode<NonTypeTemplateParamDecl>(type, identifier);
             decl->SetSourceRange(range);
             return decl;
         }
+
+    private:
+        BuiltinType* ofType;
     };
 
     using TemplateParameter = llvm::PointerUnion<TemplateTypeParamDecl*, NonTypeTemplateParamDecl*>;
@@ -41,7 +47,7 @@ namespace VCL {
     
     public:
         TemplateParameterList() = delete;
-        TemplateParameterList(llvm::ArrayRef<NamedDecl*> params) : paramCount{ params.size() } {
+        TemplateParameterList(llvm::ArrayRef<NamedDecl*> params, SourceRange range) : paramCount{ params.size() }, range{ range } {
             std::uninitialized_copy(params.begin(), params.end(), getTrailingObjects<NamedDecl*>());
         }
         TemplateParameterList(const TemplateParameterList& other) = delete;
@@ -52,15 +58,17 @@ namespace VCL {
         TemplateParameterList& operator=(TemplateParameterList&& other) = delete;
 
         inline llvm::ArrayRef<NamedDecl*> GetParams() { return { getTrailingObjects<NamedDecl*>(), paramCount }; }
+        inline SourceRange GetSourceRange() const { return range; }
 
-        static inline TemplateParameterList* Create(ASTContext& context, llvm::ArrayRef<NamedDecl*> params) {
+        static inline TemplateParameterList* Create(ASTContext& context, llvm::ArrayRef<NamedDecl*> params, SourceRange range) {
             size_t size = totalSizeToAlloc<NamedDecl*>(params.size());
             void* ptr = context.Allocate(sizeof(TemplateParameterList) + size);
-            return new(ptr) TemplateParameterList{ params };
+            return new(ptr) TemplateParameterList{ params, range };
         }
 
     private:
         size_t paramCount;
+        SourceRange range;
     };
 
     class TemplateDecl : public NamedDecl {
@@ -88,6 +96,21 @@ namespace VCL {
 
         static inline IntrinsicTemplateDecl* Create(ASTContext& context, TemplateParameterList* params, IdentifierInfo* identifier) {
             return context.AllocateNode<IntrinsicTemplateDecl>(params, identifier);
+        }
+    };
+
+    class TemplateRecordDecl : public TemplateDecl, public DeclContext {
+    public:
+        TemplateRecordDecl(TemplateParameterList* params, IdentifierInfo* identifier) 
+            : TemplateDecl{ params, identifier, DeclClass::TemplateRecordDeclClass } {}
+        ~TemplateRecordDecl() = default;
+
+        static inline TemplateRecordDecl* Create(ASTContext& context, IdentifierInfo* identifier, TemplateParameterList* params, SourceRange range) {
+            TemplateRecordDecl* decl = context.AllocateNode<TemplateRecordDecl>(params, identifier);
+            for (auto param : params->GetParams())
+                decl->InsertBack(param);
+            decl->SetSourceRange(range);
+            return decl;
         }
     };
 

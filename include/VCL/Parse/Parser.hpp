@@ -40,9 +40,14 @@ namespace VCL {
         bool Parse();
 
         Decl* ParseTopLevelDecl();
+        Decl* ParseRecordLevelDecl();
+        
+        /** Parse a RecordDecl or a TemplateRecordDecl */
+        NamedDecl* ParseAnyRecordDecl();
+        FieldDecl* ParseFieldDecl();
 
-        VarDecl* ParseVarDecl(TokenKind expectedEndTokenKind);
-        VarDecl* TryParseVarDecl(TokenKind expectedEndTokenKind);
+        VarDecl* ParseVarDecl();
+        VarDecl* TryParseVarDecl();
 
         std::optional<VarDecl::VarAttrBitfield> ParseVarAttrBitfield();
 
@@ -52,6 +57,7 @@ namespace VCL {
         WithFullLoc<Type*> ParseType();
         WithFullLoc<Type*> TryParseType();
 
+        TemplateParameterList* ParseTemplateParameterList();
         TemplateArgumentList* ParseTemplateArgumentList();
 
         Expr* ParseExpression();
@@ -112,6 +118,24 @@ namespace VCL {
         private:
             Parser* parser;
             ParserFlag oldFlags;
+        };
+
+        class ParserScopeGuard {
+        public:
+            ParserScopeGuard() = delete;
+            ParserScopeGuard(Parser* parser, DeclContext* context) : parser{ parser }, context{ context } {
+                parser->sema.PushDeclContextScope(context);
+            }
+            ParserScopeGuard(const ParserScopeGuard& other) = delete;
+            ParserScopeGuard(ParserScopeGuard&& other) = delete;
+            ~ParserScopeGuard() { parser->sema.PopDeclContextScope(context); }
+
+            ParserScopeGuard& operator=(const ParserScopeGuard& other) = delete;
+            ParserScopeGuard& operator=(ParserScopeGuard&& other) = delete;
+            
+        private:
+            Parser* parser;
+            DeclContext* context;
         };
 
     private:

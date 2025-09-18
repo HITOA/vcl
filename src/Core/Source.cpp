@@ -8,7 +8,8 @@ VCL::Source::Line VCL::Source::GetLine(SourceLocation location) const {
     for (uint32_t i = 0; i < lineOffsets.size(); ++i)
         if (lineOffsets[i] >= offset)
             return Line{ lineOffsets[i - 1], lineOffsets[i] - lineOffsets[i - 1], i };
-    return Line{ lineOffsets[lineOffsets.size() - 1], (uint32_t)lineOffsets.size() };
+    return Line{ lineOffsets[lineOffsets.size() - 1], 
+        (uint32_t)GetBufferRef().getBufferSize() - lineOffsets[lineOffsets.size() - 1], (uint32_t)lineOffsets.size() };
 }
 
 void VCL::Source::CalculateLineOffsets() {

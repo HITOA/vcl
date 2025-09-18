@@ -14,7 +14,7 @@ namespace VCL {
     public:
         enum ExprClass {
             NumericLiteralExprClass,
-            VariableRefExprClass,
+            DeclRefExprClass,
             CastExprClass,
             BinaryArithmeticExprClass
         };
@@ -66,22 +66,22 @@ namespace VCL {
         ConstantScalar scalar;
     };
 
-    class VariableRefExpr : public Expr {
+    class DeclRefExpr : public Expr {
     public:
-        VariableRefExpr(VarDecl* decl) : decl{ decl }, Expr{ Expr::VariableRefExprClass } {}
-        ~VariableRefExpr() = default;    
+        DeclRefExpr(ValueDecl* decl) : decl{ decl }, Expr{ Expr::DeclRefExprClass } {}
+        ~DeclRefExpr() = default;    
 
-        inline VarDecl* GetVarDecl() { return decl; }
+        inline ValueDecl* GetVarDecl() { return decl; }
 
-        static inline VariableRefExpr* Create(ASTContext& context, VarDecl* decl, SourceRange range) {
-            VariableRefExpr* instance = context.AllocateNode<VariableRefExpr>(decl);
-            instance->SetResultType(decl->GetType());
+        static inline DeclRefExpr* Create(ASTContext& context, ValueDecl* decl, SourceRange range) {
+            DeclRefExpr* instance = context.AllocateNode<DeclRefExpr>(decl);
+            instance->SetResultType(decl->GetValueType());
             instance->SetSourceRange(range);
             return instance;
         }
 
     private:
-        VarDecl* decl;
+        ValueDecl* decl;
     };
     
 
