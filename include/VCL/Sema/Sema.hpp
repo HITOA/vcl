@@ -36,6 +36,7 @@ namespace VCL {
 
     public:
         inline ASTContext& GetASTContext() { return astContext; }
+        inline CompilerContext& GetCC() { return cc; }
 
         void AddBuiltinIntrinsicTemplateDecl();
 

@@ -1,6 +1,7 @@
 #include <VCL/Parse/Parser.hpp>
 
 #include <VCL/AST/Operator.hpp>
+#include <VCL/AST/ExprEvaluator.hpp>
 
 #define NEXT_TOKEN_N(n) if (!NextToken(n)) return nullptr
 #define NEXT_TOKEN() if (!NextToken()) return nullptr
@@ -360,6 +361,7 @@ VCL::TemplateArgumentList* VCL::Parser::ParseTemplateArgumentList() {
 
     llvm::SmallVector<TemplateArgument> args{};
     SourceRange range{};
+    ExprEvaluator eval{};
 
     Token* token;
     EXPECT_TOKEN(token, TokenKind::Lesser);
@@ -371,13 +373,7 @@ VCL::TemplateArgumentList* VCL::Parser::ParseTemplateArgumentList() {
             NEXT_TOKEN();
         }
         if (Expr* expr = TryParseExpression(); expr != nullptr) {
-            if (ConstantValue* value = expr->GetConstantValue(); 
-                value != nullptr && value->GetConstantValueClass() == ConstantValue::ConstantScalarClass) {
-                ConstantScalar* scalar = (ConstantScalar*)value;
-                args.emplace_back(*scalar).SetSourceRange(expr->GetSourceRange());
-            } else {
-                args.emplace_back(expr).SetSourceRange(expr->GetSourceRange());
-            }
+            args.emplace_back(expr).SetSourceRange(expr->GetSourceRange());
         } else {
             WithFullLoc<QualType> type = ParseQualType();
             if (type.value.GetAsOpaquePtr() == 0)

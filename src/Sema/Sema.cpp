@@ -1,6 +1,7 @@
 #include <VCL/Sema/Sema.hpp>
 
 #include <VCL/AST/ExprEvaluator.hpp>
+#include <VCL/Sema/Template.hpp>
 
 #include <llvm/ADT/SmallPtrSet.h>
 
@@ -45,7 +46,7 @@ bool VCL::Sema::PushDeclContextScope(DeclContext* context) {
 
 bool VCL::Sema::PopDeclContextScope(DeclContext* context) {
     if (sm.GetScopeFront()->GetDeclContext() != context)  {
-        cc.GetDiagnosticReporter().Error(Diagnostic::InternalSemaError)
+        cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return false;
@@ -101,6 +102,10 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
             .Report();
         return nullptr;
     }
+    
+    TemplateInstantiator instantiator{ *this };
+    if (!instantiator.MakeTypeComplete(type.GetType()))
+        return nullptr;
 
     decl = VarDecl::Create(astContext, type, identifier, varAttrBitfield, range);
     sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
@@ -266,7 +271,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator& op) 
         case BinaryOperator::LogicalOr:
             return ActOnBinaryLogicalExpr(lhs, rhs, op);
         default:
-            cc.GetDiagnosticReporter().Error(Diagnostic::InternalSemaError)
+            cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ SourceRange{ lhs->GetSourceRange().start, rhs->GetSourceRange().end } })
                 .Report();
@@ -275,14 +280,14 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator& op) 
 }
 
 VCL::Expr* VCL::Sema::ActOnBinaryAssignmentExpr(Expr* lhs, Expr* rhs, BinaryOperator& op) {
-    cc.GetDiagnosticReporter().Error(Diagnostic::InternalSemaError)
+    cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
         .SetCompilerInfo(__FILE__, __func__, __LINE__)
         .Report();
     return nullptr;
 }
 
 VCL::Expr* VCL::Sema::ActOnBinaryLogicalExpr(Expr* lhs, Expr* rhs, BinaryOperator& op) {
-    cc.GetDiagnosticReporter().Error(Diagnostic::InternalSemaError)
+    cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
         .SetCompilerInfo(__FILE__, __func__, __LINE__)
         .Report();
     return nullptr;

@@ -1,7 +1,6 @@
 #include <VCL/AST/ExprEvaluator.hpp>
 
 
-
 VCL::ConstantValue* VCL::ExprEvaluator::VisitNumericLiteralExpr(NumericLiteralExpr* expr) {
     return expr->GetValue();
 }

@@ -21,6 +21,7 @@ DIAGNOSTIC_HINT(PreviouslyDeclared,              "previously declared here")
 DIAGNOSTIC_HINT(Declared,                        "declared here")
 
 DIAGNOSTIC(MissingImplementation,                "missing implementation")
+DIAGNOSTIC(InternalError,                        "internal compiler error")
 
 SOURCE_DIAGNOSTIC(FileNotFound,                  "could not open '%0'; file not found")
 SOURCE_DIAGNOSTIC(MemoryBufferCreationFailed,    "memory buffer creation failed")
@@ -35,11 +36,11 @@ PARSER_DIAGNOSTIC(WrongTemplateArgument,         "wrong template argument")
 PARSER_DIAGNOSTIC(WrongTemplateParameter,        "wrong template parameter")
 PARSER_DIAGNOSTIC(FloatTemplateArgument,         "numeric constant template argument cannot be float")
 
-SEMA_DIAGNOSTIC(InternalSemaError,               "internal compiler error")
 SEMA_DIAGNOSTIC(InvalidType,                     "'%0' is not a valid type name")
 SEMA_DIAGNOSTIC(Redeclaration,                   "redeclaration of '%0'")
 SEMA_DIAGNOSTIC(ReservedIdentifier,              "'%0' is a reserved identifier")
 SEMA_DIAGNOSTIC(TooManyTemplateArgument,         "too many template arguments")
+SEMA_DIAGNOSTIC(NotEnoughTemplateArgument,       "not enough template arguments")
 SEMA_DIAGNOSTIC(MissingTemplateArgument,         "missing template argument for '%0'")
 SEMA_DIAGNOSTIC(TemplateArgumentWrongType,       "wrong type of template argument")
 SEMA_DIAGNOSTIC(BuiltinTypeIsNotTemplated,       "builtin type '%0' is not templated")
@@ -49,6 +50,8 @@ SEMA_DIAGNOSTIC(InvalidCast,                     "invalid cast of type '%0' to t
 SEMA_DIAGNOSTIC(DoesNotTakeTemplateArgList,      "'%0' does not take a template argument list")
 SEMA_DIAGNOSTIC(NotTypeDecl,                     "'%0' is not a type declaration")
 SEMA_DIAGNOSTIC(TemplateRedeclared,              "template parameter '%0' cannot be redeclared in this scope")
+SEMA_DIAGNOSTIC(ExprDoesNotEvaluate,             "expression does not evaluate at compile time")
+SEMA_DIAGNOSTIC(ExprDoesNotEvaluateScalar,       "expression does not evaluate at compile time to a scalar")
 
 #undef DIAGNOSTIC_HINT
 #undef SEMA_DIAGNOSTIC

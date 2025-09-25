@@ -71,7 +71,7 @@ namespace VCL {
         DeclRefExpr(ValueDecl* decl) : decl{ decl }, Expr{ Expr::DeclRefExprClass } {}
         ~DeclRefExpr() = default;    
 
-        inline ValueDecl* GetVarDecl() { return decl; }
+        inline ValueDecl* GetValueDecl() { return decl; }
 
         static inline DeclRefExpr* Create(ASTContext& context, ValueDecl* decl, SourceRange range) {
             DeclRefExpr* instance = context.AllocateNode<DeclRefExpr>(decl);
@@ -115,6 +115,13 @@ namespace VCL {
 
         static inline BinaryArithmeticExpr* Create(ASTContext& context, Expr* lhs, Expr* rhs, BinaryOperator& op) {
             BinaryArithmeticExpr* instance = context.AllocateNode<BinaryArithmeticExpr>(lhs, rhs, op.kind);
+            instance->SetResultType(lhs->GetResultType());
+            instance->SetSourceRange(SourceRange{ lhs->GetSourceRange().start, rhs->GetSourceRange().end });
+            return instance;
+        }
+
+        static inline BinaryArithmeticExpr* Create(ASTContext& context, Expr* lhs, Expr* rhs, BinaryOperator::Kind op) {
+            BinaryArithmeticExpr* instance = context.AllocateNode<BinaryArithmeticExpr>(lhs, rhs, op);
             instance->SetResultType(lhs->GetResultType());
             instance->SetSourceRange(SourceRange{ lhs->GetSourceRange().start, rhs->GetSourceRange().end });
             return instance;

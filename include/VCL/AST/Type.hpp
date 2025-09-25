@@ -74,6 +74,7 @@ namespace VCL {
         
         inline void* GetAsOpaquePtr() const { return (void*)ptr; }
         inline Type* GetType() const { return (Type*)(ptr & ~Qualifier::Mask); }
+        inline Qualifier GetQualifiers() const { return (Qualifier)(ptr & Qualifier::Mask); }
 
         inline void AddQualifier(Qualifier qual) { ptr |= qual; }
         inline bool HasQualifier(Qualifier qual) { return ptr & qual; }
@@ -187,7 +188,7 @@ namespace VCL {
     class TemplateSpecializationType : public Type, public llvm::FoldingSetNode {
     public:
         TemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args)
-            : decl{ decl }, args{ args }, Type{ Type::TemplateSpecializationTypeClass } {}
+            : decl{ decl }, args{ args }, instantiatedType{ nullptr }, Type{ Type::TemplateSpecializationTypeClass } {}
         ~TemplateSpecializationType() = default;
 
         inline TemplateDecl* GetTemplateDecl() const { return decl; }

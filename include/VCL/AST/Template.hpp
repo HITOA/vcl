@@ -67,6 +67,9 @@ namespace VCL {
         inline llvm::ArrayRef<TemplateArgument> GetArgs() { return { getTrailingObjects<TemplateArgument>(), argCount }; }
         inline SourceRange GetSourceRange() const { return range; }
 
+        inline TemplateArgument* GetData() { return getTrailingObjects<TemplateArgument>(); }
+        inline size_t GetCount() const { return argCount; }
+
         static inline TemplateArgumentList* Create(ASTContext& context, llvm::ArrayRef<TemplateArgument> args, SourceRange range) {
             size_t size = totalSizeToAlloc<TemplateArgument>(args.size());
             void* ptr = context.Allocate(sizeof(TemplateArgumentList) + size);

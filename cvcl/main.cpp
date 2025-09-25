@@ -11,6 +11,10 @@
 #include <VCL/AST/ASTContext.hpp>
 #include <VCL/Sema/Sema.hpp>
 #include <VCL/Parse/Parser.hpp>
+#include <VCL/CodeGen/CodeGenModule.hpp>
+
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
 
 #include <iostream>
 #include <fstream>
@@ -143,6 +147,8 @@ int main(int argc, const char* argv[]) {
     cc.GetIdentifierTable().AddKeywords();
     cc.SetDiagnosticConsumer(&diagnosticConsumer);
 
+    VCL::Target target{};
+
     for (size_t i = 0; i < options.inputFilenames.size(); ++i) {
         VCL::Source* source = cc.GetSourceManager().LoadFromDisk(options.inputFilenames[i]);
         if (!source)
@@ -158,5 +164,15 @@ int main(int argc, const char* argv[]) {
             std::cout << "compilation error" << std::endl;
             return -1;
         }
+
+        llvm::orc::ThreadSafeContext context{ std::make_unique<llvm::LLVMContext>() };
+        llvm::orc::ThreadSafeModule module{  std::make_unique<llvm::Module>( "module", *context.getContext() ), context };
+        VCL::CodeGenModule cgm{ module, astContext, cc, target };
+        if (!cgm.Emit()) {
+            std::cout << "compilation (CodeGen) error" << std::endl;
+            return -1;
+        }
+        cgm.GetLLVMModule().dump();
+
     }
 }

@@ -25,19 +25,16 @@ namespace VCL {
     class NonTypeTemplateParamDecl : public ValueDecl {
     public:
         NonTypeTemplateParamDecl(BuiltinType* type, IdentifierInfo* identifier) 
-            : ofType{ type }, ValueDecl{ type, identifier, Decl::NonTypeTemplateParamDeclClass } {}
+            : ValueDecl{ type, identifier, Decl::NonTypeTemplateParamDeclClass } {}
         ~NonTypeTemplateParamDecl() = default;
         
-        inline BuiltinType* GetType() const { return ofType; }
+        inline BuiltinType* GetType() const { return (BuiltinType*)GetValueType(); }
 
         static inline NonTypeTemplateParamDecl* Create(ASTContext& context, BuiltinType* type, IdentifierInfo* identifier, SourceRange range) {
             NonTypeTemplateParamDecl* decl = context.AllocateNode<NonTypeTemplateParamDecl>(type, identifier);
             decl->SetSourceRange(range);
             return decl;
         }
-
-    private:
-        BuiltinType* ofType;
     };
 
     using TemplateParameter = llvm::PointerUnion<TemplateTypeParamDecl*, NonTypeTemplateParamDecl*>;
