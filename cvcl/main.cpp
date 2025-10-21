@@ -150,7 +150,9 @@ int main(int argc, const char* argv[]) {
     VCL::Target target{};
 
     for (size_t i = 0; i < options.inputFilenames.size(); ++i) {
-        VCL::Source* source = cc.GetSourceManager().LoadFromDisk(options.inputFilenames[i]);
+        std::string inputPath = options.inputFilenames[i];
+        std::string filename = std::filesystem::path{ inputPath }.filename();
+        VCL::Source* source = cc.GetSourceManager().LoadFromDisk(inputPath);
         if (!source)
             return -1;
 
@@ -172,7 +174,17 @@ int main(int argc, const char* argv[]) {
             std::cout << "compilation (CodeGen) error" << std::endl;
             return -1;
         }
-        cgm.GetLLVMModule().dump();
+
+        if (!options.dumpIrDirectory.empty()) {
+            std::filesystem::path dumpIrPath = std::filesystem::path{ options.dumpIrDirectory } / filename;
+            dumpIrPath.replace_extension(".ll");
+            std::ofstream irOutFile{ dumpIrPath, std::ios::binary | std::ios::trunc };
+            std::string str{};
+            llvm::raw_string_ostream out{ str };
+            cgm.GetLLVMModule().print(out, nullptr);
+            irOutFile << str;
+            irOutFile.close();
+        }
 
     }
 }

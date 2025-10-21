@@ -7,6 +7,14 @@ namespace VCL {
 
     class DeclContext {
     public:
+        enum DeclContextClass {
+            TranslationUnitDeclContextClass,
+            RecordDeclContextClass,
+            TransientFunctionDeclContextClass,
+            FunctionDeclContextClass,
+            TemplateRecordDeclContextClass
+        };
+
         class Iterator {
         public:
             Iterator() = delete;
@@ -34,7 +42,14 @@ namespace VCL {
         }; 
 
     public:
-        virtual ~DeclContext() {};    
+        DeclContext() = delete;
+        DeclContext(DeclContextClass declContextClass) : declContextClass{ declContextClass } {}
+        DeclContext(const DeclContext& other) = delete;
+        DeclContext(DeclContext&& other) = delete;
+        ~DeclContext() = default;    
+
+        DeclContext& operator=(const DeclContext& other) = delete;
+        DeclContext& operator=(DeclContext&& other) = delete;
 
         void InsertFront(Decl* decl);
         void InsertBack(Decl* decl);
@@ -42,7 +57,10 @@ namespace VCL {
         inline Iterator Begin() { return Iterator{ first }; }
         inline Iterator End() { return Iterator{ nullptr }; } 
 
+        inline DeclContextClass GetDeclContextClass() const { return declContextClass; }
+
     private:
+        DeclContextClass declContextClass;
         Decl* first = nullptr;
         Decl* last = nullptr;
     };

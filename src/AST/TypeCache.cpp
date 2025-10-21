@@ -19,6 +19,10 @@ VCL::BuiltinType* VCL::TypeCache::GetOrCreateBuiltinType(BuiltinType::Kind kind)
     return GetOrCreateInFoldingSet(typeAllocator, builtinTypeCache, kind);
 }
 
+VCL::ReferenceType* VCL::TypeCache::GetOrCreateReferenceType(QualType type) {
+    return GetOrCreateInFoldingSet(typeAllocator, referenceTypeCache, type);
+}
+
 VCL::VectorType* VCL::TypeCache::GetOrCreateVectorType(QualType ofType) {
     return GetOrCreateInFoldingSet(typeAllocator, vectorTypeCache, ofType);
 }
@@ -27,8 +31,26 @@ VCL::ArrayType* VCL::TypeCache::GetOrCreateArrayType(QualType ofType, uint64_t o
     return GetOrCreateInFoldingSet(typeAllocator, arrayTypeCache, ofType, ofSize);
 }
 
+VCL::SpanType* VCL::TypeCache::GetOrCreateSpanType(QualType ofType) {
+    return GetOrCreateInFoldingSet(typeAllocator, spanTypeCache, ofType);
+}
+
 VCL::RecordType* VCL::TypeCache::GetOrCreateRecordType(RecordDecl* decl) {
     return GetOrCreateInFoldingSet(typeAllocator, recordTypeCache, decl);
+}
+
+VCL::FunctionType* VCL::TypeCache::GetOrCreateFunctionType(QualType returnType, llvm::ArrayRef<QualType> paramsType) {
+    llvm::FoldingSetNodeID id{};
+    FunctionType::Profile(id, returnType, paramsType);
+    void* insertPos = nullptr;
+    FunctionType* type = functionTypeCache.FindNodeOrInsertPos(id, insertPos);
+    if (type == nullptr && insertPos != nullptr) {
+        size_t size = FunctionType::totalSizeToAlloc<QualType>(paramsType.size());
+        void* ptr = typeAllocator.Allocate(sizeof(FunctionType) + size, 4);
+        type = new(ptr) FunctionType{ returnType, paramsType };
+        functionTypeCache.InsertNode(type, insertPos);
+    }
+    return type;
 }
 
 VCL::TemplateTypeParamType* VCL::TypeCache::GetOrCreateTemplateTypeParamType(TemplateTypeParamDecl* decl) {

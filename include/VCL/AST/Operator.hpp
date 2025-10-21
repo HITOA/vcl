@@ -49,7 +49,12 @@ namespace VCL {
             case TokenKind::EqualEqual: return BinaryOperator{ BinaryOperator::Equal, OperatorAssociativity::Left, 8 };
             case TokenKind::ExclaimEqual: return BinaryOperator{ BinaryOperator::NotEqual, OperatorAssociativity::Left, 8 };
             case TokenKind::AmpAmp: return BinaryOperator{ BinaryOperator::LogicalAnd, OperatorAssociativity::Left, 4 };
-            case TokenKind::PipePipe: return BinaryOperator{ BinaryOperator::LogicalOr, OperatorAssociativity::Left, 4 };
+            case TokenKind::PipePipe: return BinaryOperator{ BinaryOperator::LogicalOr, OperatorAssociativity::Left, 3 };
+            case TokenKind::Equal: return BinaryOperator{ BinaryOperator::Assignment, OperatorAssociativity::Right, 1 };
+            case TokenKind::PlusEqual: return BinaryOperator{ BinaryOperator::AssignmentAdd, OperatorAssociativity::Right, 1 };
+            case TokenKind::MinusEqual: return BinaryOperator{ BinaryOperator::AssignmentSub, OperatorAssociativity::Right, 1 };
+            case TokenKind::AsteriskEqual: return BinaryOperator{ BinaryOperator::AssignmentMul, OperatorAssociativity::Right, 1 };
+            case TokenKind::SlashEqual: return BinaryOperator{ BinaryOperator::AssignmentDiv, OperatorAssociativity::Right, 1 };
             
             default: return BinaryOperator{};
         }

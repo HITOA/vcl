@@ -44,7 +44,7 @@ namespace VCL {
 
         Expr* TransformDeclRefExpr(DeclRefExpr* expr);
         Expr* TransformCastExpr(CastExpr* expr);
-        Expr* TransformBinaryArithmeticExpr(BinaryArithmeticExpr* expr);
+        Expr* TransformBinaryExpr(BinaryExpr* expr);
 
     private:
         Sema& sema;

@@ -55,6 +55,14 @@ bool VCL::Sema::PopDeclContextScope(DeclContext* context) {
     return true;
 }
 
+VCL::CompoundStmt* VCL::Sema::ActOnCompoundStmt(llvm::ArrayRef<Stmt*> stmts, SourceRange range) {
+    return CompoundStmt::Create(astContext, stmts, range);
+}
+
+VCL::DeclStmt* VCL::Sema::ActOnDeclStmt(Decl* decl, SourceRange range) {
+    return DeclStmt::Create(astContext, decl, range);
+}
+
 VCL::RecordDecl* VCL::Sema::ActOnRecordDecl(IdentifierInfo* identifier, SourceRange range) {
     RecordDecl* decl = RecordDecl::Create(astContext, identifier, range);
     sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
@@ -84,6 +92,133 @@ VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identif
     return (FieldDecl*)decl;
 }
 
+VCL::TransientFunctionDecl* VCL::Sema::ActOnTransientFunctionDecl(QualType returnType, IdentifierInfo* identifier, SourceRange range) {
+    TemplateInstantiator instantiator{ *this };
+    if (!instantiator.MakeTypeComplete(returnType.GetType()))
+        return nullptr;
+    
+    NamedDecl* decl = LookupNamedDecl(identifier, 1);
+    if (decl) {
+        SourceRange redeclRange = decl->GetSourceRange();
+        cc.GetDiagnosticReporter().Error(Diagnostic::Redeclaration, identifier->GetName().str())
+            .AddHint(DiagnosticHint{ range })
+            .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+
+    return TransientFunctionDecl::Create(astContext, returnType, identifier, range);
+}
+
+VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(TransientFunctionDecl* decl, SourceRange range) {
+    FunctionDecl* functionDecl = FunctionDecl::Create(astContext, decl, range);
+    sm.GetScopeFront()->GetDeclContext()->InsertBack(functionDecl);
+    return functionDecl;
+}
+
+VCL::ParamDecl* VCL::Sema::ActOnParamDecl(VarDecl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range) {
+    TemplateInstantiator instantiator{ *this };
+    if (!instantiator.MakeTypeComplete(type.GetType()))
+        return nullptr;
+    
+    bool isPassedByReference = attr.hasOutAttribute;
+    if (isPassedByReference) {
+        Type* refType = astContext.GetTypeCache().GetOrCreateReferenceType(type);
+        type = QualType{ refType, type.GetQualifiers() };
+    }
+
+    NamedDecl* decl = LookupNamedDecl(identifier, 1);
+    if (decl) {
+        SourceRange redeclRange = decl->GetSourceRange();
+        cc.GetDiagnosticReporter().Error(Diagnostic::Redeclaration, identifier->GetName().str())
+            .AddHint(DiagnosticHint{ range })
+            .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+
+    decl = ParamDecl::Create(astContext, type, identifier, range);
+    sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    return (ParamDecl*)decl;
+}
+
+VCL::CompoundStmt* VCL::Sema::ActOnFunctionBody(FunctionDecl* function, CompoundStmt* body) {
+    if (!ActRecOnFunctionBodyReturnStmt(function, body->GetStmts()))
+        return nullptr;
+    return body;
+}
+
+bool VCL::Sema::ActRecOnFunctionBodyReturnStmt(FunctionDecl* function, llvm::ArrayRef<Stmt*> stmts) {
+    for (size_t i = 0; i < stmts.size(); ++i) {
+        Stmt* stmt = stmts[i];
+        if (stmt->GetStmtClass() == Stmt::ReturnStmtClass) {
+            if (i + 1 < stmts.size()) {
+                Stmt* ignoredStmt = stmts[i + 1];
+                cc.GetDiagnosticReporter().Warn(Diagnostic::StatementNeverReached)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ ignoredStmt->GetSourceRange() })
+                    .Report();
+            }
+            return true;
+        }
+    }
+
+    bool isFunctionVoid = false;
+    Type* returnType = function->GetType()->GetReturnType().GetType();
+    if (returnType->GetTypeClass() == Type::BuiltinTypeClass)
+        isFunctionVoid = ((BuiltinType*)returnType)->GetKind() == BuiltinType::Void;
+
+    if (!isFunctionVoid) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::MissingReturnStmt)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ function->GetSourceRange() })
+            .Report();
+    }
+
+    return isFunctionVoid;
+}
+
+VCL::ReturnStmt* VCL::Sema::ActOnReturnStmt(Expr* expr, SourceRange range) {
+    FunctionDecl* function = GetFrontmostFunctionDecl();
+    if (!function) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::ReturnStmtOutsideOfBody)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ range })
+            .Report();
+        return nullptr;
+    }
+
+    bool isFunctionVoid = false;
+
+    Type* returnType = function->GetType()->GetReturnType().GetType();
+    if (returnType->GetTypeClass() == Type::BuiltinTypeClass)
+        isFunctionVoid = ((BuiltinType*)returnType)->GetKind() == BuiltinType::Void;
+
+    if (expr != nullptr && isFunctionVoid) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidReturnStmtExpr)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ range })
+            .Report();
+        return nullptr;
+    } else if (expr == nullptr && !isFunctionVoid) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidReturnStmtNoExpr)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ range })
+            .Report();
+        return nullptr;
+    }
+
+    if (expr) {
+        expr = ActOnCast(expr, function->GetType()->GetReturnType(), range);
+        if (!expr)
+            return nullptr;
+    }
+    
+    return ReturnStmt::Create(astContext, expr, range);
+}
+
 VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range) {
     if (identifier->IsKeyword()) {
         cc.GetDiagnosticReporter().Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
@@ -107,7 +242,38 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
     if (!instantiator.MakeTypeComplete(type.GetType()))
         return nullptr;
 
+    if ((varAttrBitfield.hasInAttribute || varAttrBitfield.hasOutAttribute) && !IsCurrentScopeGlobal()) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::AttrInvalideUse)
+            .AddHint(DiagnosticHint{ range })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+        
+    } 
+
+    if (IsCurrentScopeGlobal() && initializer) {
+        if (initializer->GetResultType().GetType() != type.GetType()) {
+            Expr* castedInitializer = ActOnCast(initializer, type, initializer->GetSourceRange());
+            if (!castedInitializer)
+                return nullptr;
+            initializer = castedInitializer;
+        }
+        ExprEvaluator exprEvaluator{ astContext };
+        ConstantValue* value = exprEvaluator.Visit(initializer);
+        if (!value) {
+            cc.GetDiagnosticReporter().Error(Diagnostic::ExprDoesNotEvaluate)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ initializer->GetSourceRange() })
+                .Report();
+            return nullptr;
+        }
+        initializer->SetConstantValue(value);
+    } else if (initializer) {
+        initializer = ActOnCast(initializer, type, initializer->GetSourceRange());
+    }
+
     decl = VarDecl::Create(astContext, type, identifier, varAttrBitfield, range);
+    ((VarDecl*)decl)->SetInitializer(initializer);
     sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
     return (VarDecl*)decl;
 }
@@ -240,7 +406,29 @@ VCL::TemplateParameterList* VCL::Sema::ActOnTemplateParameterList(llvm::ArrayRef
 }
 
 VCL::TemplateArgumentList* VCL::Sema::ActOnTemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range) {
-    return TemplateArgumentList::Create(astContext, args, range);
+    llvm::SmallVector<TemplateArgument> argsEval{};
+
+    for (auto arg : args) {
+        switch (arg.GetKind()) {
+            case TemplateArgument::Expression: {
+                ExprEvaluator eval{ astContext };
+                ConstantValue* value = eval.Visit(arg.GetExpr());
+                if (!value) {
+                    argsEval.push_back(arg);
+                    break;
+                } else if (value->GetConstantValueClass() != ConstantValue::ConstantScalarClass) {
+                    argsEval.push_back(arg);
+                    break;
+                }
+                argsEval.push_back(TemplateArgument{ *(ConstantScalar*)value });
+                break;
+            }
+            default:
+                argsEval.push_back(arg);
+        }
+    }
+
+    return TemplateArgumentList::Create(astContext, argsEval, range);
 }
 
 VCL::TemplateTypeParamDecl* VCL::Sema::ActOnTemplateTypeParamDecl(IdentifierInfo* identifier, SourceRange range) {
@@ -251,63 +439,100 @@ VCL::NonTypeTemplateParamDecl* VCL::Sema::ActOnNonTypeTemplateParamDecl(BuiltinT
     return NonTypeTemplateParamDecl::Create(astContext, type, identifier, range);
 }
 
-VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator& op) {
-    switch (op.kind) {
-        // Binary Arithmetic
+VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op) {
+    Expr::ValueCategory category = Expr::RValue;
+    switch (op) {
+        // Arithmetic
+        case BinaryOperator::Add:
+        case BinaryOperator::Sub:
         case BinaryOperator::Mul:
         case BinaryOperator::Div:
         case BinaryOperator::Remainder:
-        case BinaryOperator::Add:
-        case BinaryOperator::Sub:
-            return ActOnBinaryArithmeticExpr(lhs, rhs, op);
-        // Binary Logical
-        case BinaryOperator::Greater:
-        case BinaryOperator::Lesser:
-        case BinaryOperator::GreaterEqual:
-        case BinaryOperator::LesserEqual:
-        case BinaryOperator::Equal:
-        case BinaryOperator::NotEqual:
-        case BinaryOperator::LogicalAnd:
-        case BinaryOperator::LogicalOr:
-            return ActOnBinaryLogicalExpr(lhs, rhs, op);
-        default:
-            cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
-                .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .AddHint(DiagnosticHint{ SourceRange{ lhs->GetSourceRange().start, rhs->GetSourceRange().end } })
-                .Report();
-            return nullptr;
-    }
-}
-
-VCL::Expr* VCL::Sema::ActOnBinaryAssignmentExpr(Expr* lhs, Expr* rhs, BinaryOperator& op) {
-    cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
-        .SetCompilerInfo(__FILE__, __func__, __LINE__)
-        .Report();
-    return nullptr;
-}
-
-VCL::Expr* VCL::Sema::ActOnBinaryLogicalExpr(Expr* lhs, Expr* rhs, BinaryOperator& op) {
-    cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
-        .SetCompilerInfo(__FILE__, __func__, __LINE__)
-        .Report();
-    return nullptr;
-}
-
-VCL::Expr* VCL::Sema::ActOnBinaryArithmeticExpr(Expr* lhs, Expr* rhs, BinaryOperator& op) {
-    // Check for expr type
-    if (lhs->GetResultType() != rhs->GetResultType()) {
-        // Try implicite cast
-        std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
-        lhs = r.first;
-        rhs = r.second;
-        if (!lhs || !rhs)
-            return nullptr;
+            lhs = ActOnImplicitDerefExprIfNeeded(lhs);
+            rhs = ActOnImplicitDerefExprIfNeeded(rhs);
+            if (lhs->GetResultType() != rhs->GetResultType()) {
+                // Try implicite cast
+                std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
+                lhs = r.first;
+                rhs = r.second;
+                if (!lhs || !rhs)
+                    return nullptr;
+            }
+            break;
+        // Assignment
+        case BinaryOperator::Assignment:
+            rhs = ActOnImplicitDerefExprIfNeeded(rhs);
+            if (!IsExprAssignable(lhs))
+                return nullptr;
+            rhs = ActOnCast(rhs, lhs->GetResultType(), SourceRange{ lhs->GetSourceRange().start, rhs->GetSourceRange().end });
+            if (!rhs) return nullptr;
+            category = Expr::LValue;
+            break;
+        case BinaryOperator::AssignmentAdd:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::Add);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        case BinaryOperator::AssignmentSub:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::Sub);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        case BinaryOperator::AssignmentMul:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::Mul);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        case BinaryOperator::AssignmentDiv:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::Div);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        default: break;
     }
 
-    Expr* expr = BinaryArithmeticExpr::Create(astContext, lhs, rhs, op);
+    Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+    expr->SetValueCategory(category);
     return expr;
 }
 
+bool VCL::Sema::IsExprAssignable(Expr* expr) {
+    if (expr->GetValueCategory() != Expr::LValue) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::AssignmentNotLValue)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+            .Report();
+        return false;
+    }
+
+    if (expr->GetExprClass() == Expr::DeclRefExprClass) {
+        ValueDecl* decl = ((DeclRefExpr*)expr)->GetValueDecl();
+        if (decl->GetValueType().HasQualifier(Qualifier::Const)) {
+            cc.GetDiagnosticReporter().Error(Diagnostic::AssignmentConstValue)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+                .Report();
+            return false;
+        }
+
+        switch (decl->GetDeclClass()) {
+            case Decl::VarDeclClass:
+                if (((VarDecl*)decl)->HasInAttribute()) {
+                    cc.GetDiagnosticReporter().Error(Diagnostic::AssignmentInputValue)
+                        .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                        .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+                        .Report();
+                    return false;
+                }
+                return true;
+            default:
+                return true;
+        }
+    }
+    return true;
+}
+
+VCL::Expr* VCL::Sema::ActOnImplicitDerefExprIfNeeded(Expr* expr) {
+    if (expr->GetResultType().GetType()->GetTypeClass() != Type::ReferenceTypeClass)
+        return expr;
+    return DerefExpr::Create(astContext, expr, expr->GetSourceRange());
+}
 
 std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs) {
     // Todo
@@ -317,8 +542,24 @@ std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(E
 }
 
 VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) {
-    Type* srcType = expr->GetResultType().GetType();
-    Type* dstType = toType.GetType();
+    Type* srcType = GetInstantiatedType(expr->GetResultType().GetType());
+    Type* dstType = GetInstantiatedType(toType.GetType());
+
+    if (!srcType || !dstType) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+
+    BuiltinType::Kind srcKind;
+    BuiltinType::Kind dstKind;
+
+    while (dstType->GetTypeClass() == Type::ReferenceTypeClass)
+        dstType = ((ReferenceType*)dstType)->GetType().GetType();
+    
+    if (srcType == dstType)
+        return expr;
 
     if (!CheckTypeCastability(srcType) || !CheckTypeCastability(dstType)) {
         cc.GetDiagnosticReporter().Error(Diagnostic::InvalidCast)
@@ -328,8 +569,82 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
         return nullptr;
     }
 
-    Expr* castExpr = CastExpr::Create(astContext, expr, toType, range);
+    if (srcType->GetTypeClass() == Type::VectorTypeClass && dstType->GetTypeClass() != Type::VectorTypeClass) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidVectorCast)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+            .Report();
+        return nullptr;
+    }
+
+    if (dstType->GetTypeClass() == Type::VectorTypeClass && srcType->GetTypeClass() == Type::BuiltinTypeClass) {
+        expr = ActOnSplat(expr, expr->GetSourceRange());
+        if (!expr)
+            return nullptr;
+    }
+    
+    srcKind = GetScalarKindFromBuiltinOrVectorType(srcType);
+    dstKind = GetScalarKindFromBuiltinOrVectorType(dstType);
+
+    uint32_t srcBitWidth = BuiltinType::GetKindBitWidth(srcKind);
+    BuiltinType::Category srcCategory = BuiltinType::GetKindCategory(srcKind);
+
+    uint32_t dstBitWidth = BuiltinType::GetKindBitWidth(dstKind);
+    BuiltinType::Category dstCategory = BuiltinType::GetKindCategory(dstKind);
+
+    CastExpr::CastKind kind;
+
+    if (srcCategory == dstCategory) {
+        uint32_t o = srcCategory == BuiltinType::FloatingPointKind ? CastExpr::FloatingCastExt : CastExpr::SignedCastExt;
+        if (srcCategory == BuiltinType::UnsignedKind)
+            o = CastExpr::UnsignedCastExt;
+
+        if (srcBitWidth < dstBitWidth) {
+            kind = (CastExpr::CastKind)o;
+        } else {
+            kind = (CastExpr::CastKind)(o + 1);
+        }
+    } else {
+        if (srcCategory == BuiltinType::FloatingPointKind) {
+            if (dstCategory == BuiltinType::SignedKind)
+                kind = CastExpr::FloatingToSigned;
+            else
+                kind = CastExpr::FloatingToUnsigned;
+        } else if (srcCategory == BuiltinType::SignedKind) {
+            if (dstCategory == BuiltinType::FloatingPointKind)
+                kind = CastExpr::SignedToFloating;
+            else
+                kind = CastExpr::SignedToUnsigned;
+        } else if (srcCategory == BuiltinType::UnsignedKind) {
+            if (dstCategory == BuiltinType::FloatingPointKind)
+                kind = CastExpr::UnsignedToFloating;
+            else
+                kind = CastExpr::UnsignedToSigned;
+        }
+    }
+
+    Expr* castExpr = CastExpr::Create(astContext, expr, kind, toType, range);
     return castExpr;
+}
+
+VCL::Expr* VCL::Sema::ActOnSplat(Expr* expr, SourceRange range) {
+    Type* type = expr->GetResultType().GetType();
+    if (type->GetTypeClass() != Type::BuiltinTypeClass) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidSplat)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+            .Report();
+        return nullptr;
+    }
+    BuiltinType* builtinType = (BuiltinType*)type;
+    if (builtinType->GetKind() == BuiltinType::Void) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidSplat)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+            .Report();
+        return nullptr;
+    }
+    return SplatExpr::Create(astContext, expr, range);
 }
 
 VCL::Expr* VCL::Sema::ActOnNumericConstant(Token* value) {
@@ -353,6 +668,7 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRang
         return nullptr;
     }
     DeclRefExpr* expr = DeclRefExpr::Create(astContext, (ValueDecl*)decl, range);
+    expr->SetValueCategory(Expr::LValue);
     return expr;
 }
 
@@ -416,6 +732,27 @@ VCL::VarDecl* VCL::Sema::LookupVarDecl(IdentifierInfo* identifier, int depth) {
     return nullptr;
 }
 
+VCL::FunctionDecl* VCL::Sema::GetFrontmostFunctionDecl() {
+    Scope* currentScope = sm.GetScopeFront();
+
+    while (currentScope != nullptr) {
+        DeclContext* declContext = currentScope->GetDeclContext();
+        
+        if (declContext->GetDeclContextClass() == DeclContext::FunctionDeclContextClass)
+            return (FunctionDecl*)declContext;
+
+        currentScope = currentScope->GetParentScope();
+    }
+
+    return nullptr;
+}
+
+VCL::Type* VCL::Sema::GetInstantiatedType(Type* type) {
+    if (type->GetTypeClass() != Type::TemplateSpecializationTypeClass)
+        return type;
+    return ((TemplateSpecializationType*)type)->GetInstantiatedType();
+}
+
 bool VCL::Sema::CheckTypeCastability(Type* type) {
     switch (type->GetTypeClass()) {
         case Type::BuiltinTypeClass:
@@ -425,4 +762,16 @@ bool VCL::Sema::CheckTypeCastability(Type* type) {
         default:
             return false;
     }
+}
+
+VCL::BuiltinType::Kind VCL::Sema::GetScalarKindFromBuiltinOrVectorType(Type* type) {
+    if (type->GetTypeClass() == Type::BuiltinTypeClass)
+        return ((BuiltinType*)type)->GetKind();
+    VectorType* vectorType = (VectorType*)type;
+    return ((BuiltinType*)vectorType->GetElementType().GetType())->GetKind();
+}
+
+bool VCL::Sema::IsCurrentScopeGlobal() {
+    DeclContext* frontDeclContext = sm.GetScopeFront()->GetDeclContext();
+    return frontDeclContext->GetDeclContextClass() == DeclContext::TranslationUnitDeclContextClass;
 }

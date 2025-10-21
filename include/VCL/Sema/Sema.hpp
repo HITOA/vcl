@@ -43,9 +43,21 @@ namespace VCL {
         bool PushDeclContextScope(DeclContext* context);
         bool PopDeclContextScope(DeclContext* context);
 
+        CompoundStmt* ActOnCompoundStmt(llvm::ArrayRef<Stmt*> stmts, SourceRange range);
+
+        DeclStmt* ActOnDeclStmt(Decl* decl, SourceRange range);
+
         RecordDecl* ActOnRecordDecl(IdentifierInfo* identifier, SourceRange range);
         TemplateRecordDecl* ActOnTemplateRecordDecl(IdentifierInfo* identifier, TemplateParameterList* params, SourceRange range);
         FieldDecl* ActOnFieldDecl(QualType type, IdentifierInfo* identifier, SourceRange range);
+
+        TransientFunctionDecl* ActOnTransientFunctionDecl(QualType returnType, IdentifierInfo* identifier, SourceRange range);
+        FunctionDecl* ActOnFunctionDecl(TransientFunctionDecl* decl, SourceRange range);
+        ParamDecl* ActOnParamDecl(VarDecl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range);
+        CompoundStmt* ActOnFunctionBody(FunctionDecl* function, CompoundStmt* body);
+        bool ActRecOnFunctionBodyReturnStmt(FunctionDecl* function, llvm::ArrayRef<Stmt*> stmts);
+
+        ReturnStmt* ActOnReturnStmt(Expr* expr, SourceRange range);
 
         VarDecl* ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range);
         QualType ActOnQualType(Type* type, Qualifier qualifiers, SourceRange range);
@@ -57,14 +69,14 @@ namespace VCL {
         TemplateTypeParamDecl* ActOnTemplateTypeParamDecl(IdentifierInfo* identifier, SourceRange range);
         NonTypeTemplateParamDecl* ActOnNonTypeTemplateParamDecl(BuiltinType* type, IdentifierInfo* identifier, SourceRange range);
 
-        Expr* ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator& op);
+        Expr* ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op);
+        bool IsExprAssignable(Expr* expr);
 
-        Expr* ActOnBinaryAssignmentExpr(Expr* lhs, Expr* rhs, BinaryOperator& op);
-        Expr* ActOnBinaryLogicalExpr(Expr* lhs, Expr* rhs, BinaryOperator& op);
-        Expr* ActOnBinaryArithmeticExpr(Expr* lhs, Expr* rhs, BinaryOperator& op);
+        Expr* ActOnImplicitDerefExprIfNeeded(Expr* expr);
 
         std::pair<Expr*, Expr*> ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs);
         Expr* ActOnCast(Expr* expr, QualType toType, SourceRange range);
+        Expr* ActOnSplat(Expr* expr, SourceRange range);
 
         Expr* ActOnNumericConstant(Token* value);
         Expr* ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRange range);
@@ -72,8 +84,13 @@ namespace VCL {
         NamedDecl* LookupNamedDecl(IdentifierInfo* identifier, int depth = -1);
         IntrinsicTemplateDecl* LookupIntrinsicTemplateDecl(IdentifierInfo* identifier, int depth = -1);
         VarDecl* LookupVarDecl(IdentifierInfo* identifier, int depth = -1);
+        
+        FunctionDecl* GetFrontmostFunctionDecl();
 
+        Type* GetInstantiatedType(Type* type);
         bool CheckTypeCastability(Type* type);
+        BuiltinType::Kind GetScalarKindFromBuiltinOrVectorType(Type* type);
+        bool IsCurrentScopeGlobal();
 
     private:
         ASTContext& astContext;

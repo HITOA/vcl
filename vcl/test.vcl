@@ -12,10 +12,22 @@ struct MyTemplatedStruct<typename T, uint64 Size> {
     int64 currentIndex;
 }
 
-float32 f1 = 0.0;
-Array<float32, 8> array;
-Vec<float32> vec;
-//Delegate<void()> d1;
-//Delegate<int(int, int)> d2;
+in float32 f1 = 3.1415;
+int8 i8 = 34;
+in Span<float32> span;
+out Array<float32, 8> array;
+out Vec<float32> vec = 2.0;
 MyStruct myStruct;
 MyTemplatedStruct<float32, 1024> myTemplatedStruct;
+
+MyTemplatedStruct<float32, 1024> Test(inout float64 value) {
+    value = 2.0;
+    return myTemplatedStruct;
+}
+
+void Main() {
+    int16 f2 = f1;
+    f2 += 1;
+    Vec<float32> v = 5.0;
+    v += 2.0;
+}

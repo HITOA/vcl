@@ -23,11 +23,13 @@ namespace VCL {
         
         llvm::Type* ConvertType(QualType type);
 
-    private:
         llvm::Type* ConvertBuiltinType(QualType type);
         llvm::VectorType* ConvertVectorType(QualType type);
         llvm::ArrayType* ConvertArrayType(QualType type);
+        llvm::StructType* ConvertSpanType(QualType type);
         llvm::StructType* ConvertRecordDeclType(QualType type);
+        llvm::FunctionType* ConvertFunctionType(QualType type);
+        llvm::PointerType* ConvertReferenceType(QualType type);
 
     private:
         llvm::DenseMap<Type*, llvm::Type*> types;

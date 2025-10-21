@@ -10,6 +10,9 @@
 
 
 namespace VCL {
+    class Stmt;
+    class Expr;
+
     class Decl {
     public:
         enum DeclClass {
@@ -17,6 +20,9 @@ namespace VCL {
             FieldDeclClass,
             RecordDeclClass,
             VarDeclClass,
+            ParamDeclClass,
+            TransientFunctionDeclClass,
+            FunctionDeclClass,
 
             TemplateTypeParamDeclClass,
             NonTypeTemplateParamDeclClass,
@@ -49,6 +55,8 @@ namespace VCL {
         inline void SetValueDecl(bool isValueDecl) { bitfield.isValueDecl = isValueDecl; }
         inline bool IsTemplateDecl() const { return bitfield.isTemplateDecl; }
         inline void SetTemplateDecl(bool isTemplateDecl) { bitfield.isTemplateDecl = isTemplateDecl; }
+        inline bool IsDeclContext() const { return bitfield.isDeclContext; }
+        inline void SetDeclContext(bool isDeclContext) { bitfield.isDeclContext = isDeclContext; }
 
     private:
         DeclClass declClass;
@@ -60,12 +68,15 @@ namespace VCL {
             unsigned isTypeDecl : 1 = 0;
             unsigned isValueDecl : 1 = 0;
             unsigned isTemplateDecl : 1 = 0;
+            unsigned isDeclContext : 1 = 0;
         } bitfield{};
     };
 
     class TranslationUnitDecl : public Decl, public DeclContext {
     public:
-        TranslationUnitDecl() : Decl{ Decl::TranslationUnitDeclClass } {}
+        TranslationUnitDecl() : Decl{ Decl::TranslationUnitDeclClass }, DeclContext{ DeclContext::TranslationUnitDeclContextClass } {
+            SetDeclContext(true);
+        }
         ~TranslationUnitDecl() = default;
 
         static inline TranslationUnitDecl* Create(ASTContext& context) {
@@ -103,15 +114,15 @@ namespace VCL {
 
     class ValueDecl : public NamedDecl {
     public:
-        ValueDecl(Type* valueType, IdentifierInfo* identifier, DeclClass declClass) : valueType{ valueType }, NamedDecl{ identifier, declClass } {
+        ValueDecl(QualType valueType, IdentifierInfo* identifier, DeclClass declClass) : valueType{ valueType }, NamedDecl{ identifier, declClass } {
             SetValueDecl(true);
         }
         ~ValueDecl() = default;
 
-        inline Type* GetValueType() const { return valueType; }
+        inline QualType GetValueType() const { return valueType; }
 
     private:
-        Type* valueType;
+        QualType valueType;
     };
 
     class FieldDecl : public NamedDecl {
@@ -133,7 +144,10 @@ namespace VCL {
 
     class RecordDecl : public TypeDecl, public DeclContext {
     public:
-        RecordDecl(IdentifierInfo* identifier) : TypeDecl{ nullptr, identifier, Decl::RecordDeclClass } {}
+        RecordDecl(IdentifierInfo* identifier) : TypeDecl{ nullptr, identifier, Decl::RecordDeclClass }, 
+                DeclContext{ DeclContext::RecordDeclContextClass } {
+            SetDeclContext(true);
+        }
         ~RecordDecl() = default;
 
         static inline RecordDecl* Create(ASTContext& context, IdentifierInfo* identifier, SourceRange range) {
@@ -154,18 +168,19 @@ namespace VCL {
         
     public:
         VarDecl(QualType type, IdentifierInfo* identifier, VarAttrBitfield attr) : 
-            type{ type }, varAttrBitfield{ attr }, ValueDecl{ type.GetType(), identifier, Decl::VarDeclClass } {}
+            attrBitfield{ attr }, initializer{ nullptr }, ValueDecl{ type, identifier, Decl::VarDeclClass } {}
         ~VarDecl() = default;
 
-        inline QualType GetType() const { return type; }
-
-        inline bool HasInAttribute() const { return varAttrBitfield.hasInAttribute; }
-        inline void SetInAttribute(bool b) { varAttrBitfield.hasInAttribute = b; }
+        inline bool HasInAttribute() const { return attrBitfield.hasInAttribute; }
+        inline void SetInAttribute(bool b) { attrBitfield.hasInAttribute = b; }
         
-        inline bool HasOutAttribute() const { return varAttrBitfield.hasOutAttribute; }
-        inline void SetOutAttribute(bool b) { varAttrBitfield.hasOutAttribute = b; }
+        inline bool HasOutAttribute() const { return attrBitfield.hasOutAttribute; }
+        inline void SetOutAttribute(bool b) { attrBitfield.hasOutAttribute = b; }
 
         inline bool HasInoutAttribute() const { return HasInAttribute() && HasOutAttribute(); }
+
+        inline Expr* GetInitializer() const { return initializer; }
+        inline void SetInitializer(Expr* initializer) { this->initializer = initializer; }
 
         static inline VarDecl* Create(ASTContext& context, QualType type, IdentifierInfo* identifier, VarAttrBitfield attr, SourceRange range) {
             VarDecl* instance = context.AllocateNode<VarDecl>(type, identifier, attr);
@@ -174,8 +189,75 @@ namespace VCL {
         }
 
     private:
-        QualType type;
-        VarAttrBitfield varAttrBitfield;
+        VarAttrBitfield attrBitfield;
+        Expr* initializer;
+    };
+
+    class ParamDecl : public ValueDecl {
+    public:
+        ParamDecl(QualType type, IdentifierInfo* identifier) :  ValueDecl{ type, identifier, Decl::ParamDeclClass } {}
+        ~ParamDecl() = default;
+
+        static inline ParamDecl* Create(ASTContext& context, QualType type, IdentifierInfo* identifier, SourceRange range) {
+            ParamDecl* instance = context.AllocateNode<ParamDecl>(type, identifier);
+            instance->SetSourceRange(range);
+            return instance;
+        }
+    };
+
+    class TransientFunctionDecl : public NamedDecl, public DeclContext {
+    public:
+        TransientFunctionDecl(QualType returnType, IdentifierInfo* identifier) : returnType{ returnType }, 
+                NamedDecl{ identifier, Decl::TransientFunctionDeclClass }, DeclContext{ DeclContext::TransientFunctionDeclContextClass } {
+            SetDeclContext(true);
+        }
+        ~TransientFunctionDecl() = default;
+
+        inline QualType GetReturnType() const { return returnType; }
+
+        static inline TransientFunctionDecl* Create(ASTContext& astContext, QualType returnType, IdentifierInfo* identifier, SourceRange range) {
+            TransientFunctionDecl* instance = astContext.AllocateNode<TransientFunctionDecl>(returnType, identifier);
+            instance->SetSourceRange(range);
+            return instance;
+        }
+        
+    private:
+        QualType returnType;
+    };
+
+    class FunctionDecl : public NamedDecl, public DeclContext {
+    public:
+        FunctionDecl(FunctionType* type, IdentifierInfo* identifier) : type{ type },
+            NamedDecl{ identifier, Decl::FunctionDeclClass }, DeclContext{ DeclContext::FunctionDeclContextClass } {
+            SetDeclContext(true);
+        }
+        ~FunctionDecl() = default;
+
+        inline FunctionType* GetType() const { return type; }
+
+        inline void SetBody(Stmt* body) { this->body = body; }
+        inline Stmt* GetBody() const { return body; }
+
+        static inline FunctionDecl* Create(ASTContext& astContext, TransientFunctionDecl* transient, SourceRange range) {
+            QualType returnType = transient->GetReturnType();
+            llvm::SmallVector<QualType> paramsType{};
+            for (auto it = transient->Begin(); it != transient->End(); ++it) {
+                if (it->GetDeclClass() == Decl::ParamDeclClass) {
+                    ParamDecl* paramDecl = (ParamDecl*)it.Get();
+                    paramsType.push_back(paramDecl->GetValueType());
+                }
+            }
+            FunctionType* type = astContext.GetTypeCache().GetOrCreateFunctionType(returnType, paramsType);
+            FunctionDecl* decl = astContext.AllocateNode<FunctionDecl>(type, transient->GetIdentifierInfo());
+            for (auto it = transient->Begin(); it != transient->End(); ++it)
+                decl->InsertBack(it.Get());
+            decl->SetSourceRange(range);
+            return decl;
+        }
+
+    private:
+        FunctionType* type;
+        Stmt* body;
     };
 
 }

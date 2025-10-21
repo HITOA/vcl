@@ -28,7 +28,7 @@ namespace VCL {
             : ValueDecl{ type, identifier, Decl::NonTypeTemplateParamDeclClass } {}
         ~NonTypeTemplateParamDecl() = default;
         
-        inline BuiltinType* GetType() const { return (BuiltinType*)GetValueType(); }
+        inline BuiltinType* GetType() const { return (BuiltinType*)GetValueType().GetType(); }
 
         static inline NonTypeTemplateParamDecl* Create(ASTContext& context, BuiltinType* type, IdentifierInfo* identifier, SourceRange range) {
             NonTypeTemplateParamDecl* decl = context.AllocateNode<NonTypeTemplateParamDecl>(type, identifier);
@@ -99,7 +99,9 @@ namespace VCL {
     class TemplateRecordDecl : public TemplateDecl, public DeclContext {
     public:
         TemplateRecordDecl(TemplateParameterList* params, IdentifierInfo* identifier) 
-            : TemplateDecl{ params, identifier, DeclClass::TemplateRecordDeclClass } {}
+                : TemplateDecl{ params, identifier, DeclClass::TemplateRecordDeclClass }, DeclContext{ DeclContext::TemplateRecordDeclContextClass } {
+            SetDeclContext(true);
+        }
         ~TemplateRecordDecl() = default;
 
         static inline TemplateRecordDecl* Create(ASTContext& context, IdentifierInfo* identifier, TemplateParameterList* params, SourceRange range) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <llvm/ADT/FoldingSet.h>
+#include <llvm/Support/TrailingObjects.h>
 
 #include <cstdint>
 
@@ -11,6 +12,7 @@ namespace VCL {
     class TemplateDecl;
     class TemplateArgumentList;
     class RecordDecl;
+    class FunctionDecl;
     class QualType;
 
     /**
@@ -20,9 +22,12 @@ namespace VCL {
     public:
         enum TypeClass {
             BuiltinTypeClass,
+            ReferenceTypeClass,
             VectorTypeClass,
             ArrayTypeClass,
+            SpanTypeClass,
             RecordTypeClass,
+            FunctionTypeClass,
             TemplateTypeParamTypeClass,
             TemplateSpecializationTypeClass
         };
@@ -97,6 +102,13 @@ namespace VCL {
             Max
         };
 
+        enum Category {
+            VoidKind,
+            FloatingPointKind,
+            SignedKind,
+            UnsignedKind
+        };
+
     public:
         BuiltinType(Kind kind) : kind{ kind }, Type{ Type::BuiltinTypeClass } {}
         ~BuiltinType() = default;
@@ -108,8 +120,27 @@ namespace VCL {
             id.AddInteger(kind);
         }
 
+        static uint32_t GetKindBitWidth(Kind kind);
+        static Category GetKindCategory(Kind kind);
+
     private:
         Kind kind = Kind::Void;
+    };
+
+    class ReferenceType : public Type, public llvm::FoldingSetNode {
+    public:
+        ReferenceType(QualType type) : type{ type }, Type{ Type::ReferenceTypeClass } {}
+        ~ReferenceType() = default;
+        
+        inline QualType GetType() const { return type; }
+
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, type); }
+        inline static void Profile(llvm::FoldingSetNodeID& id, QualType type) {
+            id.AddPointer(type.GetAsOpaquePtr());
+        }
+
+    private:
+        QualType type;
     };
 
     /**
@@ -153,6 +184,22 @@ namespace VCL {
         uint64_t ofSize;  
     };
 
+    class SpanType : public Type, public llvm::FoldingSetNode {
+    public:
+        SpanType(QualType ofType) : ofType{ ofType }, Type{ Type::SpanTypeClass } {}
+        ~SpanType() = default;
+
+        inline QualType GetElementType() const { return ofType; }
+        
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, ofType); }
+        inline static void Profile(llvm::FoldingSetNodeID& id, QualType ofType) {
+            id.AddPointer(ofType.GetAsOpaquePtr());
+        }
+
+    private:
+        QualType ofType;
+    };
+
     class RecordType : public Type, public llvm::FoldingSetNode {
     public:
         RecordType(RecordDecl* decl) : decl{ decl }, Type{ Type::RecordTypeClass } {}
@@ -167,6 +214,33 @@ namespace VCL {
 
     private:
         RecordDecl* decl;
+    };
+
+    class FunctionType final : public Type, public llvm::FoldingSetNode, public llvm::TrailingObjects<FunctionType, QualType> {
+    public:
+        friend class TrailingObjects;
+
+        FunctionType(QualType returnType, llvm::ArrayRef<QualType> paramsType) : 
+                returnType{ returnType }, paramCount{ paramsType.size() }, Type{ Type::FunctionTypeClass } {
+            std::uninitialized_copy(paramsType.begin(), paramsType.end(), getTrailingObjects<QualType>());
+        }
+        ~FunctionType() = default;
+
+        inline QualType GetReturnType() const { return returnType; }
+        inline llvm::ArrayRef<QualType> GetParamsType() const {  
+            return { getTrailingObjects<QualType>(), paramCount };
+        }
+
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, returnType, GetParamsType()); }
+        inline static void Profile(llvm::FoldingSetNodeID& id, QualType returnType, llvm::ArrayRef<QualType> paramsType) {
+            id.AddPointer(returnType.GetAsOpaquePtr());
+            for (QualType type : paramsType)
+                id.AddPointer(type.GetAsOpaquePtr());
+        }
+
+    private:
+        QualType returnType;
+        size_t paramCount;
     };
 
     class TemplateTypeParamType : public Type, public llvm::FoldingSetNode {

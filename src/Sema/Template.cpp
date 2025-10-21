@@ -35,6 +35,7 @@ bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSp
                 .Report();
             return false;
     }
+    
     if (!t)
         return false;
     type->SetInstantiatedType(t);
@@ -118,7 +119,7 @@ bool VCL::TemplateInstantiator::CheckTemplateArgumentsParametersMatch(TemplateAr
 }
 
 bool VCL::TemplateInstantiator::EvaluateTemplateArgumentsExpr(TemplateArgumentList* args) {
-    ExprEvaluator eval{};
+    ExprEvaluator eval{ sema.GetASTContext() };
     for (size_t i = 0; i < args->GetCount(); ++i) {
         TemplateArgument* arg = &args->GetData()[i];
         if (arg->GetKind() == TemplateArgument::Expression) {
@@ -185,10 +186,14 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateIntrinsicTemplateDecl(Intrinsic
             uint64_t ofSize = arg1->GetIntegral().Get<uint64_t>();
             return sema.GetASTContext().GetTypeCache().GetOrCreateArrayType(ofType, ofSize);
         }
+        case TokenKind::Keyword_Span: {
+            TemplateArgument* arg0 = Lookup(decl->GetTemplateParametersList()->GetParams()[0]);
+            QualType ofType = arg0->GetType();
+            return sema.GetASTContext().GetTypeCache().GetOrCreateSpanType(ofType);
+        }
         default:
             sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .AddHint(DiagnosticHint{ decl->GetSourceRange() })
                 .Report();
             return nullptr;
     }
@@ -253,7 +258,7 @@ VCL::Expr* VCL::TemplateInstantiator::TransformExpr(Expr* expr) {
     {
         case Expr::DeclRefExprClass: return TransformDeclRefExpr((DeclRefExpr*)expr);
         case Expr::CastExprClass: return TransformCastExpr((CastExpr*)expr);
-        case Expr::BinaryArithmeticExprClass: return TransformBinaryArithmeticExpr((BinaryArithmeticExpr*)expr);
+        case Expr::BinaryExprClass: return TransformBinaryExpr((BinaryExpr*)expr);
         default: return expr;
     }
 }
@@ -333,13 +338,13 @@ VCL::Expr* VCL::TemplateInstantiator::TransformCastExpr(CastExpr* expr) {
     Expr* arg = TransformExpr(expr->GetExpr());
     if (arg == expr->GetExpr())
         return expr;
-    return CastExpr::Create(sema.GetASTContext(), arg, expr->GetResultType(), expr->GetSourceRange());
+    return CastExpr::Create(sema.GetASTContext(), arg, expr->GetCastKind(), expr->GetResultType(), expr->GetSourceRange());
 }
 
-VCL::Expr* VCL::TemplateInstantiator::TransformBinaryArithmeticExpr(BinaryArithmeticExpr* expr) {
+VCL::Expr* VCL::TemplateInstantiator::TransformBinaryExpr(BinaryExpr* expr) {
     Expr* lhs = TransformExpr(expr->GetLHS());
     Expr* rhs = TransformExpr(expr->GetRHS());
     if (expr->GetLHS() == lhs && expr->GetRHS() == rhs)
         return expr;
-    return BinaryArithmeticExpr::Create(sema.GetASTContext(), lhs, rhs, expr->GetOperatorKind());
+    return BinaryExpr::Create(sema.GetASTContext(), lhs, rhs, expr->GetOperatorKind());
 }

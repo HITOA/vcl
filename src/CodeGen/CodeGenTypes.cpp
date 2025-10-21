@@ -16,7 +16,10 @@ llvm::Type* VCL::CodeGenTypes::ConvertType(QualType type) {
         case Type::BuiltinTypeClass: return ConvertBuiltinType(type);
         case Type::VectorTypeClass: return ConvertVectorType(type);
         case Type::ArrayTypeClass: return ConvertArrayType(type);
+        case Type::SpanTypeClass: return ConvertSpanType(type);
         case Type::RecordTypeClass: return ConvertRecordDeclType(type);
+        case Type::FunctionTypeClass: return ConvertFunctionType(type);
+        case Type::ReferenceTypeClass: return ConvertReferenceType(type);
         case Type::TemplateSpecializationTypeClass: {
             Type* instantiatedType = ((TemplateSpecializationType*)type.GetType())->GetInstantiatedType();
             if (!instantiatedType) {
@@ -97,6 +100,18 @@ llvm::ArrayType* VCL::CodeGenTypes::ConvertArrayType(QualType type) {
     return resultType;
 }
 
+llvm::StructType* VCL::CodeGenTypes::ConvertSpanType(QualType type) {
+    SpanType* spanType = (SpanType*)type.GetType();
+    llvm::Type* ofType = ConvertType(spanType->GetElementType());
+    llvm::PointerType* ofTypePtr = llvm::PointerType::get(ofType, 0);
+    llvm::Type* ofSizeType = llvm::Type::getInt64Ty(cgm.GetLLVMContext());
+    if (!ofType)
+        return nullptr;
+    llvm::StructType* resultType = llvm::StructType::get(cgm.GetLLVMContext(), { ofTypePtr, ofSizeType });
+    types.insert(std::make_pair(type.GetType(), resultType));
+    return resultType;
+}
+
 llvm::StructType* VCL::CodeGenTypes::ConvertRecordDeclType(QualType type) {
     RecordDecl* decl = ((RecordType*)type.GetType())->GetRecordDecl();
     llvm::SmallVector<llvm::Type*> fields;
@@ -112,4 +127,19 @@ llvm::StructType* VCL::CodeGenTypes::ConvertRecordDeclType(QualType type) {
     llvm::StructType* resultType = llvm::StructType::get(cgm.GetLLVMContext(), fields);
     types.insert(std::make_pair(type.GetType(), resultType));
     return resultType;
+}
+
+llvm::FunctionType* VCL::CodeGenTypes::ConvertFunctionType(QualType type) {
+    FunctionType* functionType = (FunctionType*)type.GetType();
+    llvm::Type* returnType = ConvertType(functionType->GetReturnType());
+    llvm::SmallVector<llvm::Type*> paramsType{};
+    for (auto paramType : functionType->GetParamsType())
+        paramsType.push_back(ConvertType(paramType.GetType()));
+    return llvm::FunctionType::get(returnType, paramsType, false);
+}
+
+llvm::PointerType* VCL::CodeGenTypes::ConvertReferenceType(QualType type) {
+    ReferenceType* referenceType = (ReferenceType*)type.GetType();
+    llvm::Type* baseType = ConvertType(referenceType->GetType());
+    return llvm::PointerType::get(baseType, 0);
 }
