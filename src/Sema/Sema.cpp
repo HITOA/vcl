@@ -528,6 +528,13 @@ bool VCL::Sema::IsExprAssignable(Expr* expr) {
     return true;
 }
 
+VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, SourceRange range) {
+    cc.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
+        .SetCompilerInfo(__FILE__, __func__, __LINE__)
+        .Report();
+    return nullptr;
+}
+
 VCL::Expr* VCL::Sema::ActOnImplicitDerefExprIfNeeded(Expr* expr) {
     if (expr->GetResultType().GetType()->GetTypeClass() != Type::ReferenceTypeClass)
         return expr;
@@ -672,6 +679,46 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRang
     return expr;
 }
 
+VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, SourceRange range) {
+    FunctionDecl* decl = LookupFunctionDecl(identifier);
+    if (!decl) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ range })
+            .Report();
+        return nullptr;
+    }
+
+    FunctionType* type = decl->GetType();
+    if (type->GetParamsType().size() < args.size()) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::TooManyArgument)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ range })
+            .Report();
+        return nullptr;
+    }
+
+    llvm::SmallVector<Expr*> trueArgs{};
+    for (size_t i = 0; i < args.size(); ++i) {
+        Expr* arg = args[i];
+        QualType paramType = type->GetParamsType()[i];
+        Expr* castedArg = ActOnCast(arg, paramType, arg->GetSourceRange());
+        if (!castedArg)
+            return nullptr;
+        trueArgs.push_back(castedArg);
+    }
+
+    if (trueArgs.size() < type->GetParamsType().size()) {
+        cc.GetDiagnosticReporter().Error(Diagnostic::MissingArgument)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ range })
+            .Report();
+        return nullptr;
+    }
+
+    return CallExpr::Create(astContext, decl, trueArgs, type->GetReturnType(), range);
+}
+
 VCL::NamedDecl* VCL::Sema::LookupNamedDecl(IdentifierInfo* identifier, int depth) {
     Scope* currentScope = sm.GetScopeFront();
 
@@ -722,6 +769,26 @@ VCL::VarDecl* VCL::Sema::LookupVarDecl(IdentifierInfo* identifier, int depth) {
             if (it->GetDeclClass() != Decl::VarDeclClass)
                 continue;
             VarDecl* decl = (VarDecl*)it.Get();
+            if (identifier == decl->GetIdentifierInfo())
+                return decl;
+        }
+        currentScope = currentScope->GetParentScope();
+        ++currentDepth;
+    }
+
+    return nullptr;
+}
+
+VCL::FunctionDecl* VCL::Sema::LookupFunctionDecl(IdentifierInfo* identifier, int depth) {
+    Scope* currentScope = sm.GetScopeFront();
+
+    int currentDepth = 0;
+    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
+        DeclContext* declContext = currentScope->GetDeclContext();
+        for (auto it = declContext->Begin(); it != declContext->End(); ++it) {
+            if (it->GetDeclClass() != Decl::FunctionDeclClass)
+                continue;
+            FunctionDecl* decl = (FunctionDecl*)it.Get();
             if (identifier == decl->GetIdentifierInfo())
                 return decl;
         }

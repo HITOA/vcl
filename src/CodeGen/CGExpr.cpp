@@ -18,6 +18,8 @@ llvm::Value* VCL::CodeGenFunction::GenerateExpr(Expr* expr) {
             return GenerateSplatExpr((SplatExpr*)expr);
         case Expr::BinaryExprClass:
             return GenerateBinaryExpr((BinaryExpr*)expr);
+        case Expr::CallExprClass:
+            return GenerateCallExpr((CallExpr*)expr);
         default:
             cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -87,6 +89,8 @@ llvm::Value* VCL::CodeGenFunction::GenerateCastExpr(CastExpr* expr) {
 
 llvm::Value* VCL::CodeGenFunction::GenerateSplatExpr(SplatExpr* expr) {
     llvm::Value* value = GenerateRValueExpr(expr->GetExpr());
+    if (!value)
+        return nullptr;
     return builder.CreateVectorSplat(cgm.GetTarget().GetVectorWidthInElement(), value);
 }
 
@@ -170,4 +174,23 @@ llvm::Value* VCL::CodeGenFunction::DispatchBinaryArithmeticOp(Expr* lhs, Expr* r
 llvm::Value* VCL::CodeGenFunction::DispatchBinaryArithmeticOp(Expr* lhs, Expr* rhs, llvm::Instruction::BinaryOps signedop, 
         llvm::Instruction::BinaryOps floatop) {
     return DispatchBinaryArithmeticOp(lhs, rhs, signedop, signedop, floatop);
+}
+
+llvm::Value* VCL::CodeGenFunction::GenerateCallExpr(CallExpr* expr) {
+    llvm::Value* value = GetDeclValue(expr->GetFunctionDecl());
+    if (!value) {
+        cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+    llvm::SmallVector<llvm::Value*> argsValue{};
+    for (auto arg : expr->GetArgs()) {
+        llvm::Value* argValue = GenerateExpr(arg);
+        if (!argValue)
+            return nullptr;
+        argsValue.push_back(argValue);
+    }
+
+    return builder.CreateCall(llvm::cast<llvm::Function>(value), argsValue);
 }

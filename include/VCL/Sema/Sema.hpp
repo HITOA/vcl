@@ -72,6 +72,8 @@ namespace VCL {
         Expr* ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op);
         bool IsExprAssignable(Expr* expr);
 
+        Expr* ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, SourceRange range);
+
         Expr* ActOnImplicitDerefExprIfNeeded(Expr* expr);
 
         std::pair<Expr*, Expr*> ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs);
@@ -80,10 +82,12 @@ namespace VCL {
 
         Expr* ActOnNumericConstant(Token* value);
         Expr* ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRange range);
+        Expr* ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, SourceRange range);
 
         NamedDecl* LookupNamedDecl(IdentifierInfo* identifier, int depth = -1);
         IntrinsicTemplateDecl* LookupIntrinsicTemplateDecl(IdentifierInfo* identifier, int depth = -1);
         VarDecl* LookupVarDecl(IdentifierInfo* identifier, int depth = -1);
+        FunctionDecl* LookupFunctionDecl(IdentifierInfo* identifier, int depth = -1);
         
         FunctionDecl* GetFrontmostFunctionDecl();
 

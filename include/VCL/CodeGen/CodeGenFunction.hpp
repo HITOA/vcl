@@ -51,6 +51,7 @@ namespace VCL {
         llvm::Value* GenerateCastExpr(CastExpr* expr);
         llvm::Value* GenerateSplatExpr(SplatExpr* expr);
         llvm::Value* GenerateBinaryExpr(BinaryExpr* expr);
+        llvm::Value* GenerateCallExpr(CallExpr* expr);
 
         llvm::Value* DispatchBinaryArithmeticOp(Expr* lhs, Expr* rhs, llvm::Instruction::BinaryOps signedop, 
             llvm::Instruction::BinaryOps unsignedop, llvm::Instruction::BinaryOps floatop);

@@ -25,9 +25,13 @@ MyTemplatedStruct<float32, 1024> Test(inout float64 value) {
     return myTemplatedStruct;
 }
 
+float32 Sub(float32 a, float32 b) {
+    return a - b;
+}
+
 void Main() {
     int16 f2 = f1;
     f2 += 1;
     Vec<float32> v = 5.0;
-    v += 2.0;
+    v += Sub(myStruct.f, f1);
 }

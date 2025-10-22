@@ -80,9 +80,10 @@ namespace VCL {
         Expr* ParsePostfixExpression();
         Expr* ParsePrimaryExpression();
         
-        //void ParseParentExpression();
+        Expr* ParseParentExpression();
         Expr* ParseNumericConstantExpr();
         Expr* ParseIdentifierExpr();
+        Expr* ParseCallExpr(IdentifierInfo* identifier, SourceRange range);
 
     private:
         class TentativeParsingGuard {

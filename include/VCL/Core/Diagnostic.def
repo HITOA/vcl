@@ -63,6 +63,8 @@ SEMA_DIAGNOSTIC(MissingReturnStmt,               "missing return statement for n
 SEMA_DIAGNOSTIC(InvalidReturnStmtNoExpr,         "invalid return statement missing expression for non-void function")
 SEMA_DIAGNOSTIC(InvalidReturnStmtExpr,           "invalid return statement having an expression for void function")
 SEMA_DIAGNOSTIC(StatementNeverReached,           "statement will never be reached")
+SEMA_DIAGNOSTIC(TooManyArgument,                 "too many arguments")
+SEMA_DIAGNOSTIC(MissingArgument,                 "missing arguments")
 
 #undef DIAGNOSTIC_HINT
 #undef SEMA_DIAGNOSTIC

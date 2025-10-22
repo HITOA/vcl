@@ -643,7 +643,29 @@ VCL::Expr* VCL::Parser::TryParsePrefixExpression() {
 }
 
 VCL::Expr* VCL::Parser::ParsePostfixExpression() {
-    return ParsePrimaryExpression();
+    Expr* expr = ParsePrimaryExpression();
+    if (!expr)
+        return nullptr;
+
+    Token* token;
+    while (true) {
+        GET_TOKEN(token);
+        switch (token->kind) {
+            case TokenKind::Period: {
+                NEXT_TOKEN();
+                EXPECT_TOKEN(token, TokenKind::Identifier);
+                IdentifierInfo* fieldIdentifier = token->identifier;
+                SourceRange range{ expr->GetSourceRange().start, token->range.end };
+                expr = sema.ActOnFieldAccessExpr(expr, fieldIdentifier, range);
+                if (!expr)
+                    return nullptr;
+                NEXT_TOKEN();
+                break;
+            }
+            default:
+                return expr;
+        }
+    }
 }
 
 VCL::Expr* VCL::Parser::ParsePrimaryExpression() {
@@ -655,6 +677,7 @@ VCL::Expr* VCL::Parser::ParsePrimaryExpression() {
         case TokenKind::Identifier:
             return ParseIdentifierExpr();
         case TokenKind::LeftPar:
+            return ParseParentExpression();
         default:
             cc.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
                 .AddHint(DiagnosticHint{ token->range })
@@ -662,6 +685,16 @@ VCL::Expr* VCL::Parser::ParsePrimaryExpression() {
                 .Report();
             return nullptr;
     }
+}
+
+VCL::Expr* VCL::Parser::ParseParentExpression() {
+    Token* token;
+    EXPECT_TOKEN(token, TokenKind::LeftPar);
+    NEXT_TOKEN();
+    Expr* expr = ParseExpression();
+    EXPECT_TOKEN(token, TokenKind::RightPar);
+    NEXT_TOKEN();
+    return expr;
 }
 
 VCL::Expr* VCL::Parser::ParseNumericConstantExpr() {
@@ -676,8 +709,35 @@ VCL::Expr* VCL::Parser::ParseNumericConstantExpr() {
 VCL::Expr* VCL::Parser::ParseIdentifierExpr() {
     Token* token;
     EXPECT_TOKEN(token, TokenKind::Identifier);
+    IdentifierInfo* identifier = token->identifier;
     SourceRange range = token->range;
-    Expr* expr = sema.ActOnIdentifierExpr(token->identifier, range);
     NEXT_TOKEN();
-    return expr;
+    GET_TOKEN(token);
+    if (token->kind == TokenKind::LeftPar)
+        return ParseCallExpr(identifier, range);
+    return sema.ActOnIdentifierExpr(identifier, range);
+}
+        
+VCL::Expr* VCL::Parser::ParseCallExpr(IdentifierInfo* identifier, SourceRange range) {
+    Token* token;
+    EXPECT_TOKEN(token, TokenKind::LeftPar);
+    NEXT_TOKEN();
+    GET_TOKEN(token);
+    llvm::SmallVector<Expr*> args{};
+    if (token->kind != TokenKind::RightPar) {
+        while (true) {
+            Expr* arg = ParseExpression();
+            if (!arg)
+                return nullptr;
+            args.push_back(arg);
+            GET_TOKEN(token);
+            if (token->kind == TokenKind::RightPar)
+                break;
+            EXPECT_TOKEN(token, TokenKind::Coma);
+            NEXT_TOKEN();
+        }
+    }
+    range.end = token->range.end;
+    NEXT_TOKEN();
+    return sema.ActOnCallExpr(identifier, args, range);
 }
