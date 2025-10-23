@@ -44,14 +44,14 @@ namespace VCL {
         // CGExpr
 
         llvm::Value* GenerateExpr(Expr* expr);
-        llvm::Value* GenerateRValueExpr(Expr* expr);
         llvm::Value* GenerateNumericLiteralExpr(NumericLiteralExpr* expr);
-        llvm::Value* GenerateDerefExpr(DerefExpr* expr);
+        llvm::Value* GenerateLoadExpr(LoadExpr* expr);
         llvm::Value* GenerateDeclRefExpr(DeclRefExpr* expr);
         llvm::Value* GenerateCastExpr(CastExpr* expr);
         llvm::Value* GenerateSplatExpr(SplatExpr* expr);
         llvm::Value* GenerateBinaryExpr(BinaryExpr* expr);
         llvm::Value* GenerateCallExpr(CallExpr* expr);
+        llvm::Value* GenerateFieldAccessExpr(FieldAccessExpr* expr);
 
         llvm::Value* DispatchBinaryArithmeticOp(Expr* lhs, Expr* rhs, llvm::Instruction::BinaryOps signedop, 
             llvm::Instruction::BinaryOps unsignedop, llvm::Instruction::BinaryOps floatop);

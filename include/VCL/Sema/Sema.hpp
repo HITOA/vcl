@@ -74,7 +74,7 @@ namespace VCL {
 
         Expr* ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, SourceRange range);
 
-        Expr* ActOnImplicitDerefExprIfNeeded(Expr* expr);
+        Expr* ActOnLoad(Expr* expr);
 
         std::pair<Expr*, Expr*> ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs);
         Expr* ActOnCast(Expr* expr, QualType toType, SourceRange range);
@@ -91,6 +91,7 @@ namespace VCL {
         
         FunctionDecl* GetFrontmostFunctionDecl();
 
+        bool TypePreferByReference(Type* type);
         Type* GetInstantiatedType(Type* type);
         bool CheckTypeCastability(Type* type);
         BuiltinType::Kind GetScalarKindFromBuiltinOrVectorType(Type* type);

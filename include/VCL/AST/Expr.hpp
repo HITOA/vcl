@@ -14,7 +14,7 @@ namespace VCL {
     public:
         enum ExprClass {
             NumericLiteralExprClass,
-            DerefExprClass,
+            LoadExprClass,
             SplatExprClass,
             DeclRefExprClass,
             CastExprClass,
@@ -75,21 +75,24 @@ namespace VCL {
         ConstantScalar scalar;
     };
 
-    class DerefExpr : public Expr {
+    // LValue2RValue
+    class LoadExpr : public Expr {
     public:
-        DerefExpr(Expr* expr) : expr{ expr }, Expr{ Expr::DerefExprClass } {}
-        ~DerefExpr() = default;
+        LoadExpr(Expr* expr): expr{ expr }, Expr{ Expr::LoadExprClass } {}
+        ~LoadExpr() = default;
 
-        inline Expr* GetExpr() const { return expr; }
+        inline Expr* GetExpr() { return expr; }
 
-        static inline DerefExpr* Create(ASTContext& context, Expr* expr, SourceRange range) {
-            ReferenceType* type = (ReferenceType*)expr->GetResultType().GetType();
-            DerefExpr* derefexpr = context.AllocateNode<DerefExpr>(expr);
-            derefexpr->SetResultType(type->GetType());
-            derefexpr->SetSourceRange(range);
-            return derefexpr;
+        static inline LoadExpr* Create(ASTContext& context, Expr* expr, SourceRange range) {
+            QualType resultType = expr->GetResultType();
+            if (resultType.GetType()->GetTypeClass() == Type::ReferenceTypeClass)
+                resultType = ((ReferenceType*)resultType.GetType())->GetType();
+            LoadExpr* instance = context.AllocateNode<LoadExpr>(expr);
+            instance->SetResultType(resultType);
+            instance->SetSourceRange(range);
+            return instance;
         }
-
+        
     private:
         Expr* expr;
     };
@@ -227,11 +230,28 @@ namespace VCL {
 
     class FieldAccessExpr : public Expr {
     public:
+        FieldAccessExpr(Expr* expr, RecordType* recordType, uint32_t fieldIndex) 
+                : expr{ expr }, recordType{ recordType }, fieldIndex{ fieldIndex }, Expr{ Expr::FieldAccessExprClass } {
+            SetValueCategory(Expr::LValue);
+        }
+        ~FieldAccessExpr() = default;
 
+        inline Expr* GetExpr() { return expr; }
+        inline RecordType* GetRecordType() { return recordType; }
+        inline uint32_t GetFieldIndex() { return fieldIndex; }
+
+        static inline FieldAccessExpr* Create(ASTContext& context, Expr* expr, RecordType* recordType, 
+                uint32_t fieldIndex, QualType resultType, SourceRange range) {
+            FieldAccessExpr* instance = context.AllocateNode<FieldAccessExpr>(expr, recordType, fieldIndex);
+            instance->SetResultType(resultType);
+            instance->SetSourceRange(range);
+            return instance;
+        }
 
     private:
         Expr* expr;
-        IdentifierInfo* fieldIdentifier;
+        RecordType* recordType;
+        uint32_t fieldIndex;
     };
 
 }

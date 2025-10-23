@@ -8,8 +8,8 @@ llvm::Value* VCL::CodeGenFunction::GenerateExpr(Expr* expr) {
     switch (expr->GetExprClass()) {
         case Expr::NumericLiteralExprClass:
             return GenerateNumericLiteralExpr((NumericLiteralExpr*)expr);
-        case Expr::DerefExprClass:
-            return GenerateDerefExpr((DerefExpr*)expr);
+        case Expr::LoadExprClass:
+            return GenerateLoadExpr((LoadExpr*)expr);
         case Expr::DeclRefExprClass:
             return GenerateDeclRefExpr((DeclRefExpr*)expr);
         case Expr::CastExprClass:
@@ -20,6 +20,8 @@ llvm::Value* VCL::CodeGenFunction::GenerateExpr(Expr* expr) {
             return GenerateBinaryExpr((BinaryExpr*)expr);
         case Expr::CallExprClass:
             return GenerateCallExpr((CallExpr*)expr);
+        case Expr::FieldAccessExprClass:
+            return GenerateFieldAccessExpr((FieldAccessExpr*)expr);
         default:
             cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -28,20 +30,15 @@ llvm::Value* VCL::CodeGenFunction::GenerateExpr(Expr* expr) {
     }
 }
 
-llvm::Value* VCL::CodeGenFunction::GenerateRValueExpr(Expr* expr) {
-    llvm::Value* value = GenerateExpr(expr);
-    if (expr->GetValueCategory() == Expr::RValue)
-        return value;
-    return builder.CreateLoad(cgm.GetCGT().ConvertType(expr->GetResultType()), value);
-}
-
 llvm::Value* VCL::CodeGenFunction::GenerateNumericLiteralExpr(NumericLiteralExpr* expr) {
     return cgm.GenerateConstantValue(expr->GetConstantValue());
 }
 
-llvm::Value* VCL::CodeGenFunction::GenerateDerefExpr(DerefExpr* expr) {
-    llvm::Value* value = GenerateExpr(expr->GetExpr());
-    return builder.CreateLoad(cgm.GetCGT().ConvertType(expr->GetResultType()), value);
+llvm::Value* VCL::CodeGenFunction::GenerateLoadExpr(LoadExpr* expr) {
+    llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
+    if (!exprValue)
+        return nullptr;
+    return builder.CreateLoad(cgm.GetCGT().ConvertType(expr->GetResultType()), exprValue);
 }
 
 llvm::Value* VCL::CodeGenFunction::GenerateDeclRefExpr(DeclRefExpr* expr) {
@@ -57,7 +54,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateDeclRefExpr(DeclRefExpr* expr) {
 }
 
 llvm::Value* VCL::CodeGenFunction::GenerateCastExpr(CastExpr* expr) {
-    llvm::Value* exprValue = GenerateRValueExpr(expr->GetExpr());
+    llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
     llvm::Type* dstType = cgm.GetCGT().ConvertType(expr->GetResultType());
 
     if (!exprValue || !dstType)
@@ -88,7 +85,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateCastExpr(CastExpr* expr) {
 }
 
 llvm::Value* VCL::CodeGenFunction::GenerateSplatExpr(SplatExpr* expr) {
-    llvm::Value* value = GenerateRValueExpr(expr->GetExpr());
+    llvm::Value* value = GenerateExpr(expr->GetExpr());
     if (!value)
         return nullptr;
     return builder.CreateVectorSplat(cgm.GetTarget().GetVectorWidthInElement(), value);
@@ -111,7 +108,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateBinaryExpr(BinaryExpr* expr) {
             return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::SRem, llvm::Instruction::URem, llvm::Instruction::FRem);
         case BinaryOperator::Assignment: {
             llvm::Value* lhsExprValue = GenerateExpr(lhsExpr);
-            llvm::Value* rhsExprValue = GenerateRValueExpr(rhsExpr);
+            llvm::Value* rhsExprValue = GenerateExpr(rhsExpr);
             if (!lhsExprValue || !rhsExprValue)
                 return nullptr;
             return builder.CreateStore(rhsExprValue, lhsExprValue);
@@ -142,8 +139,8 @@ llvm::Value* VCL::CodeGenFunction::DispatchBinaryArithmeticOp(Expr* lhs, Expr* r
 
     BuiltinType::Kind kind = ((BuiltinType*)type)->GetKind();
 
-    llvm::Value* lhsExprValue = GenerateRValueExpr(lhs);
-    llvm::Value* rhsExprValue = GenerateRValueExpr(rhs);
+    llvm::Value* lhsExprValue = GenerateExpr(lhs);
+    llvm::Value* rhsExprValue = GenerateExpr(rhs);
 
     if (!lhsExprValue || !rhsExprValue)
         return nullptr;
@@ -193,4 +190,12 @@ llvm::Value* VCL::CodeGenFunction::GenerateCallExpr(CallExpr* expr) {
     }
 
     return builder.CreateCall(llvm::cast<llvm::Function>(value), argsValue);
+}
+
+llvm::Value* VCL::CodeGenFunction::GenerateFieldAccessExpr(FieldAccessExpr* expr) {
+    llvm::Value* lhs = GenerateExpr(expr->GetExpr());
+    if (!lhs)
+        return nullptr;
+    llvm::Type* recordType = cgm.GetCGT().ConvertRecordDeclType(expr->GetRecordType());
+    return builder.CreateStructGEP(recordType, lhs, expr->GetFieldIndex());
 }

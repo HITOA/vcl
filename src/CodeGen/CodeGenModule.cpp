@@ -56,8 +56,6 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl) {
     llvm::Constant* entry = GetLLVMModule().getOrInsertGlobal(decl->GetIdentifierInfo()->GetName(), type);
 
     llvm::GlobalVariable* gv = (llvm::GlobalVariable*)entry;
-
-    gv->setInitializer(initializerValue);
     
     llvm::GlobalVariable::LinkageTypes linkageType = llvm::GlobalVariable::LinkageTypes::CommonLinkage;
     bool isConstant = false;
@@ -66,6 +64,9 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl) {
         isConstant = true;
     if (decl->HasInAttribute() || decl->HasOutAttribute())
         linkageType = llvm::GlobalVariable::LinkageTypes::ExternalLinkage;
+
+    if (!decl->HasInAttribute())
+        gv->setInitializer(initializerValue);
     
     gv->setConstant(isConstant);
     gv->setLinkage(linkageType);

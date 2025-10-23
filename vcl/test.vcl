@@ -12,7 +12,7 @@ struct MyTemplatedStruct<typename T, uint64 Size> {
     int64 currentIndex;
 }
 
-in float32 f1 = 3.1415;
+in float32 f1;
 int8 i8 = 34;
 in Span<float32> span;
 out Array<float32, 8> array;
@@ -29,9 +29,14 @@ float32 Sub(float32 a, float32 b) {
     return a - b;
 }
 
+void Sub2(MyStruct t, float32 b) {
+    t.f -= b;
+}
+
 void Main() {
     int16 f2 = f1;
     f2 += 1;
     Vec<float32> v = 5.0;
-    v += Sub(myStruct.f, f1);
+    v += Sub(myStruct.f, 1.0);
+    Sub2(myStruct, 1.0);
 }

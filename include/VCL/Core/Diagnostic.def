@@ -55,6 +55,7 @@ SEMA_DIAGNOSTIC(TemplateRedeclared,              "template parameter '%0' cannot
 SEMA_DIAGNOSTIC(ExprDoesNotEvaluate,             "expression does not evaluate at compile time")
 SEMA_DIAGNOSTIC(ExprDoesNotEvaluateScalar,       "expression does not evaluate at compile time to a scalar")
 SEMA_DIAGNOSTIC(AttrInvalideUse,                 "invalid use of global variable attributes on a local variable")
+SEMA_DIAGNOSTIC(InitializerInputVarDecl,         "external input variable declaration cannot have a initializer")
 SEMA_DIAGNOSTIC(AssignmentNotLValue,             "left-hand side of assignment must be a variable or a memory location (l-value)")
 SEMA_DIAGNOSTIC(AssignmentConstValue,            "cannot assign to a variable that is const")
 SEMA_DIAGNOSTIC(AssignmentInputValue,            "cannot assign to an input variable")
@@ -65,6 +66,12 @@ SEMA_DIAGNOSTIC(InvalidReturnStmtExpr,           "invalid return statement havin
 SEMA_DIAGNOSTIC(StatementNeverReached,           "statement will never be reached")
 SEMA_DIAGNOSTIC(TooManyArgument,                 "too many arguments")
 SEMA_DIAGNOSTIC(MissingArgument,                 "missing arguments")
+SEMA_DIAGNOSTIC(MustBeLValue,                    "expression must be a l-value")
+SEMA_DIAGNOSTIC(IncorrectType,                   "expression is of incorrect type")
+SEMA_DIAGNOSTIC(QualifierDropped,                "qualifiers dropped")
+SEMA_DIAGNOSTIC(ModifiableLValue,                "expression must be a modifiable l-value")
+SEMA_DIAGNOSTIC(MustHaveStructType,              "expression must have a struct type")
+SEMA_DIAGNOSTIC(MissingMember,                   "struct '%0' has no member '%0'")
 
 #undef DIAGNOSTIC_HINT
 #undef SEMA_DIAGNOSTIC

@@ -36,7 +36,7 @@ bool VCL::CodeGenFunction::GenerateCompoundStmt(CompoundStmt* stmt) {
 }
 
 bool VCL::CodeGenFunction::GenerateReturnStmt(ReturnStmt* stmt) {
-    llvm::Value* value = GenerateRValueExpr(stmt->GetExpr());
+    llvm::Value* value = GenerateExpr(stmt->GetExpr());
     if (!value)
         return false;
     builder.CreateRet(value);
