@@ -4,6 +4,7 @@
 #include <VCL/Core/Diagnostic.hpp>
 
 #include <llvm/ADT/StringRef.h>
+#include <llvm/ADT/IntrusiveRefCntPtr.h>
 
 #include <expected>
 #include <vector>
@@ -14,7 +15,7 @@ namespace VCL {
     /**
      * Manage all the sources
      */
-    class SourceManager {
+    class SourceManager : public llvm::RefCountedBase<SourceManager> {
     public:
         SourceManager() = delete;
         SourceManager(DiagnosticReporter& reporter) : reporter{ reporter } {}

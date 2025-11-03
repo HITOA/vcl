@@ -4,8 +4,11 @@
 
 #include <VCL/Core/SourceManager.hpp>
 #include <VCL/Core/Diagnostic.hpp>
-#include <VCL/Core/DiagnosticConsumer.hpp>
-#include <VCL/Core/CompilerContext.hpp>
+#include <VCL/Frontend/CompilerContext.hpp>
+#include <VCL/Frontend/ExecutionSession.hpp>
+#include <VCL/Frontend/CompilerInstance.hpp>
+#include <VCL/Frontend/TextDiagnosticConsumer.hpp>
+#include <VCL/Frontend/FrontendActions.hpp>
 #include <VCL/Lex/Lexer.hpp>
 #include <VCL/Lex/TokenStream.hpp>
 #include <VCL/AST/ASTContext.hpp>
@@ -26,12 +29,11 @@
 
 
 struct Options {
-    std::vector<std::string> inputFilenames{};
+    std::string inputFilename{};
     bool optimize = true;
     bool generateDebugInformation = false;
-    std::string outputDirectory;
-    std::string dumpIrDirectory;
-    std::string dumpObjFilename;
+    std::string dumpIrFilename{};
+    std::string dumpObjFilename{};
     std::string entryPoint = "Main";
 };
 
@@ -46,8 +48,7 @@ bool GetOptions(int argc, const char** argv, Options& options) {
         if (strcmp(argv[idx], "-h") == 0 || strcmp(argv[idx], "--help") == 0) {
             std::cout << 
             "\n-h, --help: show this help message." 
-            "\n-i, --input <filename>: input source file for pre compilation. this argument can be repeated." 
-            "\n-o, --output <dir>: output compiled bitcode into this directory."
+            "\n-i, --input <filename>: input source file for pre compilation." 
             "\n-e, --entry-point <name>: name of the program entry point (default is \"Main\")."
             "\n--dump-ir <dir>: dump input file(s) module(s) readable ir into this directory."
             "\n--dump-obj <file>: dump object to disk."
@@ -68,7 +69,7 @@ bool GetOptions(int argc, const char** argv, Options& options) {
                 std::cout << "Missing filename for -i." << std::endl;
                 return false;
             }
-            options.inputFilenames.push_back(argv[idx]);
+            options.inputFilename = argv[idx];
             ++idx;
             continue;
         }
@@ -76,10 +77,10 @@ bool GetOptions(int argc, const char** argv, Options& options) {
         if (strcmp(argv[idx], "--dump-ir") == 0) {
             ++idx;
             if (idx >= argc) {
-                std::cout << "Missing directory for --dump-ir." << std::endl;
+                std::cout << "Missing filename for --dump-ir." << std::endl;
                 return false;
             }
-            options.dumpIrDirectory = argv[idx];
+            options.dumpIrFilename = argv[idx];
             ++idx;
             continue;
         }
@@ -92,17 +93,6 @@ bool GetOptions(int argc, const char** argv, Options& options) {
                 return false;
             }
             options.dumpObjFilename = argv[idx];
-            ++idx;
-            continue;
-        }
-
-        if (strcmp(argv[idx], "-o") == 0 || strcmp(argv[idx], "--outputs") == 0) {
-            ++idx;
-            if (idx >= argc) {
-                std::cout << "Missing directory for -o." << std::endl;
-                return false;
-            }
-            options.outputDirectory = argv[idx];
             ++idx;
             continue;
         }
@@ -137,54 +127,54 @@ int main(int argc, const char* argv[]) {
     if (!GetOptions(argc, argv, options))
         return 0;
 
-    if (options.inputFilenames.size() == 0) {
+    if (options.inputFilename.empty()) {
         std::cout << "No input filenames was given." << std::endl;
         return 0;
     }
 
     VCL::TextDiagnosticConsumer diagnosticConsumer{};
     VCL::CompilerContext cc{};
-    cc.GetIdentifierTable().AddKeywords();
-    cc.SetDiagnosticConsumer(&diagnosticConsumer);
+    VCL::ExecutionSession session{};
+    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&diagnosticConsumer);
 
-    VCL::Target target{};
+    cc.CreateDiagnosticEngine();
+    cc.CreateSourceManager();
+    cc.CreateIdentifierTable();
+    cc.CreateTarget();
+    cc.CreateLLVMContext();
 
-    for (size_t i = 0; i < options.inputFilenames.size(); ++i) {
-        std::string inputPath = options.inputFilenames[i];
-        std::string filename = std::filesystem::path{ inputPath }.filename();
-        VCL::Source* source = cc.GetSourceManager().LoadFromDisk(inputPath);
-        if (!source)
-            return -1;
+    VCL::Source* source = cc.GetSourceManager().LoadFromDisk(options.inputFilename);
 
-        VCL::Lexer lexer{ source->GetBufferRef(), cc };
-        VCL::TokenStream stream{ lexer };
-        VCL::ASTContext astContext{};
-        VCL::Sema sema{ astContext, cc };
-        VCL::Parser parser{ stream, sema, cc };
+    VCL::EmitLLVMAction act{};
 
-        if (!parser.Parse()) {
-            std::cout << "compilation error" << std::endl;
-            return -1;
-        }
+    std::shared_ptr<VCL::CompilerInstance> instance = cc.CreateInstance();
+    instance->BeginSource(source);
+    bool b = instance->ExecuteAction(act);
+    instance->EndSource();
 
-        llvm::orc::ThreadSafeContext context{ std::make_unique<llvm::LLVMContext>() };
-        llvm::orc::ThreadSafeModule module{  std::make_unique<llvm::Module>( "module", *context.getContext() ), context };
-        VCL::CodeGenModule cgm{ module, astContext, cc, target };
-        if (!cgm.Emit()) {
-            std::cout << "compilation (CodeGen) error" << std::endl;
-            return -1;
-        }
+    if (!b)
+        return -1;
 
-        if (!options.dumpIrDirectory.empty()) {
-            std::filesystem::path dumpIrPath = std::filesystem::path{ options.dumpIrDirectory } / filename;
-            dumpIrPath.replace_extension(".ll");
-            std::ofstream irOutFile{ dumpIrPath, std::ios::binary | std::ios::trunc };
-            std::string str{};
-            llvm::raw_string_ostream out{ str };
-            cgm.GetLLVMModule().print(out, nullptr);
-            irOutFile << str;
-            irOutFile.close();
-        }
-
+    if (!options.dumpIrFilename.empty()) {
+        std::ofstream irOutFile{ options.dumpIrFilename, std::ios::binary | std::ios::trunc };
+        std::string str{};
+        llvm::raw_string_ostream out{ str };
+        act.GetModule().getModuleUnlocked()->print(out, nullptr);
+        irOutFile << str;
+        irOutFile.close();
+        std::cout << "ir written to '" << options.dumpIrFilename << "'" << std::endl;
     }
+    
+    if (!session.SubmitModule(act.MoveModule())) {
+        std::cout << llvm::toString(session.ConsumeLastError()) << std::endl;
+        return -1;
+    }
+
+    void* entryPoint = session.Lookup(options.entryPoint);
+    if (!entryPoint) {
+        std::cout << llvm::toString(session.ConsumeLastError()) << std::endl;
+        return -1;
+    }
+    
+    return 0;
 }

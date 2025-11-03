@@ -33,6 +33,19 @@ VCL::Target::Target(std::unique_ptr<llvm::TargetMachine> tm) : tm{ std::move(tm)
     CacheTargetMetadata();
 }
 
+VCL::Target::Target(TargetOptions& options) {
+    auto triple = llvm::Triple{ options.GetTriple() };
+    std::string error;
+    const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple.getTriple(), error);
+
+    llvm::TargetOptions targetOptions{};
+    llvm::TargetMachine* targetMachine = 
+        target->createTargetMachine(options.GetTriple(), options.GetCPU(), options.GetFeatures(), targetOptions, std::nullopt, std::nullopt, llvm::CodeGenOptLevel::Aggressive);
+    tm = std::unique_ptr<llvm::TargetMachine>{ targetMachine };
+
+    CacheTargetMetadata();
+}
+
 void VCL::Target::CacheTargetMetadata() {
     llvm::SubtargetFeatures features{ tm->getTargetFeatureString() };
 

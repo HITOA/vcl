@@ -10,6 +10,8 @@ VCL::ConstantValue* VCL::ExprEvaluator::VisitDeclRefExpr(DeclRefExpr* expr) {
     switch (decl->GetDeclClass()) {
         case Decl::VarDeclClass: {
             VarDecl* varDecl = (VarDecl*)decl;
+            if (!varDecl->GetValueType().HasQualifier(Qualifier::Const))
+                return nullptr;
             Expr* initializer = varDecl->GetInitializer();
             if (!initializer)
                 return nullptr;

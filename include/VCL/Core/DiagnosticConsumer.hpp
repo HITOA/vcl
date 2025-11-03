@@ -1,13 +1,9 @@
 #pragma once
 
-#include <VCL/Core/Diagnostic.hpp>
-#include <VCL/Core/Source.hpp>
-#include <VCL/Core/SourceManager.hpp>
-
-#include <stack>
-
 
 namespace VCL {
+    class Diagnostic;
+    class SourceManager;
 
     class DiagnosticConsumer {
     public:
@@ -21,16 +17,6 @@ namespace VCL {
 
     protected:
         SourceManager* sm;
-    };
-
-    class TextDiagnosticConsumer : public DiagnosticConsumer {
-    public:
-        void HandleDiagnostic(Diagnostic&& diagnostic) override;
-
-        virtual void HandleTextDiagnostic(Diagnostic&& diagnostic, const std::string& msg);
-
-    private:
-        std::string GetSourceRangeAsDetailedString(Source* source, SourceRange range);
     };
 
 }

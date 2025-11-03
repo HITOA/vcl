@@ -8,7 +8,7 @@ llvm::Constant* VCL::CodeGenModule::GenerateConstantValue(ConstantValue* value) 
         case ConstantValue::ConstantScalarClass:
             return GenerateConstantScalar((ConstantScalar*)value);
         default:
-            cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            diagnosticReporter.Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;
@@ -38,7 +38,7 @@ llvm::Constant* VCL::CodeGenModule::GenerateConstantScalar(ConstantScalar* scala
         case BuiltinType::UInt64:
             return llvm::ConstantInt::get(*module.getContext().getContext(), llvm::APInt{ 64, scalar->Get<uint64_t>(), false });
         default:
-            cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            diagnosticReporter.Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;

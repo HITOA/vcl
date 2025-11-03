@@ -1,7 +1,5 @@
 #pragma once
 
-#include <VCL/Core/CompilerContext.hpp>
-#include <VCL/Core/Identifier.hpp>
 #include <VCL/Lex/Token.hpp>
 #include <VCL/AST/ASTContext.hpp>
 #include <VCL/AST/Type.hpp>
@@ -18,6 +16,8 @@
 
 
 namespace VCL {
+    class DiagnosticReporter;
+    class IdentifierTable;
 
     /**
      * This is the semantic analyzer. It is called by the parser to 
@@ -26,7 +26,7 @@ namespace VCL {
     class Sema {
     public:
         Sema() = delete;
-        Sema(ASTContext& astContext, CompilerContext& cc);
+        Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable);
         Sema(const Sema& other) = delete;
         Sema(Sema&& other) = delete;
         ~Sema() = default;
@@ -36,7 +36,8 @@ namespace VCL {
 
     public:
         inline ASTContext& GetASTContext() { return astContext; }
-        inline CompilerContext& GetCC() { return cc; }
+        inline DiagnosticReporter& GetDiagnosticReporter() { return diagnosticReporter; }
+        inline IdentifierTable& GetIdentifierTable() { return identifierTable; }
 
         void AddBuiltinIntrinsicTemplateDecl();
 
@@ -99,7 +100,8 @@ namespace VCL {
 
     private:
         ASTContext& astContext;
-        CompilerContext& cc;
+        DiagnosticReporter& diagnosticReporter;
+        IdentifierTable& identifierTable;
         ScopeManager sm{};
     };
 

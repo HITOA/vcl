@@ -9,7 +9,7 @@ llvm::Type* VCL::CodeGenTypes::ConvertType(QualType type) {
 
     switch (type.GetType()->GetTypeClass()) {
         case Type::TemplateTypeParamTypeClass:
-            cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;
@@ -23,7 +23,7 @@ llvm::Type* VCL::CodeGenTypes::ConvertType(QualType type) {
         case Type::TemplateSpecializationTypeClass: {
             Type* instantiatedType = ((TemplateSpecializationType*)type.GetType())->GetInstantiatedType();
             if (!instantiatedType) {
-                cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+                cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .Report();
                 return nullptr;
@@ -31,7 +31,7 @@ llvm::Type* VCL::CodeGenTypes::ConvertType(QualType type) {
             return ConvertType(instantiatedType);
         }
         default:
-            cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;
@@ -71,7 +71,7 @@ llvm::Type* VCL::CodeGenTypes::ConvertBuiltinType(QualType type) {
             resultType = llvm::Type::getDoubleTy(cgm.GetLLVMContext());
             break;
         default:
-            cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;

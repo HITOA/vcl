@@ -6,19 +6,19 @@
 bool VCL::DiagnosticsEngine::Diagnose(Diagnostic&& diagnostic) {
     diagnostic.SetSeverity(BumpSeverityLevelIfNeeded(diagnostic.GetSeverity()));
     bool isError = diagnostic.GetSeverity() == Diagnostic::SeverityLevel::Error;
-    if (consumer)
-        consumer->HandleDiagnostic(std::move(diagnostic));
+    if (options.GetDiagnosticConsumer())
+        options.GetDiagnosticConsumer()->HandleDiagnostic(std::move(diagnostic));
     return isError;
 }
 
 VCL::Diagnostic::SeverityLevel VCL::DiagnosticsEngine::BumpSeverityLevelIfNeeded(Diagnostic::SeverityLevel level) {
-    if (level == Diagnostic::SeverityLevel::Warning && treatWarningAsError)
+    if (level == Diagnostic::SeverityLevel::Warning && options.HasTreatWarningAsErrorFlag())
         return Diagnostic::SeverityLevel::Error;
-    if (level == Diagnostic::SeverityLevel::Warning && ignoreAllWarning)
+    if (level == Diagnostic::SeverityLevel::Warning && options.HasIgnoreAllWarningFlag())
         return Diagnostic::SeverityLevel::Ignored;
-    if (level == Diagnostic::SeverityLevel::Remark && ignoreAllRemark)
+    if (level == Diagnostic::SeverityLevel::Remark && options.HasIgnoreAllRemarkFlag())
         return Diagnostic::SeverityLevel::Ignored;
-    if (level == Diagnostic::SeverityLevel::Note && ignoreAllNote)
+    if (level == Diagnostic::SeverityLevel::Note && options.HasIgnoreAllNoteFlag())
         return Diagnostic::SeverityLevel::Ignored;
     return level;
 }

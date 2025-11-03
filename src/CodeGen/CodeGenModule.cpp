@@ -3,8 +3,8 @@
 #include <VCL/AST/Expr.hpp>
 
 
-VCL::CodeGenModule::CodeGenModule(llvm::orc::ThreadSafeModule& module, ASTContext& ast, CompilerContext& cc, Target& target)
-    : module{ module }, astContext{ ast }, cc{ cc }, target{ target }, cgt{ *this } {
+VCL::CodeGenModule::CodeGenModule(llvm::orc::ThreadSafeModule& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target)
+    : module{ module }, astContext{ ast }, diagnosticReporter{ diagnosticReporter }, target{ target }, cgt{ *this } {
     module.getModuleUnlocked()->setDataLayout(target.GetTargetMachine()->createDataLayout());
     module.getModuleUnlocked()->setTargetTriple(target.GetTargetMachine()->getTargetTriple().getTriple());
 }
@@ -37,7 +37,7 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl) {
     if (Expr* initializer = decl->GetInitializer(); initializer != nullptr) {
         ConstantValue* initValue = initializer->GetConstantValue();
         if (!initValue) {
-            cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            diagnosticReporter.Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return false;

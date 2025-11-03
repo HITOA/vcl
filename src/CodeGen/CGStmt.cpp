@@ -10,7 +10,7 @@ bool VCL::CodeGenFunction::GenerateStmt(Stmt* stmt) {
         case Stmt::CompoundStmtClass: return GenerateCompoundStmt((CompoundStmt*)stmt);
         case Stmt::ReturnStmtClass: return GenerateReturnStmt((ReturnStmt*)stmt);
         default:
-            cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
+            cgm.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return false;

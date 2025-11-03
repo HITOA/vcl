@@ -88,7 +88,7 @@ namespace VCL {
     class IntrinsicTemplateDecl : public TemplateDecl {
     public:
         IntrinsicTemplateDecl(TemplateParameterList* params, IdentifierInfo* identifier) 
-            : TemplateDecl{ params, identifier, DeclClass::IntrinsicTemplateDeclClass } {}
+                : TemplateDecl{ params, identifier, DeclClass::IntrinsicTemplateDeclClass } {}
         ~IntrinsicTemplateDecl() = default;
 
         static inline IntrinsicTemplateDecl* Create(ASTContext& context, TemplateParameterList* params, IdentifierInfo* identifier) {

@@ -56,9 +56,9 @@ namespace VCL {
         }
 
         inline bool ContainLocation(SourceLocation location) const {
-            const char* start = GetBufferRef().getBufferStart();
-            const char* end = GetBufferRef().getBufferEnd();
-            const char* loc = location.GetPtr();
+            uintptr_t start = (uintptr_t)GetBufferRef().getBufferStart();
+            uintptr_t end = (uintptr_t)GetBufferRef().getBufferEnd();
+            uintptr_t loc = location.GetID();
             return loc >= start && loc <= end;
         }
 

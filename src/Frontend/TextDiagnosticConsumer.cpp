@@ -1,10 +1,10 @@
-#include <VCL/Core/DiagnosticConsumer.hpp>
+#include <VCL/Frontend/TextDiagnosticConsumer.hpp>
 
 #include <VCL/Core/Format.hpp>
 
 #include <iostream>
-#include <format>
 #include <filesystem>
+#include <format>
 
 
 void VCL::TextDiagnosticConsumer::HandleDiagnostic(Diagnostic&& diagnostic) {
@@ -16,6 +16,8 @@ void VCL::TextDiagnosticConsumer::HandleDiagnostic(Diagnostic&& diagnostic) {
     for (auto it = diagnostic.GetHintsBegin(); it != diagnostic.GetHintsEnd(); ++it) {
         SourceRange range = it->GetRange();
         Source* source = GetSourceManager()->GetSourceFromLocation(range.start);
+        if (!source)
+            continue;
         Source::Line line = source->GetLine(range.start);
         uint32_t col = (range.start.GetPtr() - source->GetBufferRef().getBufferStart()) - line.offset;
         const char* hintMsg = DiagnosticHint::ToString(it->GetMessage());
@@ -45,7 +47,7 @@ void VCL::TextDiagnosticConsumer::HandleTextDiagnostic(Diagnostic&& diagnostic, 
 std::string VCL::TextDiagnosticConsumer::GetSourceRangeAsDetailedString(Source* source, SourceRange range) {
     Source::Line line = source->GetLine(range.start);
     std::string lineNumberStr = std::to_string(line.lineNumber);
-    std::string lineStr = std::format("\t{} |\t{}", lineNumberStr, source->GetBufferRef().getBuffer().substr(line.offset + 1, line.length - 1).str());
+    std::string lineStr = std::format("\t{} |\t{}", lineNumberStr, source->GetBufferRef().getBuffer().substr(line.offset, line.length - 1).str());
     std::string squigleStr = "\t";
     const char* start = source->GetBufferRef().getBufferStart();
     const char* end = source->GetBufferRef().getBufferEnd();
@@ -53,8 +55,8 @@ std::string VCL::TextDiagnosticConsumer::GetSourceRangeAsDetailedString(Source* 
     for (uint32_t i = 0; i < lineNumberStr.size() + 1; ++i)
         squigleStr += ' ';
     squigleStr += "|\t";
-    uint32_t rangeStartOffset = range.start.GetPtr() - start - 1;
-    uint32_t rangeEndOffset = range.end.GetPtr() - start - 1;
+    uint32_t rangeStartOffset = range.start.GetPtr() - start;
+    uint32_t rangeEndOffset = range.end.GetPtr() - start;
     for (uint32_t i = 0; i < line.length - 1; ++i) {
         uint32_t offset = i + line.offset;
         if (offset == rangeStartOffset) {

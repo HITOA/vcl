@@ -12,9 +12,14 @@ VCL::Token* VCL::TokenStream::GetTok(uint32_t n) {
     return &buffer[currentIndex + n];
 }
 
+uint32_t VCL::TokenStream::GetTokIndex() {
+    return absoluteBaseIndex + currentIndex;
+}
+
 bool VCL::TokenStream::Next(uint32_t n) {
     if (savePoints.empty()) {
         if (n == 1 && buffer.size() == 1) {
+            ++absoluteBaseIndex;
             return lexer.Lex(buffer[0]);
         } else if (currentIndex + n < buffer.size()) {
             currentIndex += n;
@@ -61,6 +66,7 @@ bool VCL::TokenStream::GrowBufferAndLexTokens(uint32_t n) {
 }
 
 void VCL::TokenStream::ShrinkBackBy(uint32_t n) {
+    absoluteBaseIndex += n;
     buffer.erase(buffer.begin(), buffer.begin() + n);
     currentIndex -= n;
 }

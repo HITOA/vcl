@@ -5,6 +5,7 @@
 #include <llvm/ADT/StringMap.h>
 #include <llvm/ADT/StringMapEntry.h>
 #include <llvm/Support/Allocator.h>
+#include <llvm/ADT/IntrusiveRefCntPtr.h>
 
 
 namespace VCL {
@@ -31,8 +32,8 @@ namespace VCL {
 
         friend class IdentifierTable;
     };
-
-    class IdentifierTable {
+    
+    class IdentifierTable : public llvm::RefCountedBase<IdentifierTable> {
     public:
         IdentifierTable() = default;
         IdentifierTable(const IdentifierTable& other) = delete;
@@ -53,6 +54,7 @@ namespace VCL {
             info = new (mem) IdentifierInfo{};
 
             info->entry = &entry;
+            info->kind = TokenKind::Identifier;
 
             return info;
         }

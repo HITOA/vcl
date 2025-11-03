@@ -23,7 +23,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateExpr(Expr* expr) {
         case Expr::FieldAccessExprClass:
             return GenerateFieldAccessExpr((FieldAccessExpr*)expr);
         default:
-            cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;
@@ -45,7 +45,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateDeclRefExpr(DeclRefExpr* expr) {
     ValueDecl* decl = expr->GetValueDecl();
     llvm::Value* value = GetDeclValue(decl);
     if (!value) {
-        cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+        cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return nullptr;
@@ -77,7 +77,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateCastExpr(CastExpr* expr) {
         case CastExpr::UnsignedToSigned: return builder.CreateIntCast(exprValue, dstType, true);
 
         default:
-            cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;
@@ -114,7 +114,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateBinaryExpr(BinaryExpr* expr) {
             return builder.CreateStore(rhsExprValue, lhsExprValue);
         }
         default:
-            cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ expr->GetSourceRange() })
                 .Report();
@@ -130,7 +130,7 @@ llvm::Value* VCL::CodeGenFunction::DispatchBinaryArithmeticOp(Expr* lhs, Expr* r
     if (type->GetTypeClass() == Type::VectorTypeClass)
         type = ((VectorType*)type)->GetElementType().GetType();
     if (type->GetTypeClass() != Type::BuiltinTypeClass) {
-        cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+        cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
             .Report();
@@ -160,7 +160,7 @@ llvm::Value* VCL::CodeGenFunction::DispatchBinaryArithmeticOp(Expr* lhs, Expr* r
         case BuiltinType::Float64:
             return builder.CreateBinOp(floatop, lhsExprValue, rhsExprValue);
         default:
-            cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
                 .Report();
@@ -176,7 +176,7 @@ llvm::Value* VCL::CodeGenFunction::DispatchBinaryArithmeticOp(Expr* lhs, Expr* r
 llvm::Value* VCL::CodeGenFunction::GenerateCallExpr(CallExpr* expr) {
     llvm::Value* value = GetDeclValue(expr->GetFunctionDecl());
     if (!value) {
-        cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+        cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return nullptr;

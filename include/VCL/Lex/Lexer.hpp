@@ -1,7 +1,6 @@
 #pragma once
 
 #include <VCL/Core/SourceLocation.hpp>
-#include <VCL/Core/CompilerContext.hpp>
 #include <VCL/Lex/Token.hpp>
 
 #include <llvm/Support/MemoryBufferRef.h>
@@ -9,6 +8,8 @@
 
 
 namespace VCL {
+    class DiagnosticReporter;
+    class IdentifierTable;
 
     /**
      * Provide the most simple interface to tokenize a given Source without support for loking ahead or even peeking.
@@ -18,8 +19,8 @@ namespace VCL {
     class Lexer {
     public:
         Lexer() = delete;
-        Lexer(const llvm::MemoryBufferRef& buffer, CompilerContext& cc);
-        Lexer(const SourceRange& range, CompilerContext& cc);
+        Lexer(const llvm::MemoryBufferRef& buffer, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable);
+        Lexer(const SourceRange& range, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable);
         Lexer(const Lexer& other) = delete;
         Lexer(Lexer&& other) = delete;
         ~Lexer() = default;
@@ -45,7 +46,9 @@ namespace VCL {
     private:
         SourceRange range;
         SourceLocation currentLocation;
-        CompilerContext& cc;
+        DiagnosticReporter& diagnosticReporter;
+        IdentifierTable& identifierTable;
+        //CompilerContext& cc;
     };
 
 }

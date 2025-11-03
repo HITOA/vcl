@@ -9,7 +9,7 @@ bool VCL::CodeGenFunction::GenerateDecl(Decl* decl) {
         case Decl::VarDeclClass:
             return GenerateVarDecl((VarDecl*)decl);
         default:
-            cgm.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return false;

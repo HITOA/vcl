@@ -1,5 +1,6 @@
 #include <VCL/Sema/Template.hpp>
 
+#include <VCL/Core/Diagnostic.hpp>
 #include <VCL/AST/ExprEvaluator.hpp>
 #include <VCL/Sema/Sema.hpp>
 
@@ -29,7 +30,7 @@ bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSp
             t = InstantiateTemplateRecordDecl((TemplateRecordDecl*)type->GetTemplateDecl());
             break;
         default:
-            sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            sema.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ type->GetTemplateDecl()->GetSourceRange() })
                 .Report();
@@ -52,7 +53,7 @@ bool VCL::TemplateInstantiator::AddTemplateArgumentListAndDecl(TemplateArgumentL
 
 bool VCL::TemplateInstantiator::CheckTemplateArgumentsParametersMatch(TemplateArgumentList* args, TemplateParameterList* params) {
     if (args->GetArgs().size() < params->GetParams().size()) {
-        sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::NotEnoughTemplateArgument)
+        sema.GetDiagnosticReporter().Error(Diagnostic::NotEnoughTemplateArgument)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ args->GetSourceRange() })
             .AddHint(DiagnosticHint{ params->GetSourceRange(), DiagnosticHint::Declared })
@@ -60,7 +61,7 @@ bool VCL::TemplateInstantiator::CheckTemplateArgumentsParametersMatch(TemplateAr
         return false;
     }
     if (args->GetArgs().size() > params->GetParams().size()) {
-        sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::TooManyTemplateArgument)
+        sema.GetDiagnosticReporter().Error(Diagnostic::TooManyTemplateArgument)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ args->GetSourceRange() })
             .AddHint(DiagnosticHint{ params->GetSourceRange(), DiagnosticHint::Declared })
@@ -74,13 +75,13 @@ bool VCL::TemplateInstantiator::CheckTemplateArgumentsParametersMatch(TemplateAr
             case Decl::TemplateTypeParamDeclClass: {
                 if (arg.GetKind() != TemplateArgument::Type) {
                     if (param->GetSourceRange().start.GetPtr() != nullptr) {
-                        sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
+                        sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
                             .SetCompilerInfo(__FILE__, __func__, __LINE__)
                             .AddHint(DiagnosticHint{ arg.GetSourceRange() })
                             .AddHint(DiagnosticHint{ param->GetSourceRange(), DiagnosticHint::Declared })
                             .Report();
                     } else {
-                        sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
+                        sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
                             .SetCompilerInfo(__FILE__, __func__, __LINE__)
                             .AddHint(DiagnosticHint{ arg.GetSourceRange() })
                             .Report();
@@ -92,13 +93,13 @@ bool VCL::TemplateInstantiator::CheckTemplateArgumentsParametersMatch(TemplateAr
             case Decl::NonTypeTemplateParamDeclClass: {
                 if (arg.GetKind() != TemplateArgument::Integral) {
                     if (param->GetSourceRange().start.GetPtr() != nullptr) {
-                        sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
+                        sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
                             .SetCompilerInfo(__FILE__, __func__, __LINE__)
                             .AddHint(DiagnosticHint{ arg.GetSourceRange() })
                             .AddHint(DiagnosticHint{ param->GetSourceRange(), DiagnosticHint::Declared })
                             .Report();
                     } else {
-                        sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
+                        sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
                             .SetCompilerInfo(__FILE__, __func__, __LINE__)
                             .AddHint(DiagnosticHint{ arg.GetSourceRange() })
                             .Report();
@@ -108,7 +109,7 @@ bool VCL::TemplateInstantiator::CheckTemplateArgumentsParametersMatch(TemplateAr
                 break;
             }
             default:
-                sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+                sema.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ args->GetSourceRange() })
                     .Report();
@@ -126,14 +127,14 @@ bool VCL::TemplateInstantiator::EvaluateTemplateArgumentsExpr(TemplateArgumentLi
             Expr* expr = arg->GetExpr();
             ConstantValue* value = eval.Visit(expr);
             if (!value) {
-                sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::ExprDoesNotEvaluate)
+                sema.GetDiagnosticReporter().Error(Diagnostic::ExprDoesNotEvaluate)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ expr->GetSourceRange() })
                     .Report();
                 return false;
             }
             if (value->GetConstantValueClass() != ConstantValue::ConstantScalarClass) {
-                sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::ExprDoesNotEvaluateScalar)
+                sema.GetDiagnosticReporter().Error(Diagnostic::ExprDoesNotEvaluateScalar)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ expr->GetSourceRange() })
                     .Report();
@@ -155,7 +156,7 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateIntrinsicTemplateDecl(Intrinsic
             TemplateArgument* arg0 = Lookup(decl->GetTemplateParametersList()->GetParams()[0]);
             QualType ofType = arg0->GetType();
             if (ofType.GetType()->GetTypeClass() != Type::BuiltinTypeClass) {
-                sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
+                sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ arg0->GetSourceRange() })
                     .AddHint(DiagnosticHint{ decl->GetTemplateParametersList()->GetSourceRange(), DiagnosticHint::Declared })
@@ -170,7 +171,7 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateIntrinsicTemplateDecl(Intrinsic
                 case BuiltinType::Int32:
                     break;
                 default:
-                    sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
+                    sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
                         .SetCompilerInfo(__FILE__, __func__, __LINE__)
                         .AddHint(DiagnosticHint{ arg0->GetSourceRange() })
                         .AddHint(DiagnosticHint{ decl->GetTemplateParametersList()->GetSourceRange(), DiagnosticHint::Declared })
@@ -192,7 +193,7 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateIntrinsicTemplateDecl(Intrinsic
             return sema.GetASTContext().GetTypeCache().GetOrCreateSpanType(ofType);
         }
         default:
-            sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
+            sema.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;
@@ -215,7 +216,7 @@ VCL::RecordType* VCL::TemplateInstantiator::InstantiateTemplateRecordDecl(Templa
                 break;
             }
             default:
-                sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
+                sema.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ d->GetSourceRange() })
                     .Report();
@@ -267,13 +268,13 @@ VCL::QualType VCL::TemplateInstantiator::TransformTemplateTypeParamType(QualType
     TemplateTypeParamType* t = (TemplateTypeParamType*)type.GetType();
     TemplateArgument* arg = Lookup(t->GetTemplateTypeParamDecl());
     if (!arg) {
-        sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::InternalError)
+        sema.GetDiagnosticReporter().Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return QualType{};
     }
     if (arg->GetKind() != TemplateArgument::Type) {
-        sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
+        sema.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ arg->GetSourceRange() })
             .Report();
@@ -312,7 +313,7 @@ VCL::Expr* VCL::TemplateInstantiator::TransformDeclRefExpr(DeclRefExpr* expr) {
         return expr;
     switch (arg->GetKind()) {
         case TemplateArgument::Type: {
-            sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
+            sema.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .AddHint(DiagnosticHint{ arg->GetSourceRange(), DiagnosticHint::Declared })
@@ -326,7 +327,7 @@ VCL::Expr* VCL::TemplateInstantiator::TransformDeclRefExpr(DeclRefExpr* expr) {
             return NumericLiteralExpr::Create(sema.GetASTContext(), arg->GetIntegral(), expr->GetSourceRange());
         }
         default:
-            sema.GetCC().GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
+            sema.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ expr->GetSourceRange() })
                 .Report();

@@ -1,26 +1,29 @@
 #include <VCL/Sema/Sema.hpp>
 
+#include <VCL/Core/Diagnostic.hpp>
+#include <VCL/Core/Identifier.hpp>
 #include <VCL/AST/ExprEvaluator.hpp>
 #include <VCL/Sema/Template.hpp>
 
 #include <llvm/ADT/SmallPtrSet.h>
 
 
-VCL::Sema::Sema(ASTContext& astContext, CompilerContext& cc) : astContext{ astContext }, cc{ cc } {
+VCL::Sema::Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable) 
+        : astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable } {
     sm.EmplaceScopeFront(astContext.GetTranslationUnitDecl());
     AddBuiltinIntrinsicTemplateDecl();
 }
 
 void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
 
-    IdentifierInfo* ofTypeIdentifier = cc.GetIdentifierTable().Get("T");
-    IdentifierInfo* ofSizeIdentifier = cc.GetIdentifierTable().Get("Size");
+    IdentifierInfo* ofTypeIdentifier = identifierTable.Get("T");
+    IdentifierInfo* ofSizeIdentifier = identifierTable.Get("Size");
     BuiltinType* ofSizeType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
 
     // Vec
     NamedDecl* vecOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
     TemplateParameterList* vecParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
-    IntrinsicTemplateDecl* vecDecl = IntrinsicTemplateDecl::Create(astContext, vecParamList, cc.GetIdentifierTable().GetKeyword(TokenKind::Keyword_Vec));
+    IntrinsicTemplateDecl* vecDecl = IntrinsicTemplateDecl::Create(astContext, vecParamList, identifierTable.GetKeyword(TokenKind::Keyword_Vec));
     astContext.GetTranslationUnitDecl()->InsertBack(vecDecl);
 
     // Array
@@ -28,13 +31,13 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
     NamedDecl* arrayOfSize = NonTypeTemplateParamDecl::Create(astContext, ofSizeType, ofSizeIdentifier, SourceRange{});
     llvm::SmallVector<NamedDecl*> arrayParams{ arrayOfType, arrayOfSize };
     TemplateParameterList* arrayParamList = TemplateParameterList::Create(astContext, arrayParams, SourceRange{});
-    IntrinsicTemplateDecl* arrayDecl = IntrinsicTemplateDecl::Create(astContext, arrayParamList, cc.GetIdentifierTable().GetKeyword(TokenKind::Keyword_Array));
+    IntrinsicTemplateDecl* arrayDecl = IntrinsicTemplateDecl::Create(astContext, arrayParamList, identifierTable.GetKeyword(TokenKind::Keyword_Array));
     astContext.GetTranslationUnitDecl()->InsertBack(arrayDecl);
 
     // Span
     NamedDecl* spanOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
     TemplateParameterList* spanParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
-    IntrinsicTemplateDecl* spanDecl = IntrinsicTemplateDecl::Create(astContext, vecParamList, cc.GetIdentifierTable().GetKeyword(TokenKind::Keyword_Span));
+    IntrinsicTemplateDecl* spanDecl = IntrinsicTemplateDecl::Create(astContext, vecParamList, identifierTable.GetKeyword(TokenKind::Keyword_Span));
     astContext.GetTranslationUnitDecl()->InsertBack(spanDecl);
 
 }
@@ -46,7 +49,7 @@ bool VCL::Sema::PushDeclContextScope(DeclContext* context) {
 
 bool VCL::Sema::PopDeclContextScope(DeclContext* context) {
     if (sm.GetScopeFront()->GetDeclContext() != context)  {
-        cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+        diagnosticReporter.Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return false;
@@ -79,7 +82,7 @@ VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identif
     NamedDecl* decl = LookupNamedDecl(identifier, 1);
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
-        cc.GetDiagnosticReporter().Error(Diagnostic::Redeclaration, identifier->GetName().str())
+        diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
             .AddHint(DiagnosticHint{ range })
             .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -100,7 +103,7 @@ VCL::TransientFunctionDecl* VCL::Sema::ActOnTransientFunctionDecl(QualType retur
     NamedDecl* decl = LookupNamedDecl(identifier, 1);
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
-        cc.GetDiagnosticReporter().Error(Diagnostic::Redeclaration, identifier->GetName().str())
+        diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
             .AddHint(DiagnosticHint{ range })
             .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -131,7 +134,7 @@ VCL::ParamDecl* VCL::Sema::ActOnParamDecl(VarDecl::VarAttrBitfield attr, QualTyp
     NamedDecl* decl = LookupNamedDecl(identifier, 1);
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
-        cc.GetDiagnosticReporter().Error(Diagnostic::Redeclaration, identifier->GetName().str())
+        diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
             .AddHint(DiagnosticHint{ range })
             .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -156,7 +159,7 @@ bool VCL::Sema::ActRecOnFunctionBodyReturnStmt(FunctionDecl* function, llvm::Arr
         if (stmt->GetStmtClass() == Stmt::ReturnStmtClass) {
             if (i + 1 < stmts.size()) {
                 Stmt* ignoredStmt = stmts[i + 1];
-                cc.GetDiagnosticReporter().Warn(Diagnostic::StatementNeverReached)
+                diagnosticReporter.Warn(Diagnostic::StatementNeverReached)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ ignoredStmt->GetSourceRange() })
                     .Report();
@@ -171,7 +174,7 @@ bool VCL::Sema::ActRecOnFunctionBodyReturnStmt(FunctionDecl* function, llvm::Arr
         isFunctionVoid = ((BuiltinType*)returnType)->GetKind() == BuiltinType::Void;
 
     if (!isFunctionVoid) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::MissingReturnStmt)
+        diagnosticReporter.Error(Diagnostic::MissingReturnStmt)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ function->GetSourceRange() })
             .Report();
@@ -183,7 +186,7 @@ bool VCL::Sema::ActRecOnFunctionBodyReturnStmt(FunctionDecl* function, llvm::Arr
 VCL::ReturnStmt* VCL::Sema::ActOnReturnStmt(Expr* expr, SourceRange range) {
     FunctionDecl* function = GetFrontmostFunctionDecl();
     if (!function) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::ReturnStmtOutsideOfBody)
+        diagnosticReporter.Error(Diagnostic::ReturnStmtOutsideOfBody)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
@@ -197,13 +200,13 @@ VCL::ReturnStmt* VCL::Sema::ActOnReturnStmt(Expr* expr, SourceRange range) {
         isFunctionVoid = ((BuiltinType*)returnType)->GetKind() == BuiltinType::Void;
 
     if (expr != nullptr && isFunctionVoid) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidReturnStmtExpr)
+        diagnosticReporter.Error(Diagnostic::InvalidReturnStmtExpr)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
         return nullptr;
     } else if (expr == nullptr && !isFunctionVoid) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidReturnStmtNoExpr)
+        diagnosticReporter.Error(Diagnostic::InvalidReturnStmtNoExpr)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
@@ -221,7 +224,7 @@ VCL::ReturnStmt* VCL::Sema::ActOnReturnStmt(Expr* expr, SourceRange range) {
 
 VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range) {
     if (identifier->IsKeyword()) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
+        diagnosticReporter.Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
             .AddHint(DiagnosticHint{ range })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
@@ -230,7 +233,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
     NamedDecl* decl = LookupNamedDecl(identifier, 1);
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
-        cc.GetDiagnosticReporter().Error(Diagnostic::Redeclaration, identifier->GetName().str())
+        diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
             .AddHint(DiagnosticHint{ range })
             .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -243,7 +246,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
         return nullptr;
 
     if ((varAttrBitfield.hasInAttribute || varAttrBitfield.hasOutAttribute) && !IsCurrentScopeGlobal()) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::AttrInvalideUse)
+        diagnosticReporter.Error(Diagnostic::AttrInvalidUse)
             .AddHint(DiagnosticHint{ range })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
@@ -253,7 +256,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
 
     if (IsCurrentScopeGlobal() && initializer) {
         if (varAttrBitfield.hasInAttribute) {
-            cc.GetDiagnosticReporter().Error(Diagnostic::InitializerInputVarDecl)
+            diagnosticReporter.Error(Diagnostic::InitializerInputVarDecl)
                 .AddHint(DiagnosticHint{ range })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
@@ -268,7 +271,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
         ExprEvaluator exprEvaluator{ astContext };
         ConstantValue* value = exprEvaluator.Visit(initializer);
         if (!value) {
-            cc.GetDiagnosticReporter().Error(Diagnostic::ExprDoesNotEvaluate)
+            diagnosticReporter.Error(Diagnostic::ExprDoesNotEvaluate)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ initializer->GetSourceRange() })
                 .Report();
@@ -290,7 +293,7 @@ VCL::QualType VCL::Sema::ActOnQualType(Type* type, Qualifier qualifiers, SourceR
 }
 
 #define ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list) if (list != nullptr) { \
-                cc.GetDiagnosticReporter().Error(Diagnostic::BuiltinTypeIsNotTemplated, identifier->GetName().str()) \
+                diagnosticReporter.Error(Diagnostic::BuiltinTypeIsNotTemplated, identifier->GetName().str()) \
                     .AddHint(DiagnosticHint{ range })\
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)\
                     .Report(); \
@@ -300,14 +303,14 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
     if (!identifier->IsKeyword()) {
         NamedDecl* decl = LookupNamedDecl(identifier);
         if (decl == nullptr) {
-            cc.GetDiagnosticReporter().Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+            diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;
         }
         if (list && !decl->IsTemplateDecl()) {
-            cc.GetDiagnosticReporter().Error(Diagnostic::DoesNotTakeTemplateArgList, identifier->GetName().str())
+            diagnosticReporter.Error(Diagnostic::DoesNotTakeTemplateArgList, identifier->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -315,7 +318,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
             return nullptr;
         }
         if (!list && decl->IsTemplateDecl()) {
-            cc.GetDiagnosticReporter().Error(Diagnostic::MissingTemplateArgument, identifier->GetName().str())
+            diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, identifier->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -323,7 +326,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
             return nullptr;
         }
         if (!list && !decl->IsTypeDecl()) {
-            cc.GetDiagnosticReporter().Error(Diagnostic::NotTypeDecl, identifier->GetName().str())
+            diagnosticReporter.Error(Diagnostic::NotTypeDecl, identifier->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -377,8 +380,16 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
         default:
             IntrinsicTemplateDecl* decl = LookupIntrinsicTemplateDecl(identifier);
             if (decl == nullptr) {
-                cc.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
+                diagnosticReporter.Error(Diagnostic::MissingImplementation)
                     .AddHint(DiagnosticHint{ range })
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .Report();
+                return nullptr;
+            }
+            if (!list && decl->IsTemplateDecl()) {
+                diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, identifier->GetName().str())
+                    .AddHint(DiagnosticHint{ range })
+                    .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .Report();
                 return nullptr;
@@ -399,7 +410,7 @@ VCL::TemplateParameterList* VCL::Sema::ActOnTemplateParameterList(llvm::ArrayRef
                     break;
                 }
             }
-            cc.GetDiagnosticReporter().Error(Diagnostic::TemplateRedeclared, param->GetIdentifierInfo()->GetName().str())
+            diagnosticReporter.Error(Diagnostic::TemplateRedeclared, param->GetIdentifierInfo()->GetName().str())
                 .AddHint(DiagnosticHint{ param->GetSourceRange() })
                 .AddHint(DiagnosticHint{ previous->GetSourceRange(), DiagnosticHint::PreviouslyDeclared })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -501,7 +512,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
 
 bool VCL::Sema::IsExprAssignable(Expr* expr) {
     if (expr->GetValueCategory() != Expr::LValue) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::AssignmentNotLValue)
+        diagnosticReporter.Error(Diagnostic::AssignmentNotLValue)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -509,7 +520,7 @@ bool VCL::Sema::IsExprAssignable(Expr* expr) {
     }
 
     if (expr->GetResultType().HasQualifier(Qualifier::Const)) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::AssignmentConstValue)
+        diagnosticReporter.Error(Diagnostic::AssignmentConstValue)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -521,7 +532,7 @@ bool VCL::Sema::IsExprAssignable(Expr* expr) {
         switch (decl->GetDeclClass()) {
             case Decl::VarDeclClass:
                 if (((VarDecl*)decl)->HasInAttribute()) {
-                    cc.GetDiagnosticReporter().Error(Diagnostic::AssignmentInputValue)
+                    diagnosticReporter.Error(Diagnostic::AssignmentInputValue)
                         .SetCompilerInfo(__FILE__, __func__, __LINE__)
                         .AddHint(DiagnosticHint{ expr->GetSourceRange() })
                         .Report();
@@ -537,7 +548,7 @@ bool VCL::Sema::IsExprAssignable(Expr* expr) {
 
 VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, SourceRange range) {
     if (lhs->GetValueCategory() != Expr::LValue) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::ModifiableLValue)
+        diagnosticReporter.Error(Diagnostic::MustBeLValue)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
@@ -550,7 +561,7 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
     if (type->GetTypeClass() == Type::TemplateSpecializationTypeClass)
         type = ((TemplateSpecializationType*)type)->GetInstantiatedType();
     if (type->GetTypeClass() != Type::RecordTypeClass) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::MustHaveStructType)
+        diagnosticReporter.Error(Diagnostic::MustHaveStructType)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
@@ -574,7 +585,7 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
     }
 
     if (!correctFieldDecl) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::MissingMember, recordDecl->GetIdentifierInfo()->GetName().str(), field->GetName().str())
+        diagnosticReporter.Error(Diagnostic::MissingMember, recordDecl->GetIdentifierInfo()->GetName().str(), field->GetName().str())
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .AddHint(DiagnosticHint{ recordDecl->GetSourceRange(), DiagnosticHint::Declared })
@@ -597,7 +608,7 @@ VCL::Expr* VCL::Sema::ActOnLoad(Expr* expr) {
 
 std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs) {
     // Todo
-    if (cc.GetDiagnosticReporter().Warn(Diagnostic::MissingImplementation).SetCompilerInfo(__FILE__, __func__, __LINE__).Report())
+    if (diagnosticReporter.Warn(Diagnostic::MissingImplementation).SetCompilerInfo(__FILE__, __func__, __LINE__).Report())
         return std::make_pair(nullptr, nullptr);
     return std::make_pair(lhs, ActOnCast(rhs, lhs->GetResultType(), SourceRange{ lhs->GetSourceRange().start, rhs->GetSourceRange().end }));
 }
@@ -607,7 +618,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
     Type* dstType = GetInstantiatedType(toType.GetType());
 
     if (!srcType || !dstType) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+        diagnosticReporter.Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return nullptr;
@@ -623,7 +634,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
         return expr;
 
     if (!CheckTypeCastability(srcType) || !CheckTypeCastability(dstType)) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidCast)
+        diagnosticReporter.Error(Diagnostic::InvalidCast)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -631,7 +642,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
     }
 
     if (srcType->GetTypeClass() == Type::VectorTypeClass && dstType->GetTypeClass() != Type::VectorTypeClass) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidVectorCast)
+        diagnosticReporter.Error(Diagnostic::InvalidVectorCast)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -691,7 +702,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
 VCL::Expr* VCL::Sema::ActOnSplat(Expr* expr, SourceRange range) {
     Type* type = expr->GetResultType().GetType();
     if (type->GetTypeClass() != Type::BuiltinTypeClass) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidSplat)
+        diagnosticReporter.Error(Diagnostic::InvalidSplat)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -699,7 +710,7 @@ VCL::Expr* VCL::Sema::ActOnSplat(Expr* expr, SourceRange range) {
     }
     BuiltinType* builtinType = (BuiltinType*)type;
     if (builtinType->GetKind() == BuiltinType::Void) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::InvalidSplat)
+        diagnosticReporter.Error(Diagnostic::InvalidSplat)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -722,7 +733,7 @@ VCL::Expr* VCL::Sema::ActOnNumericConstant(Token* value) {
 VCL::Expr* VCL::Sema::ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRange range) {
     NamedDecl* decl = LookupNamedDecl(identifier);
     if (decl == nullptr || !decl->IsValueDecl()) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+        diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
@@ -736,7 +747,7 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRang
 VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, SourceRange range) {
     FunctionDecl* decl = LookupFunctionDecl(identifier);
     if (!decl) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+        diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
@@ -745,7 +756,7 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<E
 
     FunctionType* type = decl->GetType();
     if (type->GetParamsType().size() < args.size()) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::TooManyArgument)
+        diagnosticReporter.Error(Diagnostic::TooManyArgument)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
@@ -759,21 +770,21 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<E
         if (paramType.GetType()->GetTypeClass() == Type::ReferenceTypeClass) {
             QualType actualType = ((ReferenceType*)paramType.GetType())->GetType();
             if (arg->GetValueCategory() != Expr::LValue) {
-                cc.GetDiagnosticReporter().Error(Diagnostic::MustBeLValue)
+                diagnosticReporter.Error(Diagnostic::MustBeLValue)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ arg->GetSourceRange() })
                     .Report();
                 return nullptr;
             }
             if (arg->GetResultType().GetType() != actualType.GetType()) {
-                cc.GetDiagnosticReporter().Error(Diagnostic::IncorrectType)
+                diagnosticReporter.Error(Diagnostic::IncorrectType)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ arg->GetSourceRange() })
                     .Report();
                 return nullptr;
             }
             if ((arg->GetResultType().GetQualifiers() & paramType.GetQualifiers()) != arg->GetResultType().GetQualifiers()) {
-                cc.GetDiagnosticReporter().Error(Diagnostic::QualifierDropped)
+                diagnosticReporter.Error(Diagnostic::QualifierDropped)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ arg->GetSourceRange() })
                     .Report();
@@ -789,7 +800,7 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<E
     }
 
     if (trueArgs.size() < type->GetParamsType().size()) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::MissingArgument)
+        diagnosticReporter.Error(Diagnostic::MissingArgument)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();

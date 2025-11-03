@@ -1,7 +1,9 @@
 #include <VCL/Parse/Parser.hpp>
 
+#include <VCL/Core/Diagnostic.hpp>
 #include <VCL/AST/Operator.hpp>
 #include <VCL/AST/ExprEvaluator.hpp>
+#include <VCL/Sema/Sema.hpp>
 
 #define NEXT_TOKEN_N(n) if (!NextToken(n)) return nullptr
 #define NEXT_TOKEN() if (!NextToken()) return nullptr
@@ -11,7 +13,7 @@
 #define EXPECT_TOKEN(token, kind) token = ExpectToken(kind, 0, __FILE__, __func__, __LINE__); if (token == nullptr) return nullptr
 
 
-VCL::Parser::Parser(TokenStream& stream, Sema& sema, CompilerContext& cc) : stream{ stream }, sema{ sema }, cc{ cc } {
+VCL::Parser::Parser(TokenStream& stream, Sema& sema) : stream{ stream }, sema{ sema } {
 
 }
 
@@ -24,7 +26,7 @@ VCL::Token* VCL::Parser::ExpectToken(VCL::TokenKind kind, uint32_t n, const char
     if (token->kind == TokenKind::Identifier && kind != TokenKind::Identifier)
         ckind = token->identifier->GetTokenKind();
     if (ckind != kind) {
-        cc.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
+        sema.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
             .AddHint(DiagnosticHint{ token->range })
             .SetCompilerInfo(file, func, line)
             .Report();
@@ -50,44 +52,21 @@ VCL::Decl* VCL::Parser::ParseTopLevelDecl() {
         kind = token->identifier->GetTokenKind();
     switch (kind) {
         case TokenKind::Keyword_struct:
-            return ParseAnyRecordDecl();
-        default:
-            return ParseFunctionDeclOrVarDecl();
+            return ParseRecordDecl();
+        default: {
+            int l = TryParseQualType();
+            if (!l)
+                return ParseVarDecl();
+            kind = stream.GetTok(l + 1)->kind;
+            if (kind == TokenKind::Equal || kind == TokenKind::Semicolon)
+                return ParseVarDecl();
+            return ParseFunctionDecl();
+        }
     }
 }
 
 VCL::Decl* VCL::Parser::ParseRecordLevelDecl() {
     return ParseFieldDecl();
-}
-
-VCL::Decl* VCL::Parser::ParseFunctionDeclOrVarDecl() {
-    Token* token;
-    GET_TOKEN(token);
-    SourceRange range = token->range;
-    auto attr = ParseVarAttrBitfield();
-    if (!attr.has_value())
-        return nullptr;
-    WithFullLoc<QualType> type = ParseQualType();
-    if (type.value.GetAsOpaquePtr() == 0)
-        return nullptr;
-    EXPECT_TOKEN(token, TokenKind::Identifier);
-    IdentifierInfo* identifier = token->identifier;
-    range.end = token->range.end;
-    NEXT_TOKEN();
-    GET_TOKEN(token);
-    switch (token->kind) {
-        case TokenKind::Equal:
-        case TokenKind::Semicolon:
-            return ParseEndVarDecl(attr.value(), type.value, identifier, range);
-        case TokenKind::LeftPar:
-            return ParseEndFunctionDecl(type.value, identifier, range);
-        default:
-            cc.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
-                .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .AddHint(DiagnosticHint{ token->range })
-                .Report();
-            return nullptr;
-    }
 }
 
 VCL::CompoundStmt* VCL::Parser::ParseCompoundStmt() {
@@ -112,9 +91,25 @@ VCL::CompoundStmt* VCL::Parser::ParseCompoundStmt() {
                 stmts.push_back(stmt);
                 break;
             }
+            case TokenKind::Keyword_in:
+            case TokenKind::Keyword_out: {
+                sema.GetDiagnosticReporter().Error(Diagnostic::AttrInvalidUse)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ token->range })
+                    .Report();
+                return nullptr;
+            }
             default: {
-                VarDecl* decl = TryParseVarDecl();
-                if (!decl) {
+                if (TryParseQualType()) {
+                    VarDecl* decl = ParseVarDecl();
+                    if (!decl)
+                        return nullptr;
+                    DeclStmt* stmt = sema.ActOnDeclStmt(decl, decl->GetSourceRange());
+                    if (!stmt)
+                        return nullptr;
+                    stmts.push_back(stmt);
+                    break;
+                } else {
                     Expr* expr = ParseExpression();
                     if (!expr)
                         return nullptr;
@@ -123,11 +118,6 @@ VCL::CompoundStmt* VCL::Parser::ParseCompoundStmt() {
                     stmts.push_back(expr);
                     break;
                 }
-                DeclStmt* stmt = sema.ActOnDeclStmt(decl, decl->GetSourceRange());
-                if (!stmt)
-                    return nullptr;
-                stmts.push_back(stmt);
-                break;
             }
         }
         GET_TOKEN(token);
@@ -138,7 +128,7 @@ VCL::CompoundStmt* VCL::Parser::ParseCompoundStmt() {
     return sema.ActOnCompoundStmt(stmts, range);
 }
 
-VCL::NamedDecl* VCL::Parser::ParseAnyRecordDecl() {
+VCL::NamedDecl* VCL::Parser::ParseRecordDecl() {
     SourceRange range;
     Token* token;
     EXPECT_TOKEN(token, TokenKind::Keyword_struct);
@@ -152,6 +142,8 @@ VCL::NamedDecl* VCL::Parser::ParseAnyRecordDecl() {
     TemplateParameterList* params = nullptr;
     if (token->kind == TokenKind::Lesser) {
         params = ParseTemplateParameterList();
+        if (!params)
+            return nullptr;
         range.end = params->GetSourceRange().end;
     }
     
@@ -201,8 +193,8 @@ VCL::FieldDecl* VCL::Parser::ParseFieldDecl() {
     NEXT_TOKEN();
     return sema.ActOnFieldDecl(r.value, identifier, range);
 }
-#include <iostream>
-VCL::NamedDecl* VCL::Parser::ParseAnyFunctionDecl() {
+
+VCL::NamedDecl* VCL::Parser::ParseFunctionDecl() {
     WithFullLoc<QualType> returnType = ParseQualType();
     if (returnType.value.GetAsOpaquePtr() == 0)
         return nullptr;
@@ -213,23 +205,18 @@ VCL::NamedDecl* VCL::Parser::ParseAnyFunctionDecl() {
     range.end = token->range.end;
     NEXT_TOKEN();
     GET_TOKEN(token);
-    if (token->kind != TokenKind::Lesser) {
-        return ParseEndFunctionDecl(returnType.value, identifier, range);
-    } else {
-        cc.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
+    if (token->kind == TokenKind::Lesser) {
+        sema.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
         return nullptr;
     }
-}
 
-VCL::FunctionDecl* VCL::Parser::ParseEndFunctionDecl(QualType type, IdentifierInfo* identifier, SourceRange range) {
-    TransientFunctionDecl* transientFunctionDecl = sema.ActOnTransientFunctionDecl(type, identifier, range);
+    TransientFunctionDecl* transientFunctionDecl = sema.ActOnTransientFunctionDecl(returnType.value, identifier, range);
     llvm::SmallVector<QualType> paramsType{};
     if (!transientFunctionDecl)
         return nullptr;
-    Token* token;
     {
         ParserScopeGuard sg{ this, transientFunctionDecl };
         EXPECT_TOKEN(token, TokenKind::LeftPar);
@@ -264,14 +251,6 @@ VCL::FunctionDecl* VCL::Parser::ParseEndFunctionDecl(QualType type, IdentifierIn
         return nullptr;
     functionDecl->SetBody(body);
     return functionDecl;
-}
-
-VCL::NamedDecl* VCL::Parser::TryParseAnyFunctionDecl() {
-    TentativeParsingGuard tp{ this };
-    NamedDecl* decl = ParseAnyFunctionDecl();
-    if (decl != nullptr)
-        tp.Commit();
-    return decl;
 }
 
 VCL::ParamDecl* VCL::Parser::ParseParamDecl() {
@@ -351,14 +330,6 @@ VCL::VarDecl* VCL::Parser::ParseEndVarDecl(VarDecl::VarAttrBitfield attr, QualTy
     return decl;
 }
 
-VCL::VarDecl* VCL::Parser::TryParseVarDecl() {
-    TentativeParsingGuard tp{ this };
-    VarDecl* decl = ParseVarDecl();
-    if (decl != nullptr)
-        tp.Commit();
-    return decl;
-}
-
 std::optional<VCL::VarDecl::VarAttrBitfield> VCL::Parser::ParseVarAttrBitfield() {
     VarDecl::VarAttrBitfield attr{ 0 };
 
@@ -413,12 +384,14 @@ VCL::WithFullLoc<VCL::QualType> VCL::Parser::ParseQualType() {
     return WithFullLoc<QualType>{ sema.ActOnQualType(type.value, qualifiers, range), range };
 }
 
-VCL::WithFullLoc<VCL::QualType> VCL::Parser::TryParseQualType() {
+int VCL::Parser::TryParseQualType() {
     TentativeParsingGuard tp{ this };
+    uint32_t beg = stream.GetTokIndex();
+    
     WithFullLoc<QualType> r = ParseQualType();
     if (r.value.GetType() != nullptr)
-        tp.Commit();
-    return r;
+        return stream.GetTokIndex() - beg;
+    return 0;
 }
 
 VCL::WithFullLoc<VCL::Type*> VCL::Parser::ParseType() {
@@ -449,14 +422,6 @@ VCL::WithFullLoc<VCL::Type*> VCL::Parser::ParseType() {
         return WithFullLoc<Type*>{};
 
     return WithFullLoc<Type*>{ sema.ActOnType(identifier, list, range), range };
-}
-
-VCL::WithFullLoc<VCL::Type*> VCL::Parser::TryParseType() {
-    TentativeParsingGuard tp{ this };
-    WithFullLoc<Type*> r = ParseType();
-    if (r.value != nullptr)
-        tp.Commit();
-    return r;
 }
 
 VCL::TemplateParameterList* VCL::Parser::ParseTemplateParameterList() {
@@ -503,7 +468,7 @@ VCL::TemplateParameterList* VCL::Parser::ParseTemplateParameterList() {
                 if (r.value == nullptr)
                     return nullptr;
                 if (r.value->GetTypeClass() != Type::BuiltinTypeClass) {
-                    cc.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
+                    sema.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
                         .SetCompilerInfo(__FILE__, __func__, __LINE__)
                         .AddHint(DiagnosticHint{ SourceRange{ token->range.start, token->range.start } })
                         .Report();
@@ -521,7 +486,7 @@ VCL::TemplateParameterList* VCL::Parser::ParseTemplateParameterList() {
                     case BuiltinType::UInt64:
                         break;
                     default: {
-                        cc.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
+                        sema.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
                         .SetCompilerInfo(__FILE__, __func__, __LINE__)
                         .AddHint(DiagnosticHint{ SourceRange{ token->range.start, token->range.start } })
                         .Report();
@@ -539,7 +504,7 @@ VCL::TemplateParameterList* VCL::Parser::ParseTemplateParameterList() {
                 break;
             }
             default: {
-                cc.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
+                sema.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ SourceRange{ token->range.start, token->range.start } })
                     .Report();
@@ -569,13 +534,14 @@ VCL::TemplateArgumentList* VCL::Parser::ParseTemplateArgumentList() {
             EXPECT_TOKEN(token, TokenKind::Coma);
             NEXT_TOKEN();
         }
-        if (Expr* expr = TryParseExpression(); expr != nullptr) {
-            args.emplace_back(expr).SetSourceRange(expr->GetSourceRange());
-        } else {
+        if (TryParseQualType()) {
             WithFullLoc<QualType> type = ParseQualType();
             if (type.value.GetAsOpaquePtr() == 0)
                 return nullptr;
             args.emplace_back(type.value).SetSourceRange(type.range);
+        } else {
+            Expr* expr = ParseExpression();
+            args.emplace_back(expr).SetSourceRange(expr->GetSourceRange());
         }
         GET_TOKEN(token);
     } while (token->kind != TokenKind::Greater);
@@ -590,14 +556,6 @@ VCL::Expr* VCL::Parser::ParseExpression() {
     if (expr == nullptr)
         return nullptr;
     return ParseBinaryExpression(expr, 0);
-}
-
-VCL::Expr* VCL::Parser::TryParseExpression() {
-    TentativeParsingGuard tp{ this };
-    Expr* expr = ParseExpression();
-    if (expr != nullptr)
-        tp.Commit();
-    return expr;
 }
 
 VCL::Expr* VCL::Parser::ParseBinaryExpression(Expr* lhs, int precedence) {
@@ -631,15 +589,21 @@ VCL::Expr* VCL::Parser::ParseBinaryExpression(Expr* lhs, int precedence) {
 }
 
 VCL::Expr* VCL::Parser::ParsePrefixExpression() {
-    return ParsePostfixExpression();
-}
-
-VCL::Expr* VCL::Parser::TryParsePrefixExpression() {
-    TentativeParsingGuard tp{ this };
-    Expr* expr = ParsePrefixExpression();
-    if (expr != nullptr)
-        tp.Commit();
-    return expr;
+    Token* token;
+    GET_TOKEN(token);
+    switch (token->kind) {
+        case TokenKind::LeftPar: {
+            SourceRange range = token->range;
+            NEXT_TOKEN();
+            WithFullLoc<Type*> type = ParseType();
+            EXPECT_TOKEN(token, TokenKind::RightPar);
+            range.end = token->range.end;
+            NEXT_TOKEN();
+            return sema.ActOnCast(ParsePrefixExpression(), QualType{ type.value }, range);
+        }
+        default:
+            return ParsePostfixExpression();
+    }
 }
 
 VCL::Expr* VCL::Parser::ParsePostfixExpression() {
@@ -679,7 +643,7 @@ VCL::Expr* VCL::Parser::ParsePrimaryExpression() {
         case TokenKind::LeftPar:
             return ParseParentExpression();
         default:
-            cc.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
+            sema.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
                 .AddHint(DiagnosticHint{ token->range })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
@@ -741,3 +705,20 @@ VCL::Expr* VCL::Parser::ParseCallExpr(IdentifierInfo* identifier, SourceRange ra
     NEXT_TOKEN();
     return sema.ActOnCallExpr(identifier, args, range);
 }
+
+VCL::Parser::TentativeParsingGuard::TentativeParsingGuard(Parser* parser) : parser{ parser }, sp{ parser->stream } {
+    isSupressing = !parser->sema.GetDiagnosticReporter().GetSupressAll();
+    if (isSupressing)
+        parser->sema.GetDiagnosticReporter().SetSupressAll(true);
+}
+
+VCL::Parser::TentativeParsingGuard::~TentativeParsingGuard() {
+    if (isSupressing)
+        parser->sema.GetDiagnosticReporter().SetSupressAll(false);
+}
+
+VCL::Parser::ParserScopeGuard::ParserScopeGuard(Parser* parser, DeclContext* context) : parser{ parser }, context{ context } {
+    parser->sema.PushDeclContextScope(context);
+}
+
+VCL::Parser::ParserScopeGuard::~ParserScopeGuard() { parser->sema.PopDeclContextScope(context); }

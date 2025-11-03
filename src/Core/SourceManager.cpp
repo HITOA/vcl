@@ -21,6 +21,8 @@ VCL::Source* VCL::SourceManager::LoadFromMemory(llvm::StringRef buffer, llvm::St
 }
 
 VCL::Source* VCL::SourceManager::GetSourceFromLocation(SourceLocation location) {
+    if (location.GetID() == 0)
+        return nullptr;
     for (size_t i = 0; i < sources.size(); ++i)
         if (sources[i].ContainLocation(location))
             return &sources[i];

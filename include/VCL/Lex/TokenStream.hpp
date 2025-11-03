@@ -32,6 +32,9 @@ namespace VCL {
          */
         Token* GetTok(uint32_t n = 0);
 
+        /** Return the index of the current token */
+        uint32_t GetTokIndex();
+
         /** Lex the next nth token(s). */
         bool Next(uint32_t n = 1);
 
@@ -58,6 +61,7 @@ namespace VCL {
         void ShrinkBackBy(uint32_t n);
 
     private:
+        uint32_t absoluteBaseIndex = 0;
         uint32_t currentIndex = 0;
         Lexer& lexer;
         std::vector<Token> buffer{};

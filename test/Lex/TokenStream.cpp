@@ -3,6 +3,7 @@
 #include <VCL/Core/SourceManager.hpp>
 #include <VCL/Core/Source.hpp>
 #include <VCL/Lex/TokenStream.hpp>
+#include <VCL/Frontend/CompilerContext.hpp>
 
 #include "../Common/ExpectedDiagnostic.hpp"
 
@@ -11,16 +12,22 @@
 void AssertTokenKindAndNoError(VCL::TokenStream& stream, VCL::TokenKind kind) {
     VCL::Token* token = stream.GetTok();
     REQUIRE(token != nullptr);
-    REQUIRE(token->kind == kind);
+    VCL::TokenKind ckind = token->kind;
+    if (ckind == VCL::TokenKind::Identifier)
+        ckind = token->identifier->GetTokenKind();
+    REQUIRE(ckind == kind);
 }
 
-TEST_CASE("Token Stream A Bunch Of Token", "[Core][Source]") {
+TEST_CASE("Token Stream A Bunch Of Token", "[Lex][TokenStream]") {
     ExpectedNoDiagnostic consumer{};
-    VCL::DiagnosticsEngine engine{ &consumer };
-    VCL::DiagnosticReporter reporter{ engine };
-    VCL::SourceManager manager{ reporter };
-    VCL::Source* source = manager.LoadFromMemory("int32 v = 0;");
-    VCL::Lexer lexer{ source->GetBufferRef(), reporter };
+    VCL::CompilerContext cc{};
+    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.CreateDiagnosticEngine();
+    cc.CreateIdentifierTable();
+    cc.CreateSourceManager();
+    VCL::Source* source = cc.GetSourceManager().LoadFromMemory("int32 v = 0;");
+    REQUIRE(source != nullptr);
+    VCL::Lexer lexer{ source->GetBufferRef(), cc.GetDiagnosticReporter(), cc.GetIdentifierTable() };
     VCL::TokenStream stream{ lexer };
     
     AssertTokenKindAndNoError(stream, VCL::TokenKind::Keyword_int32);
@@ -39,13 +46,16 @@ TEST_CASE("Token Stream A Bunch Of Token", "[Core][Source]") {
     AssertTokenKindAndNoError(stream, VCL::TokenKind::EndOfFile);
 }
 
-TEST_CASE("Token Stream Save & Restore", "[Core][Source]") {
+TEST_CASE("Token Stream Save & Restore", "[Lex][TokenStream]") {
     ExpectedNoDiagnostic consumer{};
-    VCL::DiagnosticsEngine engine{ &consumer };
-    VCL::DiagnosticReporter reporter{ engine };
-    VCL::SourceManager manager{ reporter };
-    VCL::Source* source = manager.LoadFromMemory("int32 v = 0;");
-    VCL::Lexer lexer{ source->GetBufferRef(), reporter };
+    VCL::CompilerContext cc{};
+    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.CreateDiagnosticEngine();
+    cc.CreateIdentifierTable();
+    cc.CreateSourceManager();
+    VCL::Source* source = cc.GetSourceManager().LoadFromMemory("int32 v = 0;");
+    REQUIRE(source != nullptr);
+    VCL::Lexer lexer{ source->GetBufferRef(), cc.GetDiagnosticReporter(), cc.GetIdentifierTable() };
     VCL::TokenStream stream{ lexer };
     
     AssertTokenKindAndNoError(stream, VCL::TokenKind::Keyword_int32);
@@ -74,13 +84,16 @@ TEST_CASE("Token Stream Save & Restore", "[Core][Source]") {
     AssertTokenKindAndNoError(stream, VCL::TokenKind::EndOfFile);
 }
 
-TEST_CASE("Token Stream Save & Commit", "[Core][Source]") {
+TEST_CASE("Token Stream Save & Commit", "[Lex][TokenStream]") {
     ExpectedNoDiagnostic consumer{};
-    VCL::DiagnosticsEngine engine{ &consumer };
-    VCL::DiagnosticReporter reporter{ engine };
-    VCL::SourceManager manager{ reporter };
-    VCL::Source* source = manager.LoadFromMemory("int32 v = 0;");
-    VCL::Lexer lexer{ source->GetBufferRef(), reporter };
+    VCL::CompilerContext cc{};
+    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.CreateDiagnosticEngine();
+    cc.CreateIdentifierTable();
+    cc.CreateSourceManager();
+    VCL::Source* source = cc.GetSourceManager().LoadFromMemory("int32 v = 0;");
+    REQUIRE(source != nullptr);
+    VCL::Lexer lexer{ source->GetBufferRef(), cc.GetDiagnosticReporter(), cc.GetIdentifierTable() };
     VCL::TokenStream stream{ lexer };
     
     AssertTokenKindAndNoError(stream, VCL::TokenKind::Keyword_int32);

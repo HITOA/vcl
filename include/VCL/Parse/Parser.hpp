@@ -1,18 +1,18 @@
 #pragma once
 
-#include <VCL/Core/CompilerContext.hpp>
 #include <VCL/Lex/TokenStream.hpp>
 #include <VCL/AST/ASTContext.hpp>
 #include <VCL/AST/Decl.hpp>
 #include <VCL/AST/Stmt.hpp>
 #include <VCL/AST/Expr.hpp>
 #include <VCL/AST/Template.hpp>
-#include <VCL/Sema/Sema.hpp>
+#include <VCL/AST/DeclTemplate.hpp>
 
 #include <optional>
 
 
 namespace VCL {
+    class Sema;
 
     class Parser {
     public:
@@ -23,7 +23,7 @@ namespace VCL {
 
     public:
         Parser() = delete;
-        Parser(TokenStream& stream, Sema& sema, CompilerContext& cc);
+        Parser(TokenStream& stream, Sema& sema);
         Parser(const Parser& other) = delete;
         Parser(Parser&& other) = delete;
         ~Parser() = default;
@@ -41,16 +41,13 @@ namespace VCL {
 
         Decl* ParseTopLevelDecl();
         Decl* ParseRecordLevelDecl();
-        Decl* ParseFunctionDeclOrVarDecl();
         CompoundStmt* ParseCompoundStmt();
         
         /** Parse a RecordDecl or a TemplateRecordDecl */
-        NamedDecl* ParseAnyRecordDecl();
+        NamedDecl* ParseRecordDecl();
         FieldDecl* ParseFieldDecl();
 
-        NamedDecl* ParseAnyFunctionDecl();
-        FunctionDecl* ParseEndFunctionDecl(QualType type, IdentifierInfo* identifier, SourceRange range);
-        NamedDecl* TryParseAnyFunctionDecl();
+        NamedDecl* ParseFunctionDecl();
         ParamDecl* ParseParamDecl();
         CompoundStmt* ParseFunctionBody(FunctionDecl* function);
 
@@ -58,25 +55,21 @@ namespace VCL {
 
         VarDecl* ParseVarDecl();
         VarDecl* ParseEndVarDecl(VarDecl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range);
-        VarDecl* TryParseVarDecl();
 
         std::optional<VarDecl::VarAttrBitfield> ParseVarAttrBitfield();
 
         WithFullLoc<QualType> ParseQualType();
-        WithFullLoc<QualType> TryParseQualType();
+        int TryParseQualType();
         
         WithFullLoc<Type*> ParseType();
-        WithFullLoc<Type*> TryParseType();
 
         TemplateParameterList* ParseTemplateParameterList();
         TemplateArgumentList* ParseTemplateArgumentList();
 
         Expr* ParseExpression();
-        Expr* TryParseExpression();
 
         Expr* ParseBinaryExpression(Expr* lhs, int precedence);
         Expr* ParsePrefixExpression();
-        Expr* TryParsePrefixExpression();
         Expr* ParsePostfixExpression();
         Expr* ParsePrimaryExpression();
         
@@ -89,17 +82,10 @@ namespace VCL {
         class TentativeParsingGuard {
         public:
             TentativeParsingGuard() = delete;
-            TentativeParsingGuard(Parser* parser) : parser{ parser }, sp{ parser->stream } {
-                isSupressing = !parser->cc.GetDiagnosticReporter().GetSupressAll();
-                if (isSupressing)
-                    parser->cc.GetDiagnosticReporter().SetSupressAll(true);
-            }
+            TentativeParsingGuard(Parser* parser);
             TentativeParsingGuard(const TentativeParsingGuard& other) = delete;
             TentativeParsingGuard(TentativeParsingGuard&& other) = delete;
-            ~TentativeParsingGuard() {
-                if (isSupressing)
-                    parser->cc.GetDiagnosticReporter().SetSupressAll(false);
-            }
+            ~TentativeParsingGuard();
 
             TentativeParsingGuard& operator=(const TentativeParsingGuard& other) = delete;
             TentativeParsingGuard& operator=(TentativeParsingGuard&& other) = delete;
@@ -135,12 +121,10 @@ namespace VCL {
         class ParserScopeGuard {
         public:
             ParserScopeGuard() = delete;
-            ParserScopeGuard(Parser* parser, DeclContext* context) : parser{ parser }, context{ context } {
-                parser->sema.PushDeclContextScope(context);
-            }
+            ParserScopeGuard(Parser* parser, DeclContext* context);
             ParserScopeGuard(const ParserScopeGuard& other) = delete;
             ParserScopeGuard(ParserScopeGuard&& other) = delete;
-            ~ParserScopeGuard() { parser->sema.PopDeclContextScope(context); }
+            ~ParserScopeGuard();
 
             ParserScopeGuard& operator=(const ParserScopeGuard& other) = delete;
             ParserScopeGuard& operator=(ParserScopeGuard&& other) = delete;
@@ -153,7 +137,6 @@ namespace VCL {
     private:
         TokenStream& stream;
         Sema& sema;
-        CompilerContext& cc;
         ParserFlag flags = ParserFlag::None;
     };
 

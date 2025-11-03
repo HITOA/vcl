@@ -1,8 +1,10 @@
 #pragma once
 
 #include <VCL/Core/SourceLocation.hpp>
+#include <VCL/Core/DiagnosticOptions.hpp>
 
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/IntrusiveRefCntPtr.h>
 
 
 namespace VCL {
@@ -150,10 +152,10 @@ namespace VCL {
      * This is the DiagnosticEngine, it will receive all Diagnostic, 
      * bump them if necessary, and send it to the consumer if needed.
      */
-    class DiagnosticsEngine {
+    class DiagnosticsEngine : public llvm::RefCountedBase<DiagnosticsEngine> {
     public:
-        DiagnosticsEngine() = default;
-        DiagnosticsEngine(DiagnosticConsumer* consumer) : consumer{ consumer } {};
+        DiagnosticsEngine() = delete;
+        DiagnosticsEngine(DiagnosticOptions& options) : options{ options } {};
         DiagnosticsEngine(const DiagnosticsEngine& other) = delete;
         DiagnosticsEngine(DiagnosticsEngine&& other) = delete;
         ~DiagnosticsEngine() = default;
@@ -161,32 +163,21 @@ namespace VCL {
         DiagnosticsEngine& operator=(const DiagnosticsEngine& other) = delete;
         DiagnosticsEngine& operator=(DiagnosticsEngine&& other) = delete;
 
-        inline DiagnosticConsumer* GetDiagnosticConsumer() const { return consumer; }
-        inline void SetDiagnosticConsumer(DiagnosticConsumer* consumer) { this->consumer = consumer; }
+        inline DiagnosticOptions& GetDiagnosticOptions() const { return options; }
 
         /**
          * Process a diagnostic and return false if it should interrupt execution
          */
         bool Diagnose(Diagnostic&& diagnostic);
-
-        inline void SetTreatWarningAsError(bool enable) { treatWarningAsError = enable; }
-        inline void SetIgnoreAllWarning(bool enable) { ignoreAllWarning = enable; }
-        inline void SetIgnoreAllRemark(bool enable) { ignoreAllRemark = enable; }
-        inline void SetIgnoreAllNote(bool enable) { ignoreAllNote = enable; }
     
     private:
         Diagnostic::SeverityLevel BumpSeverityLevelIfNeeded(Diagnostic::SeverityLevel level);
 
     private:
-        DiagnosticConsumer* consumer = nullptr;
-
-        bool treatWarningAsError = false;
-        bool ignoreAllWarning = false;
-        bool ignoreAllRemark = false;
-        bool ignoreAllNote = false;
+        DiagnosticOptions& options;
     };
 
-    class DiagnosticReporter {
+    class DiagnosticReporter : public llvm::RefCountedBase<DiagnosticReporter> {
     public:
         class ReportHandle {
         public:

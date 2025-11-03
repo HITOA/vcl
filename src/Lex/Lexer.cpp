@@ -1,15 +1,20 @@
 #include <VCL/Lex/Lexer.hpp>
 
+
+#include <VCL/Core/Diagnostic.hpp>
+#include <VCL/Core/Identifier.hpp>
 #include <VCL/Lex/TokenKindLookup.hpp>
 
 
-VCL::Lexer::Lexer(const llvm::MemoryBufferRef& buffer, CompilerContext& cc) : cc{ cc } {
+VCL::Lexer::Lexer(const llvm::MemoryBufferRef& buffer, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable) 
+        : diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable } {
     range.start = (uintptr_t)buffer.getBufferStart();
     range.end = (uintptr_t)buffer.getBufferEnd();
     currentLocation = range.start;
 }
 
-VCL::Lexer::Lexer(const SourceRange& range, CompilerContext& cc) : range{ range }, cc{ cc } {
+VCL::Lexer::Lexer(const SourceRange& range, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable) 
+        : range{ range }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable } {
     currentLocation = range.start;
 }
 
@@ -58,7 +63,7 @@ bool VCL::Lexer::LexIdentifier(Token& token) noexcept {
     const char* endPtr = token.range.end.GetPtr();
     llvm::StringRef name{ startPtr, (size_t)(endPtr - startPtr) };
     
-    token.identifier = cc.GetIdentifierTable().Get(name);
+    token.identifier = identifierTable.Get(name);
 
     return true;
 }
@@ -73,7 +78,7 @@ bool VCL::Lexer::LexString(Token& token) noexcept {
         if (c == '\"')
             return true;
         if (c == '\n')
-            return cc.GetDiagnosticReporter().Error(Diagnostic::UnterminatedString, 
+            return diagnosticReporter.Error(Diagnostic::UnterminatedString, 
                 std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
                 .AddHint(DiagnosticHint{ token.range })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -81,14 +86,14 @@ bool VCL::Lexer::LexString(Token& token) noexcept {
         if (c == '\\') {
             ++token.range.end;
             if (token.range.end >= range.end)
-                return cc.GetDiagnosticReporter().Error(Diagnostic::UnterminatedString, 
+                return diagnosticReporter.Error(Diagnostic::UnterminatedString, 
                     std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
                     .AddHint(DiagnosticHint{ token.range })
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .Report();
         }
     }
-    return cc.GetDiagnosticReporter().Error(Diagnostic::UnterminatedString, 
+    return diagnosticReporter.Error(Diagnostic::UnterminatedString, 
                 std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
                 .AddHint(DiagnosticHint{ token.range })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -106,7 +111,7 @@ bool VCL::Lexer::LexNumeric(Token& token) noexcept {
         c = token.range.end.GetChar();
         if (c == '.') {
             if (floating)
-                return cc.GetDiagnosticReporter().Error(Diagnostic::NumericConstantTooMuchText, 
+                return diagnosticReporter.Error(Diagnostic::NumericConstantTooMuchText, 
                     std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
                     .AddHint(DiagnosticHint{ token.range })
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -137,7 +142,7 @@ bool VCL::Lexer::LexPunctuator(Token& token) noexcept {
         ++size;
     }
     if (token.kind == TokenKind::Unknown)
-        return cc.GetDiagnosticReporter().Error(Diagnostic::InvalidCharacter, std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
+        return diagnosticReporter.Error(Diagnostic::InvalidCharacter, std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })
             .AddHint(DiagnosticHint{ token.range })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
