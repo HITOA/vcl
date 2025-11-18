@@ -205,14 +205,14 @@ namespace VCL {
         friend TrailingObjects;
 
     public:
-        CallExpr(FunctionDecl* decl, llvm::ArrayRef<Expr*> args) 
+        CallExpr(FunctionDecl* decl, llvm::ArrayRef<Expr*> args)
                 : decl{ decl }, argsCount{ args.size() }, Expr{ Expr::CallExprClass } {
-            std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects<Expr*>());
+            std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects());
         }
         ~CallExpr() = default;
 
         inline FunctionDecl* GetFunctionDecl() { return decl; }
-        inline llvm::ArrayRef<Expr*> GetArgs() { return { getTrailingObjects<Expr*>(), argsCount }; }
+        inline llvm::ArrayRef<Expr*> GetArgs() { return { getTrailingObjects(), argsCount }; }
 
         static inline CallExpr* Create(ASTContext& context, FunctionDecl* decl, llvm::ArrayRef<Expr*> args, QualType returnType, SourceRange range) {
             size_t size = totalSizeToAlloc<Expr*>(args.size());

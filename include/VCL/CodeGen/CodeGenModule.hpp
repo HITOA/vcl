@@ -21,7 +21,7 @@ namespace VCL {
     class CodeGenModule {
     public:
         CodeGenModule() = delete;
-        CodeGenModule(llvm::orc::ThreadSafeModule& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target);
+        CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target);
         CodeGenModule(const CodeGenModule& other) = delete;
         CodeGenModule(CodeGenModule&& other) = default;
         ~CodeGenModule() = default;
@@ -31,8 +31,8 @@ namespace VCL {
 
         inline ASTContext& GetASTContext() { return astContext; }
         inline DiagnosticReporter& GetDiagnosticReporter() { return diagnosticReporter; }
-        inline llvm::LLVMContext& GetLLVMContext() { return *module.getContext().getContext(); }
-        inline llvm::Module& GetLLVMModule() { return *module.getModuleUnlocked(); }
+        inline llvm::LLVMContext& GetLLVMContext() { return module.getContext(); }
+        inline llvm::Module& GetLLVMModule() { return module; }
         inline Target& GetTarget() { return target; }
         inline CodeGenTypes& GetCGT() { return cgt; }
 
@@ -49,7 +49,7 @@ namespace VCL {
         llvm::Constant* GenerateConstantScalar(ConstantScalar* scalar);
         
     private:
-        llvm::orc::ThreadSafeModule& module;
+        llvm::Module& module;
         ASTContext& astContext;
         DiagnosticReporter& diagnosticReporter;
         Target& target;

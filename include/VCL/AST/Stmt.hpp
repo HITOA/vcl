@@ -63,11 +63,11 @@ namespace VCL {
     
     public:
         CompoundStmt(llvm::ArrayRef<Stmt*> stmts) : stmtCount{ stmts.size() }, Stmt{ Stmt::CompoundStmtClass } {
-            std::uninitialized_copy(stmts.begin(), stmts.end(), getTrailingObjects<Stmt*>());
+            std::uninitialized_copy(stmts.begin(), stmts.end(), getTrailingObjects());
         }
         ~CompoundStmt() = delete;
 
-        inline llvm::ArrayRef<Stmt*> GetStmts() { return { getTrailingObjects<Stmt*>(), stmtCount }; }
+        inline llvm::ArrayRef<Stmt*> GetStmts() { return { getTrailingObjects(), stmtCount }; }
 
         static inline CompoundStmt* Create(ASTContext& context, llvm::ArrayRef<Stmt*> stmts, SourceRange range) {
             size_t size = totalSizeToAlloc<Stmt*>(stmts.size());

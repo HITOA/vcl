@@ -1,4 +1,6 @@
-with import <nixpkgs> {};
+with import <nixpkgs> {
+  config.allowUnfree = true;
+};
 pkgs.mkShell {
   nativeBuildInputs = with pkgs; [ 
     cmake
@@ -9,6 +11,8 @@ pkgs.mkShell {
     libllvm
     catch2_3
     doxygen
+
+    claude-code
   ];
 
   NIX_LD_LIBRARY_PATH = lib.makeLibraryPath [

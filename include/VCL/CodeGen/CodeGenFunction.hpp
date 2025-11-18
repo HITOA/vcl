@@ -58,6 +58,11 @@ namespace VCL {
         llvm::Value* DispatchBinaryArithmeticOp(Expr* lhs, Expr* rhs, llvm::Instruction::BinaryOps signedop, 
             llvm::Instruction::BinaryOps floatop);
 
+        llvm::Value* DispatchBinaryComparisonOp(Expr* lhs, Expr* rhs, llvm::CmpInst::Predicate signedPredicate,
+            llvm::CmpInst::Predicate unsignedPredicate, llvm::CmpInst::Predicate floatPredicate);
+        llvm::Value* DispatchBinaryComparisonOp(Expr* lhs, Expr* rhs, llvm::CmpInst::Predicate signedPredicate,
+            llvm::CmpInst::Predicate floatPredicate);
+
     private:
         CodeGenModule& cgm;
         

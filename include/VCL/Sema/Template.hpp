@@ -13,7 +13,7 @@ namespace VCL {
     class TemplateInstantiator {
     public:
         TemplateInstantiator() = delete;
-        TemplateInstantiator(Sema& sema) : sema{ sema } {}
+        TemplateInstantiator(Sema& sema) : sema{ sema }, substitutionTable{} {}
         TemplateInstantiator(const TemplateInstantiator& other) = delete;
         TemplateInstantiator(TemplateInstantiator&& other) = delete;
         ~TemplateInstantiator() = default;

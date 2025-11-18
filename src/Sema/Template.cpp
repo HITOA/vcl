@@ -4,7 +4,6 @@
 #include <VCL/AST/ExprEvaluator.hpp>
 #include <VCL/Sema/Sema.hpp>
 
-
 bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
     switch (type->GetTypeClass()) {
         case Type::TemplateSpecializationTypeClass: {

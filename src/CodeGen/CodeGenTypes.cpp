@@ -103,7 +103,7 @@ llvm::ArrayType* VCL::CodeGenTypes::ConvertArrayType(QualType type) {
 llvm::StructType* VCL::CodeGenTypes::ConvertSpanType(QualType type) {
     SpanType* spanType = (SpanType*)type.GetType();
     llvm::Type* ofType = ConvertType(spanType->GetElementType());
-    llvm::PointerType* ofTypePtr = llvm::PointerType::get(ofType, 0);
+    llvm::PointerType* ofTypePtr = llvm::PointerType::get(cgm.GetLLVMContext(), 0);
     llvm::Type* ofSizeType = llvm::Type::getInt64Ty(cgm.GetLLVMContext());
     if (!ofType)
         return nullptr;
@@ -141,5 +141,5 @@ llvm::FunctionType* VCL::CodeGenTypes::ConvertFunctionType(QualType type) {
 llvm::PointerType* VCL::CodeGenTypes::ConvertReferenceType(QualType type) {
     ReferenceType* referenceType = (ReferenceType*)type.GetType();
     llvm::Type* baseType = ConvertType(referenceType->GetType());
-    return llvm::PointerType::get(baseType, 0);
+    return llvm::PointerType::get(cgm.GetLLVMContext(), 0);
 }

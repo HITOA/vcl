@@ -59,7 +59,7 @@ namespace VCL {
         std::optional<VarDecl::VarAttrBitfield> ParseVarAttrBitfield();
 
         WithFullLoc<QualType> ParseQualType();
-        int TryParseQualType();
+        int TryParseQualType(int n = 0);
         
         WithFullLoc<Type*> ParseType();
 

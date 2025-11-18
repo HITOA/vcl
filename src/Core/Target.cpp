@@ -12,7 +12,7 @@ VCL::Target::Target() {
 
     auto triple = llvm::Triple{ llvm::sys::getProcessTriple() };
     std::string error;
-    const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple.getTriple(), error);
+    const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, error);
 
     llvm::StringRef cpuName = llvm::sys::getHostCPUName();
     auto& cpuFeatures = llvm::sys::getHostCPUFeatures();
@@ -23,7 +23,7 @@ VCL::Target::Target() {
     llvm::TargetOptions options{};
 
     llvm::TargetMachine* targetMachine = 
-        target->createTargetMachine(triple.getTriple(), cpuName, features.getString(), options, std::nullopt, std::nullopt, llvm::CodeGenOptLevel::Aggressive);
+        target->createTargetMachine(triple, cpuName, features.getString(), options, std::nullopt, std::nullopt, llvm::CodeGenOptLevel::Aggressive);
     tm = std::unique_ptr<llvm::TargetMachine>{ targetMachine };
 
     CacheTargetMetadata();
@@ -36,11 +36,11 @@ VCL::Target::Target(std::unique_ptr<llvm::TargetMachine> tm) : tm{ std::move(tm)
 VCL::Target::Target(TargetOptions& options) {
     auto triple = llvm::Triple{ options.GetTriple() };
     std::string error;
-    const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple.getTriple(), error);
+    const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, error);
 
     llvm::TargetOptions targetOptions{};
     llvm::TargetMachine* targetMachine = 
-        target->createTargetMachine(options.GetTriple(), options.GetCPU(), options.GetFeatures(), targetOptions, std::nullopt, std::nullopt, llvm::CodeGenOptLevel::Aggressive);
+        target->createTargetMachine(triple, options.GetCPU(), options.GetFeatures(), targetOptions, std::nullopt, std::nullopt, llvm::CodeGenOptLevel::Aggressive);
     tm = std::unique_ptr<llvm::TargetMachine>{ targetMachine };
 
     CacheTargetMetadata();

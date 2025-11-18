@@ -45,7 +45,7 @@ namespace VCL {
     public:
         TemplateParameterList() = delete;
         TemplateParameterList(llvm::ArrayRef<NamedDecl*> params, SourceRange range) : paramCount{ params.size() }, range{ range } {
-            std::uninitialized_copy(params.begin(), params.end(), getTrailingObjects<NamedDecl*>());
+            std::uninitialized_copy(params.begin(), params.end(), getTrailingObjects());
         }
         TemplateParameterList(const TemplateParameterList& other) = delete;
         TemplateParameterList(TemplateParameterList&& other) = delete;
@@ -54,7 +54,7 @@ namespace VCL {
         TemplateParameterList& operator=(const TemplateParameterList& other) = delete;
         TemplateParameterList& operator=(TemplateParameterList&& other) = delete;
 
-        inline llvm::ArrayRef<NamedDecl*> GetParams() { return { getTrailingObjects<NamedDecl*>(), paramCount }; }
+        inline llvm::ArrayRef<NamedDecl*> GetParams() { return { getTrailingObjects(), paramCount }; }
         inline SourceRange GetSourceRange() const { return range; }
 
         static inline TemplateParameterList* Create(ASTContext& context, llvm::ArrayRef<NamedDecl*> params, SourceRange range) {

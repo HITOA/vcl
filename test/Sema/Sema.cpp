@@ -146,3 +146,55 @@ TEST_CASE("Must Be A Struct", "[Sema]") {
 TEST_CASE("Missing Member", "[Sema]") { 
     CheckForError<VCL::Diagnostic::MissingMember>("struct MyStruct { float32 v; } void MyFunc1() { MyStruct s; s.v2 = 1.0; }");
 }
+
+TEST_CASE("Statement Never Reached", "[Sema]") {
+    CheckForError<VCL::Diagnostic::StatementNeverReached>("void MyFunc() { return; float32 v = 1.0; }");
+}
+
+TEST_CASE("Field Assignment On Non-LValue", "[Sema]") {
+    CheckForError<VCL::Diagnostic::MustBeLValue>("struct MyStruct { float32 v; } MyStruct GetStruct(); void MyFunc() { GetStruct().v = 1.0; }");
+}
+
+TEST_CASE("Cast To Void Type", "[Sema]") {
+    CheckForError<VCL::Diagnostic::InvalidCast>("void MyFunc() { float32 v = 1.0; void result = v; }");
+}
+
+TEST_CASE("Cast From Void Type", "[Sema]") {
+    CheckForError<VCL::Diagnostic::InvalidCast>("void MyFunc(); void MyFunc2() { float32 v = MyFunc(); }");
+}
+
+TEST_CASE("Assignment To Function Call Result", "[Sema]") {
+    CheckForError<VCL::Diagnostic::AssignmentNotLValue>("float32 GetValue(); void MyFunc() { GetValue() = 1.0; }");
+}
+
+TEST_CASE("InOut Parameter With Const Variable", "[Sema]") {
+    CheckForError<VCL::Diagnostic::QualifierDropped>("void MyFunc(inout float32 p); void TestFunc() { const float32 v = 1.0; MyFunc(v); }");
+}
+
+TEST_CASE("Global Variable With Non-Constant Initializer", "[Sema]") {
+    CheckForError<VCL::Diagnostic::ExprDoesNotEvaluate>("float32 GetValue(); float32 global = GetValue();");
+}
+
+TEST_CASE("Vector Cast To Scalar In Assignment", "[Sema]") {
+    CheckForError<VCL::Diagnostic::InvalidVectorCast>("void MyFunc() { Vec<float32> v; float32 s = v; }");
+}
+
+TEST_CASE("Struct Member Access On Vector", "[Sema]") {
+    CheckForError<VCL::Diagnostic::MustHaveStructType>("void MyFunc() { Vec<float32> v; v.x = 1.0; }");
+}
+
+TEST_CASE("Template Argument On Regular Struct", "[Sema]") {
+    CheckForError<VCL::Diagnostic::DoesNotTakeTemplateArgList>("struct MyStruct { float32 v; } MyStruct<float32> instance;");
+}
+
+TEST_CASE("Missing Both Template Arguments For Array", "[Sema]") {
+    CheckForError<VCL::Diagnostic::MissingTemplateArgument>("Array arr;");
+}
+
+TEST_CASE("Function With Undefined Return Type", "[Sema]") {
+    CheckForError<VCL::Diagnostic::IdentifierUndefined>("UndefinedType MyFunc() { }");
+}
+
+TEST_CASE("Variable Declaration With Undefined Type In Template", "[Sema]") {
+    CheckForError<VCL::Diagnostic::IdentifierUndefined>("UndefinedStruct<float32> var;");
+}

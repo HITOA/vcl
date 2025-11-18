@@ -53,7 +53,7 @@ namespace VCL {
     /**
      * Qualifier flag
      */
-    enum Qualifier : uint32_t {
+    enum Qualifier : uint64_t {
         None = 0x0,
         Const = 0x1,
         Mask = Const
@@ -78,7 +78,7 @@ namespace VCL {
         QualType& operator=(QualType&& other) = default;
         
         inline void* GetAsOpaquePtr() const { return (void*)ptr; }
-        inline Type* GetType() const { return (Type*)(ptr & ~Qualifier::Mask); }
+        inline Type* GetType() const { return (Type*)(ptr & ~((uintptr_t)Qualifier::Mask)); }
         inline Qualifier GetQualifiers() const { return (Qualifier)(ptr & Qualifier::Mask); }
 
         inline void AddQualifier(Qualifier qual) { ptr |= qual; }
@@ -220,15 +220,15 @@ namespace VCL {
     public:
         friend class TrailingObjects;
 
-        FunctionType(QualType returnType, llvm::ArrayRef<QualType> paramsType) : 
+        FunctionType(QualType returnType, llvm::ArrayRef<QualType> paramsType) :
                 returnType{ returnType }, paramCount{ paramsType.size() }, Type{ Type::FunctionTypeClass } {
-            std::uninitialized_copy(paramsType.begin(), paramsType.end(), getTrailingObjects<QualType>());
+            std::uninitialized_copy(paramsType.begin(), paramsType.end(), getTrailingObjects());
         }
         ~FunctionType() = default;
 
         inline QualType GetReturnType() const { return returnType; }
-        inline llvm::ArrayRef<QualType> GetParamsType() const {  
-            return { getTrailingObjects<QualType>(), paramCount };
+        inline llvm::ArrayRef<QualType> GetParamsType() const {
+            return { getTrailingObjects(), paramCount };
         }
 
         inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, returnType, GetParamsType()); }

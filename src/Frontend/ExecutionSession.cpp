@@ -18,7 +18,8 @@ VCL::ExecutionSession::ExecutionSession() : lastError{ llvm::Error::success() } 
         layout = std::make_unique<llvm::DataLayout>(std::move(*r));
 
     mangle = std::make_unique<llvm::orc::MangleAndInterner>(*session, *layout);
-    linkingLayer = std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(*session, [](){
+    linkingLayer = std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(*session, [](const llvm::MemoryBuffer& buffer) -> 
+        std::unique_ptr<llvm::RuntimeDyld::MemoryManager> {
         return std::make_unique<llvm::SectionMemoryManager>();
     });
 
@@ -52,6 +53,7 @@ bool VCL::ExecutionSession::DefineSymbolPtr(llvm::StringRef name, void* ptr) {
         llvm::orc::ExecutorAddr::fromPtr(ptr),
         llvm::JITSymbolFlags::None
     };
+
     llvm::Error err = main->define(llvm::orc::absoluteSymbols({
         { (*mangle)(name), symbol }
     }));

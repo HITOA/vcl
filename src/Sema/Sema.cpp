@@ -380,7 +380,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
         default:
             IntrinsicTemplateDecl* decl = LookupIntrinsicTemplateDecl(identifier);
             if (decl == nullptr) {
-                diagnosticReporter.Error(Diagnostic::MissingImplementation)
+                diagnosticReporter.Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
                     .AddHint(DiagnosticHint{ range })
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .Report();
@@ -458,14 +458,13 @@ VCL::NonTypeTemplateParamDecl* VCL::Sema::ActOnNonTypeTemplateParamDecl(BuiltinT
 }
 
 VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op) {
-    Expr::ValueCategory category = Expr::RValue;
     switch (op) {
         // Arithmetic
         case BinaryOperator::Add:
         case BinaryOperator::Sub:
         case BinaryOperator::Mul:
         case BinaryOperator::Div:
-        case BinaryOperator::Remainder:
+        case BinaryOperator::Remainder: {
             lhs = ActOnLoad(lhs);
             rhs = ActOnLoad(rhs);
             if (lhs->GetResultType() != rhs->GetResultType()) {
@@ -476,16 +475,50 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                 if (!lhs || !rhs)
                     return nullptr;
             }
-            break;
+            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            expr->SetValueCategory(Expr::RValue);
+            return expr;
+        }
+        //Logical
+        case BinaryOperator::Greater:
+        case BinaryOperator::Lesser:
+        case BinaryOperator::GreaterEqual:
+        case BinaryOperator::LesserEqual:
+        case BinaryOperator::Equal:
+        case BinaryOperator::NotEqual: {
+            lhs = ActOnLoad(lhs);
+            rhs = ActOnLoad(rhs);
+            if (lhs->GetResultType() != rhs->GetResultType()) {
+                // Try implicite cast
+                std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
+                lhs = r.first;
+                rhs = r.second;
+                if (!lhs || !rhs)
+                    return nullptr;
+            }
+            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            expr->SetValueCategory(Expr::RValue);
+            expr->SetResultType(astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool));
+            return expr;
+        }
+        case BinaryOperator::LogicalAnd:
+        case BinaryOperator::LogicalOr: {
+            diagnosticReporter.Error(Diagnostic::MissingImplementation)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
         // Assignment
-        case BinaryOperator::Assignment:
+        case BinaryOperator::Assignment: {
             rhs = ActOnLoad(rhs);
             if (!IsExprAssignable(lhs))
                 return nullptr;
             rhs = ActOnCast(rhs, lhs->GetResultType(), SourceRange{ lhs->GetSourceRange().start, rhs->GetSourceRange().end });
             if (!rhs) return nullptr;
-            category = Expr::LValue;
-            break;
+            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            expr->SetValueCategory(Expr::LValue);
+            return expr;
+        }
         case BinaryOperator::AssignmentAdd:
             rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::Add);
             if (!rhs) return nullptr;
@@ -502,12 +535,13 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
             rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::Div);
             if (!rhs) return nullptr;
             return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
-        default: break;
+        default: {
+            diagnosticReporter.Error(Diagnostic::MissingImplementation)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
     }
-
-    Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
-    expr->SetValueCategory(category);
-    return expr;
 }
 
 bool VCL::Sema::IsExprAssignable(Expr* expr) {

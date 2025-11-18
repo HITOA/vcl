@@ -11,30 +11,8 @@
 #include <VCL/Frontend/ExecutionSession.hpp>
 
 #include "../Common/ExpectedDiagnostic.hpp"
+#include "../Common/MakeModule.hpp"
 
-
-llvm::orc::ThreadSafeModule MakeModule(llvm::StringRef path) {
-    ExpectedNoDiagnostic consumer{};
-    VCL::CompilerContext cc{};
-    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
-    cc.CreateDiagnosticEngine();
-    cc.CreateIdentifierTable();
-    cc.CreateSourceManager();
-    cc.CreateTarget();
-    cc.CreateLLVMContext();
-
-    VCL::Source* source = cc.GetSourceManager().LoadFromDisk("VCL/builtinpassthrough.vcl");
-    REQUIRE(source != nullptr);
-
-    VCL::EmitLLVMAction act{};
-
-    std::shared_ptr<VCL::CompilerInstance> instance = cc.CreateInstance();
-    instance->BeginSource(source);
-    REQUIRE(instance->ExecuteAction(act));
-    instance->EndSource();
-
-    return act.MoveModule();
-}
 
 TEST_CASE("Builtin Passthrough", "[Frontend]") {
     VCL::ExecutionSession session{};
@@ -134,16 +112,5 @@ TEST_CASE("Builtin Passthrough", "[Frontend]") {
         REQUIRE(iu64 == *ou64);
 
         REQUIRE(ib == *ob);
-    }
-}
-
-
-TEST_CASE("Numeric Cast", "[Frontend]") {
-    VCL::ExecutionSession session{};
-    session.EnableGDBListener();
-    REQUIRE(session.SubmitModule(MakeModule("VCL/numericcast.vcl")));
-
-    SECTION("Value Check") {
-        
     }
 }

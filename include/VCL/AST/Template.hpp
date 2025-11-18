@@ -55,7 +55,7 @@ namespace VCL {
     public:
         TemplateArgumentList() = delete;
         TemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range) : argCount{ args.size() }, range{ range } {
-            std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects<TemplateArgument>());
+            std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects());
         }
         TemplateArgumentList(const TemplateArgumentList& other) = delete;
         TemplateArgumentList(TemplateArgumentList&& other) = delete;
@@ -64,10 +64,10 @@ namespace VCL {
         TemplateArgumentList& operator=(const TemplateArgumentList& other) = delete;
         TemplateArgumentList& operator=(TemplateArgumentList&& other) = delete;
 
-        inline llvm::ArrayRef<TemplateArgument> GetArgs() { return { getTrailingObjects<TemplateArgument>(), argCount }; }
+        inline llvm::ArrayRef<TemplateArgument> GetArgs() { return { getTrailingObjects(), argCount }; }
         inline SourceRange GetSourceRange() const { return range; }
 
-        inline TemplateArgument* GetData() { return getTrailingObjects<TemplateArgument>(); }
+        inline TemplateArgument* GetData() { return getTrailingObjects(); }
         inline size_t GetCount() const { return argCount; }
 
         static inline TemplateArgumentList* Create(ASTContext& context, llvm::ArrayRef<TemplateArgument> args, SourceRange range) {

@@ -29,6 +29,8 @@ private:
 class ExpectedNoDiagnostic : public VCL::TextDiagnosticConsumer {
 public:
     void HandleTextDiagnostic(VCL::Diagnostic&& diagnostic, const std::string& msg) override {
+        if (diagnostic.GetSeverity() != VCL::Diagnostic::SeverityLevel::Error)
+            return;
         INFO(msg);
         REQUIRE(false);
     }

@@ -85,7 +85,7 @@ llvm::orc::ThreadSafeContext& VCL::CompilerContext::GetLLVMContext() {
 }
 
 bool VCL::CompilerContext::HasLLVMContext() {
-    return llvmContext.getContext() != nullptr;
+    return llvmContext.withContextDo([](llvm::LLVMContext* ctx){ return ctx != nullptr; });
 }
 
 bool VCL::CompilerContext::CreateLLVMContext() {

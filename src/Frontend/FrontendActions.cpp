@@ -55,11 +55,16 @@ bool VCL::EmitLLVMAction::Execute() {
         return false;
     
     module = llvm::orc::ThreadSafeModule{ 
-        std::make_unique<llvm::Module>( "module", *(instance->GetCompilerContext().GetLLVMContext().getContext()) ),
+        instance->GetCompilerContext().GetLLVMContext().withContextDo([](llvm::LLVMContext* context){
+            return std::make_unique<llvm::Module>("module", *context);
+        }),
         instance->GetCompilerContext().GetLLVMContext() };
-    CodeGenModule cgm{ module, 
-        instance->GetASTContext(), 
-        instance->GetCompilerContext().GetDiagnosticReporter(),
-        instance->GetCompilerContext().GetTarget() };
-    return cgm.Emit();
+
+    return module.withModuleDo([this](llvm::Module& module){
+        CodeGenModule cgm{ module, 
+            instance->GetASTContext(), 
+            instance->GetCompilerContext().GetDiagnosticReporter(),
+            instance->GetCompilerContext().GetTarget() };
+        return cgm.Emit();
+    });
 }

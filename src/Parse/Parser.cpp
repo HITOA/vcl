@@ -384,8 +384,11 @@ VCL::WithFullLoc<VCL::QualType> VCL::Parser::ParseQualType() {
     return WithFullLoc<QualType>{ sema.ActOnQualType(type.value, qualifiers, range), range };
 }
 
-int VCL::Parser::TryParseQualType() {
+int VCL::Parser::TryParseQualType(int n) {
     TentativeParsingGuard tp{ this };
+    for (int i = 0; i < n; ++i) 
+        if (!NextToken()) 
+            return 0;
     uint32_t beg = stream.GetTokIndex();
     
     WithFullLoc<QualType> r = ParseQualType();
@@ -593,13 +596,17 @@ VCL::Expr* VCL::Parser::ParsePrefixExpression() {
     GET_TOKEN(token);
     switch (token->kind) {
         case TokenKind::LeftPar: {
-            SourceRange range = token->range;
-            NEXT_TOKEN();
-            WithFullLoc<Type*> type = ParseType();
-            EXPECT_TOKEN(token, TokenKind::RightPar);
-            range.end = token->range.end;
-            NEXT_TOKEN();
-            return sema.ActOnCast(ParsePrefixExpression(), QualType{ type.value }, range);
+            if (TryParseQualType(1)) {
+                SourceRange range = token->range;
+                NEXT_TOKEN();
+                WithFullLoc<Type*> type = ParseType();
+                EXPECT_TOKEN(token, TokenKind::RightPar);
+                range.end = token->range.end;
+                NEXT_TOKEN();
+                return sema.ActOnCast(ParsePrefixExpression(), QualType{ type.value }, range);
+            } else {
+                return ParsePostfixExpression();
+            }
         }
         default:
             return ParsePostfixExpression();

@@ -3,10 +3,10 @@
 #include <VCL/AST/Expr.hpp>
 
 
-VCL::CodeGenModule::CodeGenModule(llvm::orc::ThreadSafeModule& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target)
+VCL::CodeGenModule::CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target)
     : module{ module }, astContext{ ast }, diagnosticReporter{ diagnosticReporter }, target{ target }, cgt{ *this } {
-    module.getModuleUnlocked()->setDataLayout(target.GetTargetMachine()->createDataLayout());
-    module.getModuleUnlocked()->setTargetTriple(target.GetTargetMachine()->getTargetTriple().getTriple());
+    module.setDataLayout(target.GetTargetMachine()->createDataLayout());
+    module.setTargetTriple(target.GetTargetMachine()->getTargetTriple());
 }
 
 bool VCL::CodeGenModule::Emit() {

@@ -67,8 +67,8 @@ llvm::Value* VCL::CodeGenFunction::GenerateCastExpr(CastExpr* expr) {
         case CastExpr::FloatingToUnsigned: return builder.CreateFPToUI(exprValue, dstType);
 
         case CastExpr::SignedCastExt:
+        case CastExpr::SignedCastTrunc: return builder.CreateSExtOrTrunc(exprValue, dstType);
         case CastExpr::UnsignedCastExt:
-        case CastExpr::SignedCastTrunc:
         case CastExpr::UnsignedCastTrunc: return builder.CreateZExtOrTrunc(exprValue, dstType);
         
         case CastExpr::SignedToFloating: return builder.CreateSIToFP(exprValue, dstType);
@@ -106,6 +106,18 @@ llvm::Value* VCL::CodeGenFunction::GenerateBinaryExpr(BinaryExpr* expr) {
             return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::SDiv, llvm::Instruction::UDiv, llvm::Instruction::FDiv);
         case BinaryOperator::Remainder:
             return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::SRem, llvm::Instruction::URem, llvm::Instruction::FRem);
+        case BinaryOperator::Greater:
+            return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_SGT, llvm::CmpInst::ICMP_UGT, llvm::CmpInst::FCMP_OGT);
+        case BinaryOperator::Lesser:
+            return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_SLT, llvm::CmpInst::ICMP_ULT, llvm::CmpInst::FCMP_OLT);
+        case BinaryOperator::GreaterEqual:
+            return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_SGE, llvm::CmpInst::ICMP_UGE, llvm::CmpInst::FCMP_OGE);
+        case BinaryOperator::LesserEqual:
+            return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_SLE, llvm::CmpInst::ICMP_ULE, llvm::CmpInst::FCMP_OLE);
+        case BinaryOperator::Equal:
+            return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_EQ, llvm::CmpInst::FCMP_OEQ);
+        case BinaryOperator::NotEqual:
+            return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_NE, llvm::CmpInst::FCMP_ONE);
         case BinaryOperator::Assignment: {
             llvm::Value* lhsExprValue = GenerateExpr(lhsExpr);
             llvm::Value* rhsExprValue = GenerateExpr(rhsExpr);
@@ -144,8 +156,9 @@ llvm::Value* VCL::CodeGenFunction::DispatchBinaryArithmeticOp(Expr* lhs, Expr* r
 
     if (!lhsExprValue || !rhsExprValue)
         return nullptr;
-
+    
     switch (kind) {
+        case BuiltinType::Bool:
         case BuiltinType::UInt8:
         case BuiltinType::UInt16:
         case BuiltinType::UInt32:
@@ -198,4 +211,56 @@ llvm::Value* VCL::CodeGenFunction::GenerateFieldAccessExpr(FieldAccessExpr* expr
         return nullptr;
     llvm::Type* recordType = cgm.GetCGT().ConvertRecordDeclType(expr->GetRecordType());
     return builder.CreateStructGEP(recordType, lhs, expr->GetFieldIndex());
+}
+
+llvm::Value* VCL::CodeGenFunction::DispatchBinaryComparisonOp(Expr* lhs, Expr* rhs, llvm::CmpInst::Predicate signedPredicate,
+        llvm::CmpInst::Predicate unsignedPredicate, llvm::CmpInst::Predicate floatPredicate) {
+    Type* type = lhs->GetResultType().GetType();
+    if (type->GetTypeClass() == Type::TemplateSpecializationTypeClass)
+        type = ((TemplateSpecializationType*)type)->GetInstantiatedType();
+    if (type->GetTypeClass() == Type::VectorTypeClass)
+        type = ((VectorType*)type)->GetElementType().GetType();
+    if (type->GetTypeClass() != Type::BuiltinTypeClass) {
+        cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
+            .Report();
+        return nullptr;
+    }
+
+    BuiltinType::Kind kind = ((BuiltinType*)type)->GetKind();
+
+    llvm::Value* lhsExprValue = GenerateExpr(lhs);
+    llvm::Value* rhsExprValue = GenerateExpr(rhs);
+
+    if (!lhsExprValue || !rhsExprValue)
+        return nullptr;
+    
+    switch (kind) {
+        case BuiltinType::Bool:
+        case BuiltinType::UInt8:
+        case BuiltinType::UInt16:
+        case BuiltinType::UInt32:
+        case BuiltinType::UInt64:
+            return builder.CreateCmp(unsignedPredicate, lhsExprValue, rhsExprValue);
+        case BuiltinType::Int8:
+        case BuiltinType::Int16:
+        case BuiltinType::Int32:
+        case BuiltinType::Int64:
+            return builder.CreateCmp(signedPredicate, lhsExprValue, rhsExprValue);
+        case BuiltinType::Float32:
+        case BuiltinType::Float64:
+            return builder.CreateFCmp(floatPredicate, lhsExprValue, rhsExprValue);
+        default:
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
+                .Report();
+            return nullptr;
+    }
+}
+
+llvm::Value* VCL::CodeGenFunction::DispatchBinaryComparisonOp(Expr* lhs, Expr* rhs, llvm::CmpInst::Predicate signedPredicate,
+        llvm::CmpInst::Predicate floatPredicate) {
+    return DispatchBinaryComparisonOp(lhs, rhs, signedPredicate, signedPredicate, floatPredicate);
 }
