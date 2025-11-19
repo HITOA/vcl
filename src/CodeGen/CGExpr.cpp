@@ -118,6 +118,32 @@ llvm::Value* VCL::CodeGenFunction::GenerateBinaryExpr(BinaryExpr* expr) {
             return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_EQ, llvm::CmpInst::FCMP_OEQ);
         case BinaryOperator::NotEqual:
             return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_NE, llvm::CmpInst::FCMP_ONE);
+        case BinaryOperator::LogicalAnd: {
+            llvm::Value* lhsExprValue = GenerateExpr(lhsExpr);
+            llvm::Value* rhsExprValue = GenerateExpr(rhsExpr);
+
+            if (!lhsExprValue || !rhsExprValue)
+                return nullptr;
+            return builder.CreateLogicalAnd(lhsExprValue, rhsExprValue);
+        }
+        case BinaryOperator::LogicalOr: {
+            llvm::Value* lhsExprValue = GenerateExpr(lhsExpr);
+            llvm::Value* rhsExprValue = GenerateExpr(rhsExpr);
+
+            if (!lhsExprValue || !rhsExprValue)
+                return nullptr;
+            return builder.CreateLogicalOr(lhsExprValue, rhsExprValue);
+        }
+        case BinaryOperator::BitwiseAnd:
+            return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::And, llvm::Instruction::And);
+        case BinaryOperator::BitwiseXor:
+            return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::Xor, llvm::Instruction::Xor);
+        case BinaryOperator::BitwiseOr:
+            return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::Or, llvm::Instruction::Or);
+        case BinaryOperator::LeftShift:
+            return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::Shl, llvm::Instruction::Shl);
+        case BinaryOperator::RightShift:
+            return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::AShr, llvm::Instruction::AShr);
         case BinaryOperator::Assignment: {
             llvm::Value* lhsExprValue = GenerateExpr(lhsExpr);
             llvm::Value* rhsExprValue = GenerateExpr(rhsExpr);

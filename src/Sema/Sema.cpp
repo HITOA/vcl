@@ -503,10 +503,58 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
         }
         case BinaryOperator::LogicalAnd:
         case BinaryOperator::LogicalOr: {
-            diagnosticReporter.Error(Diagnostic::MissingImplementation)
-                .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .Report();
-            return nullptr;
+            VCL::Type* boolType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
+            lhs = ActOnCast(lhs, boolType, lhs->GetSourceRange());
+            rhs = ActOnCast(rhs, boolType, rhs->GetSourceRange());
+            if (!lhs || !rhs)
+                return nullptr;
+            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            expr->SetValueCategory(Expr::RValue);
+            expr->SetResultType(boolType);
+            return expr;
+        }
+        case BinaryOperator::BitwiseAnd:
+        case BinaryOperator::BitwiseXor:
+        case BinaryOperator::BitwiseOr:
+        case BinaryOperator::LeftShift:
+        case BinaryOperator::RightShift: {
+            lhs = ActOnLoad(lhs);
+            rhs = ActOnLoad(rhs);
+            if (!CheckTypeCastability(lhs->GetResultType().GetType())) {
+                diagnosticReporter.Error(Diagnostic::NotIntegralType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+            if (!CheckTypeCastability(rhs->GetResultType().GetType())) {
+                diagnosticReporter.Error(Diagnostic::NotIntegralType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ rhs->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+            if (lhs->GetResultType() != rhs->GetResultType()) {
+                // Try implicite cast
+                std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
+                lhs = r.first;
+                rhs = r.second;
+                if (!lhs || !rhs)
+                    return nullptr;
+            }
+            BuiltinType::Kind kind = GetScalarKindFromBuiltinOrVectorType(lhs->GetResultType().GetType());
+            BuiltinType::Category category = BuiltinType::GetKindCategory(kind);
+            if (category != BuiltinType::Category::SignedKind && category != BuiltinType::Category::UnsignedKind) {
+                diagnosticReporter.Error(Diagnostic::NotIntegralType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+
+            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            expr->SetValueCategory(Expr::RValue);
+            return expr;
         }
         // Assignment
         case BinaryOperator::Assignment: {
@@ -533,6 +581,30 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
             return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
         case BinaryOperator::AssignmentDiv:
             rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::Div);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        case BinaryOperator::AssignmentRemainder:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::Remainder);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        case BinaryOperator::AssignmentBitwiseAnd:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::BitwiseAnd);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        case BinaryOperator::AssignmentBitwiseXor:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::BitwiseXor);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        case BinaryOperator::AssignmentBitwiseOr:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::BitwiseOr);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        case BinaryOperator::AssignmentLeftShift:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::LeftShift);
+            if (!rhs) return nullptr;
+            return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        case BinaryOperator::AssignmentRightShift:
+            rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::RightShift);
             if (!rhs) return nullptr;
             return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
         default: {

@@ -53,7 +53,7 @@ namespace VCL {
     /**
      * Qualifier flag
      */
-    enum Qualifier : uint64_t {
+    enum Qualifier : uint32_t {
         None = 0x0,
         Const = 0x1,
         Mask = Const

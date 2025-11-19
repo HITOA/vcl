@@ -298,11 +298,40 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
         int32_t* o_imul = (int32_t*)session.Lookup("o_imul");
         int32_t* o_idiv = (int32_t*)session.Lookup("o_idiv");
         int32_t* o_irem = (int32_t*)session.Lookup("o_irem");
+
+        // Bitwise outputs
+        int32_t* o_band = (int32_t*)session.Lookup("o_band");
+        int32_t* o_bor = (int32_t*)session.Lookup("o_bor");
+        int32_t* o_bxor = (int32_t*)session.Lookup("o_bxor");
+        int32_t* o_lshift = (int32_t*)session.Lookup("o_lshift");
+        int32_t* o_rshift = (int32_t*)session.Lookup("o_rshift");
+
+        // Comparison outputs
+        bool* o_greater = (bool*)session.Lookup("o_greater");
+        bool* o_lesser = (bool*)session.Lookup("o_lesser");
+        bool* o_greater_eq = (bool*)session.Lookup("o_greater_eq");
+        bool* o_lesser_eq = (bool*)session.Lookup("o_lesser_eq");
+        bool* o_equal = (bool*)session.Lookup("o_equal");
+        bool* o_not_equal = (bool*)session.Lookup("o_not_equal");
+
+        // Logical outputs
+        bool* o_land = (bool*)session.Lookup("o_land");
+        bool* o_lor = (bool*)session.Lookup("o_lor");
+
+        // Float assignment outputs
         float* o_assign = (float*)session.Lookup("o_assign");
         float* o_add_assign = (float*)session.Lookup("o_add_assign");
         float* o_sub_assign = (float*)session.Lookup("o_sub_assign");
         float* o_mul_assign = (float*)session.Lookup("o_mul_assign");
         float* o_div_assign = (float*)session.Lookup("o_div_assign");
+
+        // Integer assignment outputs
+        int32_t* o_rem_assign = (int32_t*)session.Lookup("o_rem_assign");
+        int32_t* o_band_assign = (int32_t*)session.Lookup("o_band_assign");
+        int32_t* o_bor_assign = (int32_t*)session.Lookup("o_bor_assign");
+        int32_t* o_bxor_assign = (int32_t*)session.Lookup("o_bxor_assign");
+        int32_t* o_lshift_assign = (int32_t*)session.Lookup("o_lshift_assign");
+        int32_t* o_rshift_assign = (int32_t*)session.Lookup("o_rshift_assign");
 
         // Verify all pointers are valid
         REQUIRE(o_add != nullptr);
@@ -314,11 +343,30 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
         REQUIRE(o_imul != nullptr);
         REQUIRE(o_idiv != nullptr);
         REQUIRE(o_irem != nullptr);
+        REQUIRE(o_band != nullptr);
+        REQUIRE(o_bor != nullptr);
+        REQUIRE(o_bxor != nullptr);
+        REQUIRE(o_lshift != nullptr);
+        REQUIRE(o_rshift != nullptr);
+        REQUIRE(o_greater != nullptr);
+        REQUIRE(o_lesser != nullptr);
+        REQUIRE(o_greater_eq != nullptr);
+        REQUIRE(o_lesser_eq != nullptr);
+        REQUIRE(o_equal != nullptr);
+        REQUIRE(o_not_equal != nullptr);
+        REQUIRE(o_land != nullptr);
+        REQUIRE(o_lor != nullptr);
         REQUIRE(o_assign != nullptr);
         REQUIRE(o_add_assign != nullptr);
         REQUIRE(o_sub_assign != nullptr);
         REQUIRE(o_mul_assign != nullptr);
         REQUIRE(o_div_assign != nullptr);
+        REQUIRE(o_rem_assign != nullptr);
+        REQUIRE(o_band_assign != nullptr);
+        REQUIRE(o_bor_assign != nullptr);
+        REQUIRE(o_bxor_assign != nullptr);
+        REQUIRE(o_lshift_assign != nullptr);
+        REQUIRE(o_rshift_assign != nullptr);
 
         // Execute the Main function
         void* main = session.Lookup("Main");
@@ -337,13 +385,40 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
         REQUIRE(*o_imul == (ia * ib));
         REQUIRE(*o_idiv == (ia / ib));
         REQUIRE(*o_irem == (ia % ib));
-        
-        // Verify assignment operations
+
+        // Verify bitwise operations
+        REQUIRE(*o_band == (ia & ib));
+        REQUIRE(*o_bor == (ia | ib));
+        REQUIRE(*o_bxor == (ia ^ ib));
+        REQUIRE(*o_lshift == (ia << 2));
+        REQUIRE(*o_rshift == (ia >> 2));
+
+        // Verify comparison operations
+        REQUIRE(*o_greater == (ia > ib));
+        REQUIRE(*o_lesser == (ia < ib));
+        REQUIRE(*o_greater_eq == (ia >= ib));
+        REQUIRE(*o_lesser_eq == (ia <= ib));
+        REQUIRE(*o_equal == (ia == ib));
+        REQUIRE(*o_not_equal == (ia != ib));
+
+        // Verify logical operations
+        REQUIRE(*o_land == ((ia > 0) && (ib > 0)));
+        REQUIRE(*o_lor == ((ia > 0) || (ib > 0)));
+
+        // Verify float assignment operations
         REQUIRE(*o_assign == a);
         REQUIRE(*o_add_assign == (a + b));
         REQUIRE(*o_sub_assign == (a - b));
         REQUIRE(*o_mul_assign == (a * b));
         REQUIRE(*o_div_assign == (a / b));
+
+        // Verify integer assignment operations
+        REQUIRE(*o_rem_assign == (ia % ib));
+        REQUIRE(*o_band_assign == (ia & ib));
+        REQUIRE(*o_bor_assign == (ia | ib));
+        REQUIRE(*o_bxor_assign == (ia ^ ib));
+        REQUIRE(*o_lshift_assign == (ia << 2));
+        REQUIRE(*o_rshift_assign == (ia >> 2));
     }
 }
 
