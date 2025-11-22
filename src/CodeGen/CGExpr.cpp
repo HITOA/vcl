@@ -18,6 +18,8 @@ llvm::Value* VCL::CodeGenFunction::GenerateExpr(Expr* expr) {
             return GenerateSplatExpr((SplatExpr*)expr);
         case Expr::BinaryExprClass:
             return GenerateBinaryExpr((BinaryExpr*)expr);
+        case Expr::UnaryExprClass:
+            return GenerateUnaryExpr((UnaryExpr*)expr);
         case Expr::CallExprClass:
             return GenerateCallExpr((CallExpr*)expr);
         case Expr::FieldAccessExprClass:
@@ -150,6 +152,82 @@ llvm::Value* VCL::CodeGenFunction::GenerateBinaryExpr(BinaryExpr* expr) {
             if (!lhsExprValue || !rhsExprValue)
                 return nullptr;
             return builder.CreateStore(rhsExprValue, lhsExprValue);
+        }
+        default:
+            cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+                .Report();
+            return nullptr;
+    }
+}
+
+llvm::Value* VCL::CodeGenFunction::GenerateUnaryExpr(UnaryExpr* expr) {
+    switch (expr->GetOperator()) {
+        case UnaryOperator::PrefixIncrement: {
+            llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
+            llvm::Value* loadedExprValue = builder.CreateLoad(cgm.GetCGT().ConvertType(expr->GetResultType()), exprValue);
+            llvm::Value* result = nullptr;
+            if (loadedExprValue->getType()->isFloatingPointTy())
+                result = builder.CreateFAdd(loadedExprValue, llvm::ConstantFP::get(loadedExprValue->getType(), 1.0));
+            else
+                result = builder.CreateAdd(loadedExprValue, llvm::ConstantInt::get(loadedExprValue->getType(), 1));
+            builder.CreateStore(result, exprValue);
+            return result;
+        }
+        case UnaryOperator::PrefixDecrement: {
+            llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
+            llvm::Value* loadedExprValue = builder.CreateLoad(cgm.GetCGT().ConvertType(expr->GetResultType()), exprValue);
+            llvm::Value* result = nullptr;
+            if (loadedExprValue->getType()->isFloatingPointTy())
+                result = builder.CreateFSub(loadedExprValue, llvm::ConstantFP::get(loadedExprValue->getType(), 1.0));
+            else
+                result = builder.CreateSub(loadedExprValue, llvm::ConstantInt::get(loadedExprValue->getType(), 1));
+            builder.CreateStore(result, exprValue);
+            return result;
+        }
+        case UnaryOperator::PostfixIncrement: {
+            llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
+            llvm::Value* loadedExprValue = builder.CreateLoad(cgm.GetCGT().ConvertType(expr->GetResultType()), exprValue);
+            llvm::Value* result = nullptr;
+            if (loadedExprValue->getType()->isFloatingPointTy())
+                result = builder.CreateFAdd(loadedExprValue, llvm::ConstantFP::get(loadedExprValue->getType(), 1.0));
+            else
+                result = builder.CreateAdd(loadedExprValue, llvm::ConstantInt::get(loadedExprValue->getType(), 1));
+            builder.CreateStore(result, exprValue);
+            return loadedExprValue;
+        }
+        case UnaryOperator::PostfixDecrement: {
+            llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
+            llvm::Value* loadedExprValue = builder.CreateLoad(cgm.GetCGT().ConvertType(expr->GetResultType()), exprValue);
+            llvm::Value* result = nullptr;
+            if (loadedExprValue->getType()->isFloatingPointTy())
+                result = builder.CreateFSub(loadedExprValue, llvm::ConstantFP::get(loadedExprValue->getType(), 1.0));
+            else
+                result = builder.CreateSub(loadedExprValue, llvm::ConstantInt::get(loadedExprValue->getType(), 1));
+            builder.CreateStore(result, exprValue);
+            return loadedExprValue;
+        }
+        case UnaryOperator::Plus: {
+            llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
+            return exprValue;
+        }
+        case UnaryOperator::Minus: {
+            llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
+            llvm::Value* result = nullptr;
+            if (exprValue->getType()->isFloatingPointTy())
+                result = builder.CreateFNeg(exprValue);
+            else
+                result = builder.CreateNeg(exprValue);
+            return result;
+        }
+        case UnaryOperator::LogicalNot: {
+            llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
+            return builder.CreateNot(exprValue);
+        }
+        case UnaryOperator::BitwiseNot: {
+            llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
+            return builder.CreateNot(exprValue);
         }
         default:
             cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)

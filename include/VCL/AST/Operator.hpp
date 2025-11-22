@@ -35,6 +35,13 @@ namespace VCL {
         int precedence = -1;
     };
 
+    enum class UnaryOperator {
+        None,
+        PrefixIncrement, PrefixDecrement,
+        Plus, Minus, LogicalNot, BitwiseNot,
+        PostfixIncrement, PostfixDecrement
+    };
+
     inline BinaryOperator GetBinaryOperator(Token& token, bool onTemplateArgument) {
         switch (token.kind) {
             // Binary Arithmetic

@@ -50,6 +50,7 @@ namespace VCL {
         llvm::Value* GenerateCastExpr(CastExpr* expr);
         llvm::Value* GenerateSplatExpr(SplatExpr* expr);
         llvm::Value* GenerateBinaryExpr(BinaryExpr* expr);
+        llvm::Value* GenerateUnaryExpr(UnaryExpr* expr);
         llvm::Value* GenerateCallExpr(CallExpr* expr);
         llvm::Value* GenerateFieldAccessExpr(FieldAccessExpr* expr);
 

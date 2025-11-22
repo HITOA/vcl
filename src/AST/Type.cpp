@@ -4,6 +4,68 @@
 #include <VCL/AST/Template.hpp>
 
 
+bool VCL::Type::IsTypeNumeric(Type* type) {
+    switch (type->GetTypeClass()) {
+        case Type::BuiltinTypeClass: {
+            BuiltinType::Kind kind = ((BuiltinType*)type)->GetKind();
+            return kind != BuiltinType::Void;
+        }
+        case Type::VectorTypeClass: {
+            Type* ofType = ((VectorType*)type)->GetElementType().GetType();
+            return IsTypeNumeric(ofType);
+        }
+        case Type::ReferenceTypeClass: {
+            Type* ofType = ((ReferenceType*)type)->GetType().GetType();
+            return IsTypeNumeric(ofType);
+        }
+        case Type::TemplateSpecializationTypeClass: {
+            Type* instantiatedType = ((TemplateSpecializationType*)type)->GetInstantiatedType();
+            if (!instantiatedType)
+                return false;
+            return IsTypeNumeric(instantiatedType);
+        }
+        default:
+            return false;
+    }
+}
+
+bool VCL::Type::IsTypeIntegral(Type* type) {
+    switch (type->GetTypeClass()) {
+        case Type::BuiltinTypeClass: {
+            BuiltinType::Kind kind = ((BuiltinType*)type)->GetKind();
+            BuiltinType::Category category = BuiltinType::GetKindCategory(kind);
+            return category == BuiltinType::Category::SignedKind || category == BuiltinType::Category::UnsignedKind;
+        }
+        case Type::VectorTypeClass: {
+            Type* ofType = ((VectorType*)type)->GetElementType().GetType();
+            return IsTypeIntegral(ofType);
+        }
+        case Type::ReferenceTypeClass: {
+            Type* ofType = ((ReferenceType*)type)->GetType().GetType();
+            return IsTypeIntegral(ofType);
+        }
+        case Type::TemplateSpecializationTypeClass: {
+            Type* instantiatedType = ((TemplateSpecializationType*)type)->GetInstantiatedType();
+            if (!instantiatedType)
+                return false;
+            return IsTypeIntegral(instantiatedType);
+        }
+        default:
+            return false;
+    }
+}
+
+VCL::Type* VCL::Type::GetTrueType(Type* type) {
+    switch (type->GetTypeClass()) {
+        case Type::ReferenceTypeClass:
+            return ((ReferenceType*)type)->GetType().GetType();
+        case Type::TemplateSpecializationTypeClass:
+            return ((TemplateSpecializationType*)type)->GetInstantiatedType();
+        default:
+            return type;
+    }
+}
+
 uint32_t VCL::BuiltinType::GetKindBitWidth(Kind kind) {
     switch (kind) {
         case Float32: return 32;

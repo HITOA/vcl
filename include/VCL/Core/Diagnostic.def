@@ -67,8 +67,10 @@ SEMA_DIAGNOSTIC(MissingArgument,                 "missing arguments")
 SEMA_DIAGNOSTIC(MustBeLValue,                    "expression must be a l-value")
 SEMA_DIAGNOSTIC(IncorrectType,                   "expression is of incorrect type")
 SEMA_DIAGNOSTIC(NotIntegralType,                 "expression must have integral type")
-SEMA_DIAGNOSTIC(QualifierDropped,                "qualifiers dropped")
+SEMA_DIAGNOSTIC(NotNumericType,                  "expression must have numeric type")
 SEMA_DIAGNOSTIC(MustHaveStructType,              "expression must have a struct type")
+SEMA_DIAGNOSTIC(MustBeSubscriptable,             "expression must be subscriptable")
+SEMA_DIAGNOSTIC(QualifierDropped,                "qualifiers dropped")
 SEMA_DIAGNOSTIC(MissingMember,                   "struct '%0' has no member '%0'")
 
 #undef DIAGNOSTIC_HINT

@@ -19,8 +19,10 @@ namespace VCL {
             DeclRefExprClass,
             CastExprClass,
             BinaryExprClass,
+            UnaryExprClass,
             CallExprClass,
-            FieldAccessExprClass
+            FieldAccessExprClass,
+            SubscriptExprClass
         };
 
         enum ValueCategory {
@@ -201,6 +203,27 @@ namespace VCL {
         BinaryOperator::Kind op;
     };
 
+    class UnaryExpr : public Expr {
+    public:
+        UnaryExpr(Expr* expr, UnaryOperator op) : 
+            expr{ expr }, op{ op }, Expr{ Expr::UnaryExprClass } {}
+        ~UnaryExpr() = default;
+
+        inline Expr* GetExpr() { return expr; }
+        inline UnaryOperator GetOperator() const { return op; }
+
+        static inline UnaryExpr* Create(ASTContext& context, Expr* expr, UnaryOperator op, SourceRange range) {
+            UnaryExpr* instance = context.AllocateNode<UnaryExpr>(expr, op);
+            instance->SetResultType(expr->GetResultType());
+            instance->SetSourceRange(range);
+            return instance;
+        }
+
+    private:
+        Expr* expr;
+        UnaryOperator op;
+    };
+
     class CallExpr final : public Expr, private llvm::TrailingObjects<CallExpr, Expr*> {
         friend TrailingObjects;
 
@@ -252,6 +275,26 @@ namespace VCL {
         Expr* expr;
         RecordType* recordType;
         uint32_t fieldIndex;
+    };
+
+    class SubscriptExpr : public Expr {
+    public:
+        SubscriptExpr(Expr* expr, Expr* index) : expr{ expr }, index{ index }, Expr{ Expr::SubscriptExprClass } {}
+        ~SubscriptExpr() = default;
+
+        inline Expr* GetExpr() { return expr; }
+        inline Expr* GetIndex() { return index; }
+
+        static inline SubscriptExpr* Create(ASTContext& context, Expr* expr, Expr* index, QualType resultType, SourceRange range) {
+            SubscriptExpr* instance = context.AllocateNode<SubscriptExpr>(expr, index);
+            instance->SetResultType(resultType);
+            instance->SetSourceRange(range);
+            return instance;
+        }
+        
+    private:
+        Expr* expr;
+        Expr* index;
     };
 
 }

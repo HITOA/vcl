@@ -463,7 +463,28 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
         case BinaryOperator::Add:
         case BinaryOperator::Sub:
         case BinaryOperator::Mul:
-        case BinaryOperator::Div:
+        case BinaryOperator::Div: {
+            lhs = ActOnLoad(lhs);
+            rhs = ActOnLoad(rhs);
+            if (lhs->GetResultType() != rhs->GetResultType()) {
+                // Try implicite cast
+                std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
+                lhs = r.first;
+                rhs = r.second;
+                if (!lhs || !rhs)
+                    return nullptr;
+            }
+            if (!Type::IsTypeNumeric(lhs->GetResultType().GetType())) {
+                diagnosticReporter.Error(Diagnostic::NotNumericType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            expr->SetValueCategory(Expr::RValue);
+            return expr;
+        }
         case BinaryOperator::Remainder: {
             lhs = ActOnLoad(lhs);
             rhs = ActOnLoad(rhs);
@@ -474,6 +495,13 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                 rhs = r.second;
                 if (!lhs || !rhs)
                     return nullptr;
+            }
+            if (!Type::IsTypeIntegral(lhs->GetResultType().GetType())) {
+                diagnosticReporter.Error(Diagnostic::NotIntegralType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
+                    .Report();
+                return nullptr;
             }
             Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
             expr->SetValueCategory(Expr::RValue);
@@ -496,21 +524,37 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                 if (!lhs || !rhs)
                     return nullptr;
             }
+            if (!Type::IsTypeNumeric(lhs->GetResultType().GetType())) {
+                diagnosticReporter.Error(Diagnostic::NotNumericType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+            Type* trueType = Type::GetTrueType(lhs->GetResultType().GetType());
+            Type* resultType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
+            if (trueType->GetTypeClass() == Type::VectorTypeClass)
+                resultType = astContext.GetTypeCache().GetOrCreateVectorType(resultType);
             Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
             expr->SetValueCategory(Expr::RValue);
-            expr->SetResultType(astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool));
+            expr->SetResultType(resultType);
             return expr;
         }
         case BinaryOperator::LogicalAnd:
         case BinaryOperator::LogicalOr: {
-            VCL::Type* boolType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
-            lhs = ActOnCast(lhs, boolType, lhs->GetSourceRange());
-            rhs = ActOnCast(rhs, boolType, rhs->GetSourceRange());
+            lhs = ActOnLoad(lhs);
+            rhs = ActOnLoad(rhs);
+            Type* trueType = Type::GetTrueType(lhs->GetResultType().GetType());
+            Type* resultType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
+            if (trueType->GetTypeClass() == Type::VectorTypeClass)
+                resultType = astContext.GetTypeCache().GetOrCreateVectorType(resultType);
+            lhs = ActOnCast(lhs, resultType, lhs->GetSourceRange());
+            rhs = ActOnCast(rhs, resultType, rhs->GetSourceRange());
             if (!lhs || !rhs)
                 return nullptr;
             Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
             expr->SetValueCategory(Expr::RValue);
-            expr->SetResultType(boolType);
+            expr->SetResultType(resultType);
             return expr;
         }
         case BinaryOperator::BitwiseAnd:
@@ -520,20 +564,6 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
         case BinaryOperator::RightShift: {
             lhs = ActOnLoad(lhs);
             rhs = ActOnLoad(rhs);
-            if (!CheckTypeCastability(lhs->GetResultType().GetType())) {
-                diagnosticReporter.Error(Diagnostic::NotIntegralType)
-                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                    .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
-                    .Report();
-                return nullptr;
-            }
-            if (!CheckTypeCastability(rhs->GetResultType().GetType())) {
-                diagnosticReporter.Error(Diagnostic::NotIntegralType)
-                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                    .AddHint(DiagnosticHint{ rhs->GetSourceRange() })
-                    .Report();
-                return nullptr;
-            }
             if (lhs->GetResultType() != rhs->GetResultType()) {
                 // Try implicite cast
                 std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
@@ -542,9 +572,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                 if (!lhs || !rhs)
                     return nullptr;
             }
-            BuiltinType::Kind kind = GetScalarKindFromBuiltinOrVectorType(lhs->GetResultType().GetType());
-            BuiltinType::Category category = BuiltinType::GetKindCategory(kind);
-            if (category != BuiltinType::Category::SignedKind && category != BuiltinType::Category::UnsignedKind) {
+            if (!Type::IsTypeIntegral(lhs->GetResultType().GetType())) {
                 diagnosticReporter.Error(Diagnostic::NotIntegralType)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
@@ -607,6 +635,56 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
             rhs = ActOnBinaryExpr(lhs, rhs, BinaryOperator::RightShift);
             if (!rhs) return nullptr;
             return ActOnBinaryExpr(lhs, rhs, BinaryOperator::Assignment);
+        default: {
+            diagnosticReporter.Error(Diagnostic::MissingImplementation)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+    }
+}
+
+VCL::Expr* VCL::Sema::ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange range) {
+    switch (op) {
+        case UnaryOperator::PrefixIncrement:
+        case UnaryOperator::PrefixDecrement:
+        case UnaryOperator::PostfixIncrement:
+        case UnaryOperator::PostfixDecrement: {
+            if (!IsExprAssignable(expr))
+                return nullptr;
+            if (!Type::IsTypeNumeric(expr->GetResultType().GetType())) {
+                diagnosticReporter.Error(Diagnostic::NotNumericType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+            return UnaryExpr::Create(astContext, expr, op, range);
+        }
+        case UnaryOperator::Plus:
+        case UnaryOperator::Minus: {
+            expr = ActOnLoad(expr);
+            if (!Type::IsTypeNumeric(expr->GetResultType().GetType())) {
+                diagnosticReporter.Error(Diagnostic::NotNumericType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+            return UnaryExpr::Create(astContext, expr, op, range);
+        }
+        case UnaryOperator::BitwiseNot:
+        case UnaryOperator::LogicalNot: {
+            expr = ActOnLoad(expr);
+            if (!Type::IsTypeIntegral(expr->GetResultType().GetType())) {
+                diagnosticReporter.Error(Diagnostic::NotIntegralType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+            return UnaryExpr::Create(astContext, expr, op, range);
+        }
         default: {
             diagnosticReporter.Error(Diagnostic::MissingImplementation)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -704,6 +782,34 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
         returnedFieldType.AddQualifier(Qualifier::Const);
 
     return FieldAccessExpr::Create(astContext, lhs, (RecordType*)type, fieldIdx, returnedFieldType, range);
+}
+
+VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange range) {
+    if (!Type::IsTypeIntegral(index->GetResultType().GetType())) {
+        diagnosticReporter.Error(Diagnostic::NotIntegralType)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ index->GetSourceRange() })
+            .Report();
+        return nullptr;
+    }
+
+    Type* exprTrueType = Type::GetTrueType(expr->GetResultType().GetType());
+    switch (exprTrueType->GetTypeClass()) {
+        case Type::ArrayTypeClass: {
+            QualType resultType = ((ArrayType*)exprTrueType)->GetElementType();
+            return SubscriptExpr::Create(astContext, expr, index, resultType, range);
+        }
+        case Type::SpanTypeClass: {
+            QualType resultType = ((SpanType*)exprTrueType)->GetElementType();
+            return SubscriptExpr::Create(astContext, expr, index, resultType, range);
+        }
+        default:
+            diagnosticReporter.Error(Diagnostic::MustBeSubscriptable)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ expr->GetSourceRange() })
+                .Report();
+            return nullptr;
+    }
 }
 
 VCL::Expr* VCL::Sema::ActOnLoad(Expr* expr) {

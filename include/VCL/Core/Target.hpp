@@ -31,6 +31,8 @@ namespace VCL {
         /** Always the same number of element in a vector, let llvm do its magic while lowering */
         inline uint32_t GetVectorWidthInElement() const { return vectorWidthInByte / 4; }
 
+        inline uint32_t GetVectorWidthInByte() const { return vectorWidthInByte; }
+
     private:
         void CacheTargetMetadata();
     

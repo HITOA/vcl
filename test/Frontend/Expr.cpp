@@ -5,13 +5,17 @@
 
 #include <VCL/Core/SourceManager.hpp>
 #include <VCL/Core/Source.hpp>
+#include <VCL/Core/Target.hpp>
 #include <VCL/Frontend/CompilerContext.hpp>
 #include <VCL/Frontend/CompilerInstance.hpp>
 #include <VCL/Frontend/FrontendActions.hpp>
 #include <VCL/Frontend/ExecutionSession.hpp>
+#include <VCL/Frontend/Storage.hpp>
 
 #include "../Common/ExpectedDiagnostic.hpp"
 #include "../Common/MakeModule.hpp"
+
+#include <format>
 
 
 TEST_CASE("Numeric Cast", "[Frontend]") {
@@ -273,40 +277,56 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
 
     SECTION("Value Check") {
         // Generate random input values for testing
-        float a = GENERATE(Catch::Generators::take(1, 
+        float a = GENERATE(Catch::Generators::take(1,
                 Catch::Generators::random(-100.0f, 100.0f)));
-        float b = GENERATE(Catch::Generators::take(1, 
+        float b = GENERATE(Catch::Generators::take(1,
                 Catch::Generators::random(-100.0f, 100.0f)));
-        int32_t ia = GENERATE(Catch::Generators::take(1, 
+        int32_t ia = GENERATE(Catch::Generators::take(1,
                 Catch::Generators::random(-1000, 1000)));
-        int32_t ib = GENERATE(Catch::Generators::take(1, 
+        int32_t ib = GENERATE(Catch::Generators::take(1,
                 Catch::Generators::random(1, 1000))); // Avoid division by zero
+        uint32_t ua = GENERATE(Catch::Generators::take(1,
+                Catch::Generators::random(static_cast<uint32_t>(0), static_cast<uint32_t>(2000))));
+        uint32_t ub = GENERATE(Catch::Generators::take(1,
+                Catch::Generators::random(static_cast<uint32_t>(1), static_cast<uint32_t>(2000)))); // Avoid division by zero
 
         // Define input symbols
         REQUIRE(session.DefineSymbolPtr("a", &a));
         REQUIRE(session.DefineSymbolPtr("b", &b));
         REQUIRE(session.DefineSymbolPtr("ia", &ia));
         REQUIRE(session.DefineSymbolPtr("ib", &ib));
+        REQUIRE(session.DefineSymbolPtr("ua", &ua));
+        REQUIRE(session.DefineSymbolPtr("ub", &ub));
 
-        // Lookup output symbols
+        // Lookup float arithmetic output symbols
         float* o_add = (float*)session.Lookup("o_add");
         float* o_sub = (float*)session.Lookup("o_sub");
         float* o_mul = (float*)session.Lookup("o_mul");
         float* o_div = (float*)session.Lookup("o_div");
+
+        // Lookup float comparison output symbols
+        bool* o_fgreater = (bool*)session.Lookup("o_fgreater");
+        bool* o_flesser = (bool*)session.Lookup("o_flesser");
+        bool* o_fgreater_eq = (bool*)session.Lookup("o_fgreater_eq");
+        bool* o_flesser_eq = (bool*)session.Lookup("o_flesser_eq");
+        bool* o_fequal = (bool*)session.Lookup("o_fequal");
+        bool* o_fnot_equal = (bool*)session.Lookup("o_fnot_equal");
+
+        // Lookup integer arithmetic output symbols
         int32_t* o_iadd = (int32_t*)session.Lookup("o_iadd");
         int32_t* o_isub = (int32_t*)session.Lookup("o_isub");
         int32_t* o_imul = (int32_t*)session.Lookup("o_imul");
         int32_t* o_idiv = (int32_t*)session.Lookup("o_idiv");
         int32_t* o_irem = (int32_t*)session.Lookup("o_irem");
 
-        // Bitwise outputs
+        // Lookup integer bitwise output symbols
         int32_t* o_band = (int32_t*)session.Lookup("o_band");
         int32_t* o_bor = (int32_t*)session.Lookup("o_bor");
         int32_t* o_bxor = (int32_t*)session.Lookup("o_bxor");
         int32_t* o_lshift = (int32_t*)session.Lookup("o_lshift");
         int32_t* o_rshift = (int32_t*)session.Lookup("o_rshift");
 
-        // Comparison outputs
+        // Lookup integer comparison output symbols
         bool* o_greater = (bool*)session.Lookup("o_greater");
         bool* o_lesser = (bool*)session.Lookup("o_lesser");
         bool* o_greater_eq = (bool*)session.Lookup("o_greater_eq");
@@ -314,18 +334,40 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
         bool* o_equal = (bool*)session.Lookup("o_equal");
         bool* o_not_equal = (bool*)session.Lookup("o_not_equal");
 
-        // Logical outputs
+        // Lookup unsigned arithmetic output symbols
+        uint32_t* o_uadd = (uint32_t*)session.Lookup("o_uadd");
+        uint32_t* o_usub = (uint32_t*)session.Lookup("o_usub");
+        uint32_t* o_umul = (uint32_t*)session.Lookup("o_umul");
+        uint32_t* o_udiv = (uint32_t*)session.Lookup("o_udiv");
+        uint32_t* o_urem = (uint32_t*)session.Lookup("o_urem");
+
+        // Lookup unsigned bitwise output symbols
+        uint32_t* o_uband = (uint32_t*)session.Lookup("o_uband");
+        uint32_t* o_ubor = (uint32_t*)session.Lookup("o_ubor");
+        uint32_t* o_ubxor = (uint32_t*)session.Lookup("o_ubxor");
+        uint32_t* o_ulshift = (uint32_t*)session.Lookup("o_ulshift");
+        uint32_t* o_urshift = (uint32_t*)session.Lookup("o_urshift");
+
+        // Lookup unsigned comparison output symbols
+        bool* o_ugreater = (bool*)session.Lookup("o_ugreater");
+        bool* o_uresser = (bool*)session.Lookup("o_uresser");
+        bool* o_ugreater_eq = (bool*)session.Lookup("o_ugreater_eq");
+        bool* o_uresser_eq = (bool*)session.Lookup("o_uresser_eq");
+        bool* o_uequal = (bool*)session.Lookup("o_uequal");
+        bool* o_unot_equal = (bool*)session.Lookup("o_unot_equal");
+
+        // Lookup logical output symbols
         bool* o_land = (bool*)session.Lookup("o_land");
         bool* o_lor = (bool*)session.Lookup("o_lor");
 
-        // Float assignment outputs
+        // Lookup float assignment output symbols
         float* o_assign = (float*)session.Lookup("o_assign");
         float* o_add_assign = (float*)session.Lookup("o_add_assign");
         float* o_sub_assign = (float*)session.Lookup("o_sub_assign");
         float* o_mul_assign = (float*)session.Lookup("o_mul_assign");
         float* o_div_assign = (float*)session.Lookup("o_div_assign");
 
-        // Integer assignment outputs
+        // Lookup integer assignment output symbols
         int32_t* o_rem_assign = (int32_t*)session.Lookup("o_rem_assign");
         int32_t* o_band_assign = (int32_t*)session.Lookup("o_band_assign");
         int32_t* o_bor_assign = (int32_t*)session.Lookup("o_bor_assign");
@@ -333,11 +375,29 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
         int32_t* o_lshift_assign = (int32_t*)session.Lookup("o_lshift_assign");
         int32_t* o_rshift_assign = (int32_t*)session.Lookup("o_rshift_assign");
 
+        // Lookup unsigned assignment output symbols
+        uint32_t* o_uadd_assign = (uint32_t*)session.Lookup("o_uadd_assign");
+        uint32_t* o_usub_assign = (uint32_t*)session.Lookup("o_usub_assign");
+        uint32_t* o_umul_assign = (uint32_t*)session.Lookup("o_umul_assign");
+        uint32_t* o_udiv_assign = (uint32_t*)session.Lookup("o_udiv_assign");
+        uint32_t* o_urem_assign = (uint32_t*)session.Lookup("o_urem_assign");
+        uint32_t* o_uband_assign = (uint32_t*)session.Lookup("o_uband_assign");
+        uint32_t* o_ubor_assign = (uint32_t*)session.Lookup("o_ubor_assign");
+        uint32_t* o_ubxor_assign = (uint32_t*)session.Lookup("o_ubxor_assign");
+        uint32_t* o_ulshift_assign = (uint32_t*)session.Lookup("o_ulshift_assign");
+        uint32_t* o_urshift_assign = (uint32_t*)session.Lookup("o_urshift_assign");
+
         // Verify all pointers are valid
         REQUIRE(o_add != nullptr);
         REQUIRE(o_sub != nullptr);
         REQUIRE(o_mul != nullptr);
         REQUIRE(o_div != nullptr);
+        REQUIRE(o_fgreater != nullptr);
+        REQUIRE(o_flesser != nullptr);
+        REQUIRE(o_fgreater_eq != nullptr);
+        REQUIRE(o_flesser_eq != nullptr);
+        REQUIRE(o_fequal != nullptr);
+        REQUIRE(o_fnot_equal != nullptr);
         REQUIRE(o_iadd != nullptr);
         REQUIRE(o_isub != nullptr);
         REQUIRE(o_imul != nullptr);
@@ -354,6 +414,22 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
         REQUIRE(o_lesser_eq != nullptr);
         REQUIRE(o_equal != nullptr);
         REQUIRE(o_not_equal != nullptr);
+        REQUIRE(o_uadd != nullptr);
+        REQUIRE(o_usub != nullptr);
+        REQUIRE(o_umul != nullptr);
+        REQUIRE(o_udiv != nullptr);
+        REQUIRE(o_urem != nullptr);
+        REQUIRE(o_uband != nullptr);
+        REQUIRE(o_ubor != nullptr);
+        REQUIRE(o_ubxor != nullptr);
+        REQUIRE(o_ulshift != nullptr);
+        REQUIRE(o_urshift != nullptr);
+        REQUIRE(o_ugreater != nullptr);
+        REQUIRE(o_uresser != nullptr);
+        REQUIRE(o_ugreater_eq != nullptr);
+        REQUIRE(o_uresser_eq != nullptr);
+        REQUIRE(o_uequal != nullptr);
+        REQUIRE(o_unot_equal != nullptr);
         REQUIRE(o_land != nullptr);
         REQUIRE(o_lor != nullptr);
         REQUIRE(o_assign != nullptr);
@@ -367,18 +443,36 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
         REQUIRE(o_bxor_assign != nullptr);
         REQUIRE(o_lshift_assign != nullptr);
         REQUIRE(o_rshift_assign != nullptr);
+        REQUIRE(o_uadd_assign != nullptr);
+        REQUIRE(o_usub_assign != nullptr);
+        REQUIRE(o_umul_assign != nullptr);
+        REQUIRE(o_udiv_assign != nullptr);
+        REQUIRE(o_urem_assign != nullptr);
+        REQUIRE(o_uband_assign != nullptr);
+        REQUIRE(o_ubor_assign != nullptr);
+        REQUIRE(o_ubxor_assign != nullptr);
+        REQUIRE(o_ulshift_assign != nullptr);
+        REQUIRE(o_urshift_assign != nullptr);
 
         // Execute the Main function
         void* main = session.Lookup("Main");
         REQUIRE(main != nullptr);
         ((void(*)())main)();
 
-        // Verify arithmetic operations
+        // Verify float arithmetic operations
         REQUIRE(*o_add == (a + b));
         REQUIRE(*o_sub == (a - b));
         REQUIRE(*o_mul == (a * b));
         REQUIRE(*o_div == (a / b));
-        
+
+        // Verify float comparison operations
+        REQUIRE(*o_fgreater == (a > b));
+        REQUIRE(*o_flesser == (a < b));
+        REQUIRE(*o_fgreater_eq == (a >= b));
+        REQUIRE(*o_flesser_eq == (a <= b));
+        REQUIRE(*o_fequal == (a == b));
+        REQUIRE(*o_fnot_equal == (a != b));
+
         // Verify integer arithmetic
         REQUIRE(*o_iadd == (ia + ib));
         REQUIRE(*o_isub == (ia - ib));
@@ -386,20 +480,42 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
         REQUIRE(*o_idiv == (ia / ib));
         REQUIRE(*o_irem == (ia % ib));
 
-        // Verify bitwise operations
+        // Verify integer bitwise operations
         REQUIRE(*o_band == (ia & ib));
         REQUIRE(*o_bor == (ia | ib));
         REQUIRE(*o_bxor == (ia ^ ib));
         REQUIRE(*o_lshift == (ia << 2));
         REQUIRE(*o_rshift == (ia >> 2));
 
-        // Verify comparison operations
+        // Verify integer comparison operations
         REQUIRE(*o_greater == (ia > ib));
         REQUIRE(*o_lesser == (ia < ib));
         REQUIRE(*o_greater_eq == (ia >= ib));
         REQUIRE(*o_lesser_eq == (ia <= ib));
         REQUIRE(*o_equal == (ia == ib));
         REQUIRE(*o_not_equal == (ia != ib));
+
+        // Verify unsigned arithmetic operations
+        REQUIRE(*o_uadd == (ua + ub));
+        REQUIRE(*o_usub == (ua - ub));
+        REQUIRE(*o_umul == (ua * ub));
+        REQUIRE(*o_udiv == (ua / ub));
+        REQUIRE(*o_urem == (ua % ub));
+
+        // Verify unsigned bitwise operations
+        REQUIRE(*o_uband == (ua & ub));
+        REQUIRE(*o_ubor == (ua | ub));
+        REQUIRE(*o_ubxor == (ua ^ ub));
+        REQUIRE(*o_ulshift == (ua << 2));
+        REQUIRE(*o_urshift == (ua >> 2));
+
+        // Verify unsigned comparison operations
+        REQUIRE(*o_ugreater == (ua > ub));
+        REQUIRE(*o_uresser == (ua < ub));
+        REQUIRE(*o_ugreater_eq == (ua >= ub));
+        REQUIRE(*o_uresser_eq == (ua <= ub));
+        REQUIRE(*o_uequal == (ua == ub));
+        REQUIRE(*o_unot_equal == (ua != ub));
 
         // Verify logical operations
         REQUIRE(*o_land == ((ia > 0) && (ib > 0)));
@@ -419,6 +535,18 @@ TEST_CASE("Binary Expressions", "[Frontend]") {
         REQUIRE(*o_bxor_assign == (ia ^ ib));
         REQUIRE(*o_lshift_assign == (ia << 2));
         REQUIRE(*o_rshift_assign == (ia >> 2));
+
+        // Verify unsigned assignment operations
+        REQUIRE(*o_uadd_assign == (ua + ub));
+        REQUIRE(*o_usub_assign == (ua - ub));
+        REQUIRE(*o_umul_assign == (ua * ub));
+        REQUIRE(*o_udiv_assign == (ua / ub));
+        REQUIRE(*o_urem_assign == (ua % ub));
+        REQUIRE(*o_uband_assign == (ua & ub));
+        REQUIRE(*o_ubor_assign == (ua | ub));
+        REQUIRE(*o_ubxor_assign == (ua ^ ub));
+        REQUIRE(*o_ulshift_assign == (ua << 2));
+        REQUIRE(*o_urshift_assign == (ua >> 2));
     }
 }
 
@@ -536,5 +664,384 @@ TEST_CASE("Field Access Expressions", "[Frontend]") {
         // Verify field modification
         REQUIRE(*o_modified_x == (input_x * 3.0f));
         REQUIRE(*o_modified_y == (input_y + 5.0f));
+    }
+}
+
+TEST_CASE("Unary Expressions", "[Frontend]") {
+    VCL::ExecutionSession session{};
+    session.EnableGDBListener();
+    REQUIRE(session.SubmitModule(MakeModule("VCL/unaryexpr.vcl")));
+
+    SECTION("Value Check") {
+        // Generate random input values for testing
+        int32_t ia = GENERATE(Catch::Generators::take(1,
+                Catch::Generators::random(-100, 100)));
+        uint32_t ua = GENERATE(Catch::Generators::take(1,
+                Catch::Generators::random(static_cast<uint32_t>(1), static_cast<uint32_t>(200))));
+        bool ba = GENERATE(Catch::Generators::take(1,
+                Catch::Generators::random(0, 1))) != 0;
+
+        // Define input symbols
+        REQUIRE(session.DefineSymbolPtr("ia", &ia));
+        REQUIRE(session.DefineSymbolPtr("ua", &ua));
+        REQUIRE(session.DefineSymbolPtr("ba", &ba));
+
+        // Lookup output symbols for unary operations
+        int32_t* o_prefix_inc = (int32_t*)session.Lookup("o_prefix_inc");
+        int32_t* o_prefix_dec = (int32_t*)session.Lookup("o_prefix_dec");
+        int32_t* o_plus = (int32_t*)session.Lookup("o_plus");
+        int32_t* o_minus = (int32_t*)session.Lookup("o_minus");
+        bool* o_logical_not = (bool*)session.Lookup("o_logical_not");
+        uint32_t* o_bitwise_not = (uint32_t*)session.Lookup("o_bitwise_not");
+        int32_t* o_postfix_inc = (int32_t*)session.Lookup("o_postfix_inc");
+        int32_t* o_postfix_dec = (int32_t*)session.Lookup("o_postfix_dec");
+
+        // Additional outputs to verify the actual value after increment/decrement
+        int32_t* o_prefix_inc_result = (int32_t*)session.Lookup("o_prefix_inc_result");
+        int32_t* o_prefix_dec_result = (int32_t*)session.Lookup("o_prefix_dec_result");
+        int32_t* o_postfix_inc_result = (int32_t*)session.Lookup("o_postfix_inc_result");
+        int32_t* o_postfix_dec_result = (int32_t*)session.Lookup("o_postfix_dec_result");
+
+        // Verify all pointers are valid
+        REQUIRE(o_prefix_inc != nullptr);
+        REQUIRE(o_prefix_dec != nullptr);
+        REQUIRE(o_plus != nullptr);
+        REQUIRE(o_minus != nullptr);
+        REQUIRE(o_logical_not != nullptr);
+        REQUIRE(o_bitwise_not != nullptr);
+        REQUIRE(o_postfix_inc != nullptr);
+        REQUIRE(o_postfix_dec != nullptr);
+        REQUIRE(o_prefix_inc_result != nullptr);
+        REQUIRE(o_prefix_dec_result != nullptr);
+        REQUIRE(o_postfix_inc_result != nullptr);
+        REQUIRE(o_postfix_dec_result != nullptr);
+
+        // Execute the Main function
+        void* main = session.Lookup("Main");
+        REQUIRE(main != nullptr);
+        ((void(*)())main)();
+
+        // Verify unary operations
+        // Prefix increment: returns incremented value
+        REQUIRE(*o_prefix_inc == (ia + 1));
+        REQUIRE(*o_prefix_inc_result == (ia + 1));
+
+        // Prefix decrement: returns decremented value
+        REQUIRE(*o_prefix_dec == (ia - 1));
+        REQUIRE(*o_prefix_dec_result == (ia - 1));
+
+        // Unary plus: identity operation
+        REQUIRE(*o_plus == ia);
+
+        // Unary minus: negation
+        REQUIRE(*o_minus == -ia);
+
+        // Logical not
+        REQUIRE(*o_logical_not == !ba);
+
+        // Bitwise not
+        REQUIRE(*o_bitwise_not == ~ua);
+
+        // Postfix increment: returns original value, but variable is incremented
+        REQUIRE(*o_postfix_inc == ia);  // Should return original value
+        REQUIRE(*o_postfix_inc_result == (ia + 1));  // Variable should be incremented
+
+        // Postfix decrement: returns original value, but variable is decremented
+        REQUIRE(*o_postfix_dec == ia);  // Should return original value
+        REQUIRE(*o_postfix_dec_result == (ia - 1));  // Variable should be decremented
+    }
+}
+
+TEST_CASE("Vec Binary Expressions", "[Frontend]") {
+    VCL::ExecutionSession session{};
+    session.EnableGDBListener();
+
+    ExpectedNoDiagnostic consumer{};
+    VCL::CompilerContext cc{};
+    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.CreateDiagnosticEngine();
+    cc.CreateIdentifierTable();
+    cc.CreateSourceManager();
+    cc.CreateTarget();
+    cc.CreateLLVMContext();
+
+    VCL::Source* source = cc.GetSourceManager().LoadFromDisk("VCL/vecbinaryexpr.vcl");
+    REQUIRE(source != nullptr);
+
+    VCL::EmitLLVMAction act{};
+
+    std::shared_ptr<VCL::CompilerInstance> instance = cc.CreateInstance();
+    instance->BeginSource(source);
+    REQUIRE(instance->ExecuteAction(act));
+    instance->EndSource();
+
+    REQUIRE(session.SubmitModule(act.MoveModule()));
+
+    VCL::StorageManager storage{ cc.GetTarget() };
+
+    SECTION("Value Check") {
+        // Vector width (8 elements for AVX2: 32 bytes / 4 = 8)
+        uint32_t vectorWidth = cc.GetTarget().GetVectorWidthInElement();
+
+        // Generate random input values for testing (aligned arrays)
+        VCL::Float32VectorView vf32a = storage.AllocateFloat32Vector();
+        VCL::Float32VectorView vf32b = storage.AllocateFloat32Vector();
+        VCL::Float64VectorView vf64a = storage.AllocateFloat64Vector();
+        VCL::Float64VectorView vf64b = storage.AllocateFloat64Vector();
+        VCL::Int32VectorView vi32a = storage.AllocateInt32Vector();
+        VCL::Int32VectorView vi32b = storage.AllocateInt32Vector();
+        VCL::BoolVectorView vba = storage.AllocateBoolVector();
+        VCL::BoolVectorView vbb = storage.AllocateBoolVector();
+
+        // Initialize with random values
+        for (size_t i = 0; i < vectorWidth; ++i) {
+            vf32a[i] = GENERATE(Catch::Generators::take(1,
+                    Catch::Generators::random(-100.0f, 100.0f)));
+            vf32b[i] = GENERATE(Catch::Generators::take(1,
+                    Catch::Generators::random(-100.0f, 100.0f)));
+            vf64a[i] = GENERATE(Catch::Generators::take(1,
+                    Catch::Generators::random(-100.0, 100.0)));
+            vf64b[i] = GENERATE(Catch::Generators::take(1,
+                    Catch::Generators::random(-100.0, 100.0)));
+            vi32a[i] = GENERATE(Catch::Generators::take(1,
+                    Catch::Generators::random(-1000, 1000)));
+            vi32b[i] = GENERATE(Catch::Generators::take(1,
+                    Catch::Generators::random(1, 1000))); // Avoid division by zero
+            vba.Set(i, GENERATE(Catch::Generators::take(1,
+                    Catch::Generators::random(0, 1))) != 0);
+            vbb.Set(i, GENERATE(Catch::Generators::take(1,
+                    Catch::Generators::random(0, 1))) != 0);
+        }
+
+        // Define input symbols
+        REQUIRE(session.DefineSymbolPtr("vf32a", vf32a.GetPtr()));
+        REQUIRE(session.DefineSymbolPtr("vf32b", vf32b.GetPtr()));
+        REQUIRE(session.DefineSymbolPtr("vf64a", vf64a.GetPtr()));
+        REQUIRE(session.DefineSymbolPtr("vf64b", vf64b.GetPtr()));
+        REQUIRE(session.DefineSymbolPtr("vi32a", vi32a.GetPtr()));
+        REQUIRE(session.DefineSymbolPtr("vi32b", vi32b.GetPtr()));
+        REQUIRE(session.DefineSymbolPtr("vba", vba.GetPtr()));
+        REQUIRE(session.DefineSymbolPtr("vbb", vbb.GetPtr()));
+
+        // Lookup float32 vector output symbols
+        VCL::Float32VectorView o_vf32_add = (float*)session.Lookup("o_vf32_add");
+        VCL::Float32VectorView o_vf32_sub = (float*)session.Lookup("o_vf32_sub");
+        VCL::Float32VectorView o_vf32_mul = (float*)session.Lookup("o_vf32_mul");
+        VCL::Float32VectorView o_vf32_div = (float*)session.Lookup("o_vf32_div");
+        VCL::BoolVectorView o_vf32_greater = (uint8_t*)session.Lookup("o_vf32_greater");
+        VCL::BoolVectorView o_vf32_lesser = (uint8_t*)session.Lookup("o_vf32_lesser");
+        VCL::BoolVectorView o_vf32_greater_eq = (uint8_t*)session.Lookup("o_vf32_greater_eq");
+        VCL::BoolVectorView o_vf32_lesser_eq = (uint8_t*)session.Lookup("o_vf32_lesser_eq");
+        VCL::BoolVectorView o_vf32_equal = (uint8_t*)session.Lookup("o_vf32_equal");
+        VCL::BoolVectorView o_vf32_not_equal = (uint8_t*)session.Lookup("o_vf32_not_equal");
+        VCL::Float32VectorView o_vf32_assign = (float*)session.Lookup("o_vf32_assign");
+        VCL::Float32VectorView o_vf32_add_assign = (float*)session.Lookup("o_vf32_add_assign");
+        VCL::Float32VectorView o_vf32_sub_assign = (float*)session.Lookup("o_vf32_sub_assign");
+        VCL::Float32VectorView o_vf32_mul_assign = (float*)session.Lookup("o_vf32_mul_assign");
+        VCL::Float32VectorView o_vf32_div_assign = (float*)session.Lookup("o_vf32_div_assign");
+
+        // Lookup float64 vector output symbols
+        VCL::Float64VectorView o_vf64_add = (double*)session.Lookup("o_vf64_add");
+        VCL::Float64VectorView o_vf64_sub = (double*)session.Lookup("o_vf64_sub");
+        VCL::Float64VectorView o_vf64_mul = (double*)session.Lookup("o_vf64_mul");
+        VCL::Float64VectorView o_vf64_div = (double*)session.Lookup("o_vf64_div");
+        VCL::BoolVectorView o_vf64_greater = (uint8_t*)session.Lookup("o_vf64_greater");
+        VCL::BoolVectorView o_vf64_lesser = (uint8_t*)session.Lookup("o_vf64_lesser");
+        VCL::BoolVectorView o_vf64_greater_eq = (uint8_t*)session.Lookup("o_vf64_greater_eq");
+        VCL::BoolVectorView o_vf64_lesser_eq = (uint8_t*)session.Lookup("o_vf64_lesser_eq");
+        VCL::BoolVectorView o_vf64_equal = (uint8_t*)session.Lookup("o_vf64_equal");
+        VCL::BoolVectorView o_vf64_not_equal = (uint8_t*)session.Lookup("o_vf64_not_equal");
+        VCL::Float64VectorView o_vf64_assign = (double*)session.Lookup("o_vf64_assign");
+        VCL::Float64VectorView o_vf64_add_assign = (double*)session.Lookup("o_vf64_add_assign");
+        VCL::Float64VectorView o_vf64_sub_assign = (double*)session.Lookup("o_vf64_sub_assign");
+        VCL::Float64VectorView o_vf64_mul_assign = (double*)session.Lookup("o_vf64_mul_assign");
+        VCL::Float64VectorView o_vf64_div_assign = (double*)session.Lookup("o_vf64_div_assign");
+
+        // Lookup int32 vector output symbols
+        VCL::Int32VectorView o_vi32_add = (int32_t*)session.Lookup("o_vi32_add");
+        VCL::Int32VectorView o_vi32_sub = (int32_t*)session.Lookup("o_vi32_sub");
+        VCL::Int32VectorView o_vi32_mul = (int32_t*)session.Lookup("o_vi32_mul");
+        VCL::Int32VectorView o_vi32_div = (int32_t*)session.Lookup("o_vi32_div");
+        VCL::Int32VectorView o_vi32_rem = (int32_t*)session.Lookup("o_vi32_rem");
+        VCL::Int32VectorView o_vi32_band = (int32_t*)session.Lookup("o_vi32_band");
+        VCL::Int32VectorView o_vi32_bor = (int32_t*)session.Lookup("o_vi32_bor");
+        VCL::Int32VectorView o_vi32_bxor = (int32_t*)session.Lookup("o_vi32_bxor");
+        VCL::Int32VectorView o_vi32_lshift = (int32_t*)session.Lookup("o_vi32_lshift");
+        VCL::Int32VectorView o_vi32_rshift = (int32_t*)session.Lookup("o_vi32_rshift");
+        VCL::BoolVectorView o_vi32_greater = (uint8_t*)session.Lookup("o_vi32_greater");
+        VCL::BoolVectorView o_vi32_lesser = (uint8_t*)session.Lookup("o_vi32_lesser");
+        VCL::BoolVectorView o_vi32_greater_eq = (uint8_t*)session.Lookup("o_vi32_greater_eq");
+        VCL::BoolVectorView o_vi32_lesser_eq = (uint8_t*)session.Lookup("o_vi32_lesser_eq");
+        VCL::BoolVectorView o_vi32_equal = (uint8_t*)session.Lookup("o_vi32_equal");
+        VCL::BoolVectorView o_vi32_not_equal = (uint8_t*)session.Lookup("o_vi32_not_equal");
+        VCL::Int32VectorView o_vi32_assign = (int32_t*)session.Lookup("o_vi32_assign");
+        VCL::Int32VectorView o_vi32_add_assign = (int32_t*)session.Lookup("o_vi32_add_assign");
+        VCL::Int32VectorView o_vi32_sub_assign = (int32_t*)session.Lookup("o_vi32_sub_assign");
+        VCL::Int32VectorView o_vi32_mul_assign = (int32_t*)session.Lookup("o_vi32_mul_assign");
+        VCL::Int32VectorView o_vi32_div_assign = (int32_t*)session.Lookup("o_vi32_div_assign");
+        VCL::Int32VectorView o_vi32_rem_assign = (int32_t*)session.Lookup("o_vi32_rem_assign");
+        VCL::Int32VectorView o_vi32_band_assign = (int32_t*)session.Lookup("o_vi32_band_assign");
+        VCL::Int32VectorView o_vi32_bor_assign = (int32_t*)session.Lookup("o_vi32_bor_assign");
+        VCL::Int32VectorView o_vi32_bxor_assign = (int32_t*)session.Lookup("o_vi32_bxor_assign");
+        VCL::Int32VectorView o_vi32_lshift_assign = (int32_t*)session.Lookup("o_vi32_lshift_assign");
+        VCL::Int32VectorView o_vi32_rshift_assign = (int32_t*)session.Lookup("o_vi32_rshift_assign");
+
+        // Lookup bool vector output symbols
+        VCL::BoolVectorView o_vb_land = (uint8_t*)session.Lookup("o_vb_land");
+        VCL::BoolVectorView o_vb_lor = (uint8_t*)session.Lookup("o_vb_lor");
+        VCL::BoolVectorView o_vb_equal = (uint8_t*)session.Lookup("o_vb_equal");
+        VCL::BoolVectorView o_vb_not_equal = (uint8_t*)session.Lookup("o_vb_not_equal");
+
+        // Verify all pointers are valid
+        REQUIRE(o_vf32_add.IsValid());
+        REQUIRE(o_vf32_sub.IsValid());
+        REQUIRE(o_vf32_mul.IsValid());
+        REQUIRE(o_vf32_div.IsValid());
+        REQUIRE(o_vf32_greater.IsValid());
+        REQUIRE(o_vf32_lesser.IsValid());
+        REQUIRE(o_vf32_greater_eq.IsValid());
+        REQUIRE(o_vf32_lesser_eq.IsValid());
+        REQUIRE(o_vf32_equal.IsValid());
+        REQUIRE(o_vf32_not_equal.IsValid());
+        REQUIRE(o_vf32_assign.IsValid());
+        REQUIRE(o_vf32_add_assign.IsValid());
+        REQUIRE(o_vf32_sub_assign.IsValid());
+        REQUIRE(o_vf32_mul_assign.IsValid());
+        REQUIRE(o_vf32_div_assign.IsValid());
+
+        REQUIRE(o_vf64_add.IsValid());
+        REQUIRE(o_vf64_sub.IsValid());
+        REQUIRE(o_vf64_mul.IsValid());
+        REQUIRE(o_vf64_div.IsValid());
+        REQUIRE(o_vf64_greater.IsValid());
+        REQUIRE(o_vf64_lesser.IsValid());
+        REQUIRE(o_vf64_greater_eq.IsValid());
+        REQUIRE(o_vf64_lesser_eq.IsValid());
+        REQUIRE(o_vf64_equal.IsValid());
+        REQUIRE(o_vf64_not_equal.IsValid());
+        REQUIRE(o_vf64_assign.IsValid());
+        REQUIRE(o_vf64_add_assign.IsValid());
+        REQUIRE(o_vf64_sub_assign.IsValid());
+        REQUIRE(o_vf64_mul_assign.IsValid());
+        REQUIRE(o_vf64_div_assign.IsValid());
+
+        REQUIRE(o_vi32_add.IsValid());
+        REQUIRE(o_vi32_sub.IsValid());
+        REQUIRE(o_vi32_mul.IsValid());
+        REQUIRE(o_vi32_div.IsValid());
+        REQUIRE(o_vi32_rem.IsValid());
+        REQUIRE(o_vi32_band.IsValid());
+        REQUIRE(o_vi32_bor.IsValid());
+        REQUIRE(o_vi32_bxor.IsValid());
+        REQUIRE(o_vi32_lshift.IsValid());
+        REQUIRE(o_vi32_rshift.IsValid());
+        REQUIRE(o_vi32_greater.IsValid());
+        REQUIRE(o_vi32_lesser.IsValid());
+        REQUIRE(o_vi32_greater_eq.IsValid());
+        REQUIRE(o_vi32_lesser_eq.IsValid());
+        REQUIRE(o_vi32_equal.IsValid());
+        REQUIRE(o_vi32_not_equal.IsValid());
+        REQUIRE(o_vi32_assign.IsValid());
+        REQUIRE(o_vi32_add_assign.IsValid());
+        REQUIRE(o_vi32_sub_assign.IsValid());
+        REQUIRE(o_vi32_mul_assign.IsValid());
+        REQUIRE(o_vi32_div_assign.IsValid());
+        REQUIRE(o_vi32_rem_assign.IsValid());
+        REQUIRE(o_vi32_band_assign.IsValid());
+        REQUIRE(o_vi32_bor_assign.IsValid());
+        REQUIRE(o_vi32_bxor_assign.IsValid());
+        REQUIRE(o_vi32_lshift_assign.IsValid());
+        REQUIRE(o_vi32_rshift_assign.IsValid());
+
+        REQUIRE(o_vb_land.IsValid());
+        REQUIRE(o_vb_lor.IsValid());
+        REQUIRE(o_vb_equal.IsValid());
+        REQUIRE(o_vb_not_equal.IsValid());
+
+        // Execute the Main function
+        void* main = session.Lookup("Main");
+        REQUIRE(main != nullptr);
+        ((void(*)())main)();
+
+        // Verify float32 vector operations (element-wise)
+        for (size_t i = 0; i < vectorWidth; ++i) {
+            INFO(std::format("vf32a[{}] == {} && vf32b[{}] == {}", i, vf32a[i], i, vf32b[i]));
+            REQUIRE(o_vf32_add[i] == (vf32a[i] + vf32b[i]));
+            REQUIRE(o_vf32_sub[i] == (vf32a[i] - vf32b[i]));
+            REQUIRE(o_vf32_mul[i] == (vf32a[i] * vf32b[i]));
+            REQUIRE(o_vf32_div[i] == (vf32a[i] / vf32b[i]));
+            REQUIRE(o_vf32_greater.Get(i) == (vf32a[i] > vf32b[i]));
+            REQUIRE(o_vf32_lesser.Get(i) == (vf32a[i] < vf32b[i]));
+            REQUIRE(o_vf32_greater_eq.Get(i) == (vf32a[i] >= vf32b[i]));
+            REQUIRE(o_vf32_lesser_eq.Get(i) == (vf32a[i] <= vf32b[i]));
+            REQUIRE(o_vf32_equal.Get(i) == (vf32a[i] == vf32b[i]));
+            REQUIRE(o_vf32_not_equal.Get(i) == (vf32a[i] != vf32b[i]));
+            REQUIRE(o_vf32_assign[i] == vf32a[i]);
+            REQUIRE(o_vf32_add_assign[i] == (vf32a[i] + vf32b[i]));
+            REQUIRE(o_vf32_sub_assign[i] == (vf32a[i] - vf32b[i]));
+            REQUIRE(o_vf32_mul_assign[i] == (vf32a[i] * vf32b[i]));
+            REQUIRE(o_vf32_div_assign[i] == (vf32a[i] / vf32b[i]));
+        }
+
+        // Verify float64 vector operations (element-wise)
+        for (size_t i = 0; i < vectorWidth; ++i) {
+            INFO(std::format("vf64a[{}] == {} && vf64b[{}] == {}", i, vf64a[i], i, vf64b[i]));
+            REQUIRE(o_vf64_add[i] == (vf64a[i] + vf64b[i]));
+            REQUIRE(o_vf64_sub[i] == (vf64a[i] - vf64b[i]));
+            REQUIRE(o_vf64_mul[i] == (vf64a[i] * vf64b[i]));
+            REQUIRE(o_vf64_div[i] == (vf64a[i] / vf64b[i]));
+            REQUIRE(o_vf64_greater.Get(i) == (vf64a[i] > vf64b[i]));
+            REQUIRE(o_vf64_lesser.Get(i) == (vf64a[i] < vf64b[i]));
+            REQUIRE(o_vf64_greater_eq.Get(i) == (vf64a[i] >= vf64b[i]));
+            REQUIRE(o_vf64_lesser_eq.Get(i) == (vf64a[i] <= vf64b[i]));
+            REQUIRE(o_vf64_equal.Get(i) == (vf64a[i] == vf64b[i]));
+            REQUIRE(o_vf64_not_equal.Get(i) == (vf64a[i] != vf64b[i]));
+            REQUIRE(o_vf64_assign[i] == vf64a[i]);
+            REQUIRE(o_vf64_add_assign[i] == (vf64a[i] + vf64b[i]));
+            REQUIRE(o_vf64_sub_assign[i] == (vf64a[i] - vf64b[i]));
+            REQUIRE(o_vf64_mul_assign[i] == (vf64a[i] * vf64b[i]));
+            REQUIRE(o_vf64_div_assign[i] == (vf64a[i] / vf64b[i]));
+        }
+
+        // Verify int32 vector operations (element-wise)
+        for (size_t i = 0; i < vectorWidth; ++i) {
+            INFO(std::format("vi32a[{}] == {} && vi32b[{}] == {}", i, vi32a[i], i, vi32b[i]));
+            REQUIRE(o_vi32_add[i] == (vi32a[i] + vi32b[i]));
+            REQUIRE(o_vi32_sub[i] == (vi32a[i] - vi32b[i]));
+            REQUIRE(o_vi32_mul[i] == (vi32a[i] * vi32b[i]));
+            REQUIRE(o_vi32_div[i] == (vi32a[i] / vi32b[i]));
+            REQUIRE(o_vi32_rem[i] == (vi32a[i] % vi32b[i]));
+            REQUIRE(o_vi32_band[i] == (vi32a[i] & vi32b[i]));
+            REQUIRE(o_vi32_bor[i] == (vi32a[i] | vi32b[i]));
+            REQUIRE(o_vi32_bxor[i] == (vi32a[i] ^ vi32b[i]));
+            REQUIRE(o_vi32_lshift[i] == (vi32a[i] << 2));
+            REQUIRE(o_vi32_rshift[i] == (vi32a[i] >> 2));
+            REQUIRE(o_vi32_greater.Get(i) == (vi32a[i] > vi32b[i]));
+            REQUIRE(o_vi32_lesser.Get(i) == (vi32a[i] < vi32b[i]));
+            REQUIRE(o_vi32_greater_eq.Get(i) == (vi32a[i] >= vi32b[i]));
+            REQUIRE(o_vi32_lesser_eq.Get(i) == (vi32a[i] <= vi32b[i]));
+            REQUIRE(o_vi32_equal.Get(i) == (vi32a[i] == vi32b[i]));
+            REQUIRE(o_vi32_not_equal.Get(i) == (vi32a[i] != vi32b[i]));
+            REQUIRE(o_vi32_assign[i] == vi32a[i]);
+            REQUIRE(o_vi32_add_assign[i] == (vi32a[i] + vi32b[i]));
+            REQUIRE(o_vi32_sub_assign[i] == (vi32a[i] - vi32b[i]));
+            REQUIRE(o_vi32_mul_assign[i] == (vi32a[i] * vi32b[i]));
+            REQUIRE(o_vi32_div_assign[i] == (vi32a[i] / vi32b[i]));
+            REQUIRE(o_vi32_rem_assign[i] == (vi32a[i] % vi32b[i]));
+            REQUIRE(o_vi32_band_assign[i] == (vi32a[i] & vi32b[i]));
+            REQUIRE(o_vi32_bor_assign[i] == (vi32a[i] | vi32b[i]));
+            REQUIRE(o_vi32_bxor_assign[i] == (vi32a[i] ^ vi32b[i]));
+            REQUIRE(o_vi32_lshift_assign[i] == (vi32a[i] << 2));
+            REQUIRE(o_vi32_rshift_assign[i] == (vi32a[i] >> 2));
+        }
+
+        // Verify bool vector operations (element-wise)
+        for (size_t i = 0; i < vectorWidth; ++i) {
+            INFO(std::format("vba[{}] == {} && vbb[{}] == {}", i, vba.Get(i), i, vbb.Get(i)));
+            REQUIRE(o_vb_land.Get(i) == (vba.Get(i) && vbb.Get(i)));
+            REQUIRE(o_vb_lor.Get(i) == (vba.Get(i) || vbb.Get(i)));
+            REQUIRE(o_vb_equal.Get(i) == (vba.Get(i) == vbb.Get(i)));
+            REQUIRE(o_vb_not_equal.Get(i) == (vba.Get(i) != vbb.Get(i)));
+        }
     }
 }

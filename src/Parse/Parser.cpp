@@ -608,6 +608,60 @@ VCL::Expr* VCL::Parser::ParsePrefixExpression() {
                 return ParsePostfixExpression();
             }
         }
+        case TokenKind::PlusPlus: {
+            SourceRange range = token->range;
+            NEXT_TOKEN();
+            Expr* expr = ParsePrefixExpression();
+            if (!expr)
+                return nullptr;
+            range.end = expr->GetSourceRange().end;
+            return sema.ActOnUnaryExpr(expr, UnaryOperator::PrefixIncrement, range);
+        }
+        case TokenKind::MinusMinus: {
+            SourceRange range = token->range;
+            NEXT_TOKEN();
+            Expr* expr = ParsePrefixExpression();
+            if (!expr)
+                return nullptr;
+            range.end = expr->GetSourceRange().end;
+            return sema.ActOnUnaryExpr(expr, UnaryOperator::PrefixDecrement, range);
+        }
+        case TokenKind::Plus: {
+            SourceRange range = token->range;
+            NEXT_TOKEN();
+            Expr* expr = ParsePrefixExpression();
+            if (!expr)
+                return nullptr;
+            range.end = expr->GetSourceRange().end;
+            return sema.ActOnUnaryExpr(expr, UnaryOperator::Plus, range);
+        }
+        case TokenKind::Minus: {
+            SourceRange range = token->range;
+            NEXT_TOKEN();
+            Expr* expr = ParsePrefixExpression();
+            if (!expr)
+                return nullptr;
+            range.end = expr->GetSourceRange().end;
+            return sema.ActOnUnaryExpr(expr, UnaryOperator::Minus, range);
+        }
+        case TokenKind::Exclaim: {
+            SourceRange range = token->range;
+            NEXT_TOKEN();
+            Expr* expr = ParsePrefixExpression();
+            if (!expr)
+                return nullptr;
+            range.end = expr->GetSourceRange().end;
+            return sema.ActOnUnaryExpr(expr, UnaryOperator::LogicalNot, range);
+        }
+        case TokenKind::Tilde: {
+            SourceRange range = token->range;
+            NEXT_TOKEN();
+            Expr* expr = ParsePrefixExpression();
+            if (!expr)
+                return nullptr;
+            range.end = expr->GetSourceRange().end;
+            return sema.ActOnUnaryExpr(expr, UnaryOperator::BitwiseNot, range);
+        }
         default:
             return ParsePostfixExpression();
     }
@@ -628,6 +682,24 @@ VCL::Expr* VCL::Parser::ParsePostfixExpression() {
                 IdentifierInfo* fieldIdentifier = token->identifier;
                 SourceRange range{ expr->GetSourceRange().start, token->range.end };
                 expr = sema.ActOnFieldAccessExpr(expr, fieldIdentifier, range);
+                if (!expr)
+                    return nullptr;
+                NEXT_TOKEN();
+                break;
+            }
+            case TokenKind::PlusPlus: {
+                SourceRange range = token->range;
+                range.end = expr->GetSourceRange().end;
+                expr = sema.ActOnUnaryExpr(expr, UnaryOperator::PostfixIncrement, range);
+                if (!expr)
+                    return nullptr;
+                NEXT_TOKEN();
+                break;
+            }
+            case TokenKind::MinusMinus: {
+                SourceRange range = token->range;
+                range.end = expr->GetSourceRange().end;
+                expr = sema.ActOnUnaryExpr(expr, UnaryOperator::PostfixDecrement, range);
                 if (!expr)
                     return nullptr;
                 NEXT_TOKEN();

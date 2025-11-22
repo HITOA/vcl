@@ -45,6 +45,10 @@ namespace VCL {
 
         inline TypeClass GetTypeClass() const { return typeClass; }
 
+        static bool IsTypeNumeric(Type* type);
+        static bool IsTypeIntegral(Type* type);
+        static Type* GetTrueType(Type* type);
+
     protected:
         TypeClass typeClass;
     };
@@ -115,7 +119,7 @@ namespace VCL {
 
         inline Kind GetKind() const { return kind; }
 
-        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, kind);}
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, kind); }
         inline static void Profile(llvm::FoldingSetNodeID& id, Kind kind) {
             id.AddInteger(kind);
         }

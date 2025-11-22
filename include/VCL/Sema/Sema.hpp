@@ -71,9 +71,11 @@ namespace VCL {
         NonTypeTemplateParamDecl* ActOnNonTypeTemplateParamDecl(BuiltinType* type, IdentifierInfo* identifier, SourceRange range);
 
         Expr* ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op);
+        Expr* ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange range);
         bool IsExprAssignable(Expr* expr);
 
         Expr* ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, SourceRange range);
+        Expr* ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange range);
 
         Expr* ActOnLoad(Expr* expr);
 
