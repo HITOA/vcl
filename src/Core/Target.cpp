@@ -34,6 +34,9 @@ VCL::Target::Target(std::unique_ptr<llvm::TargetMachine> tm) : tm{ std::move(tm)
 }
 
 VCL::Target::Target(TargetOptions& options) {
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    
     auto triple = llvm::Triple{ options.GetTriple() };
     std::string error;
     const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, error);

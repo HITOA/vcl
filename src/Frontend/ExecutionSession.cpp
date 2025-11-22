@@ -1,7 +1,14 @@
 #include <VCL/Frontend/ExecutionSession.hpp>
 
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/TargetParser/Host.h>
+
 
 VCL::ExecutionSession::ExecutionSession() : lastError{ llvm::Error::success() } {
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+
     if (auto r = llvm::orc::SelfExecutorProcessControl::Create(); !r)
         throw std::runtime_error{ llvm::toString(r.takeError()) };
     else
