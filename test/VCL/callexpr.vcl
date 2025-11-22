@@ -22,7 +22,7 @@ float32 Multiply(float32 x, float32 y) {
 
 // Simple absolute value function (without if statements)
 int32 Abs(int32 x) {
-    return x * ((x > 0) - (x < 0));  // Branchless absolute value
+    return x * ((int32)(x > 0) - (x < 0));  // Branchless absolute value
 }
 
 // Function with multiple parameters

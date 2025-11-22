@@ -74,9 +74,9 @@ llvm::Value* VCL::CodeGenFunction::GenerateCastExpr(CastExpr* expr) {
         case CastExpr::UnsignedCastTrunc: return builder.CreateZExtOrTrunc(exprValue, dstType);
         
         case CastExpr::SignedToFloating: return builder.CreateSIToFP(exprValue, dstType);
-        case CastExpr::SignedToUnsigned: return builder.CreateIntCast(exprValue, dstType, false);
+        case CastExpr::SignedToUnsigned: return builder.CreateIntCast(exprValue, dstType, true);
         case CastExpr::UnsignedToFloating: return builder.CreateUIToFP(exprValue, dstType);
-        case CastExpr::UnsignedToSigned: return builder.CreateIntCast(exprValue, dstType, true);
+        case CastExpr::UnsignedToSigned: return builder.CreateIntCast(exprValue, dstType, false);
 
         default:
             cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
