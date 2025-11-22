@@ -8,6 +8,7 @@
 #include <expected>
 #include <cstdint>
 #include <vector>
+#include <string>
 
 
 namespace VCL {

@@ -6,6 +6,8 @@
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/IntrusiveRefCntPtr.h>
 
+#include <string>
+
 
 namespace VCL {
 
