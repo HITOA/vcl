@@ -1045,3 +1045,49 @@ TEST_CASE("Vec Binary Expressions", "[Frontend]") {
         }
     }
 }
+
+struct SpanTest {
+	int32_t* ptr;
+	uint64_t size;
+};
+
+TEST_CASE("Subscript Expressions", "[Frontend]") {
+    VCL::ExecutionSession session{};
+    session.EnableGDBListener();
+    REQUIRE(session.SubmitModule(MakeModule("VCL/subscriptexpr.vcl")));
+
+    SECTION("Value Check") {
+        constexpr uint32_t arraySize = 32;
+
+		int32_t* array = new int32_t[arraySize]{};
+		SpanTest span{ new int32_t[arraySize]{}, arraySize };
+		
+		uint32_t index = GENERATE(Catch::Generators::take(1,
+                Catch::Generators::random(0u, arraySize - 1)));
+
+		for (uint32_t i = 0; i < arraySize; ++i) {
+			array[i] = GENERATE(Catch::Generators::take(1, 
+                Catch::Generators::random(-1000, 1000)));
+
+			span.ptr[i] = GENERATE(Catch::Generators::take(1, 
+                Catch::Generators::random(-1000, 1000)));
+		}
+
+        REQUIRE(session.DefineSymbolPtr("array", array));
+        REQUIRE(session.DefineSymbolPtr("span", &span));
+        REQUIRE(session.DefineSymbolPtr("index", &index));
+
+        int32_t* arrayOut = (int32_t*)session.Lookup("arrayOut");
+        int32_t* spanOut = (int32_t*)session.Lookup("spanOut");
+
+        REQUIRE(arrayOut != nullptr);
+        REQUIRE(spanOut != nullptr);
+
+        void* main = session.Lookup("Main");
+        REQUIRE(main != nullptr);
+        ((void(*)())main)();
+
+        REQUIRE(*arrayOut == array[index]);
+        REQUIRE(*spanOut == span.ptr[index]);
+    }
+}

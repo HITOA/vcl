@@ -603,7 +603,11 @@ VCL::Expr* VCL::Parser::ParsePrefixExpression() {
                 EXPECT_TOKEN(token, TokenKind::RightPar);
                 range.end = token->range.end;
                 NEXT_TOKEN();
-                return sema.ActOnCast(ParsePrefixExpression(), QualType{ type.value }, range);
+                Expr* expr = ParsePrefixExpression();
+                if (!expr)
+                    return nullptr;
+                range.end = expr->GetSourceRange().end;
+                return sema.ActOnCast(expr, QualType{ type.value }, range);
             } else {
                 return ParsePostfixExpression();
             }
@@ -688,8 +692,8 @@ VCL::Expr* VCL::Parser::ParsePostfixExpression() {
                 break;
             }
             case TokenKind::PlusPlus: {
-                SourceRange range = token->range;
-                range.end = expr->GetSourceRange().end;
+                SourceRange range = expr->GetSourceRange();
+                range.end = token->range.end;
                 expr = sema.ActOnUnaryExpr(expr, UnaryOperator::PostfixIncrement, range);
                 if (!expr)
                     return nullptr;
@@ -697,12 +701,24 @@ VCL::Expr* VCL::Parser::ParsePostfixExpression() {
                 break;
             }
             case TokenKind::MinusMinus: {
-                SourceRange range = token->range;
-                range.end = expr->GetSourceRange().end;
+                SourceRange range = expr->GetSourceRange();
+                range.end = token->range.end;
                 expr = sema.ActOnUnaryExpr(expr, UnaryOperator::PostfixDecrement, range);
                 if (!expr)
                     return nullptr;
                 NEXT_TOKEN();
+                break;
+            }
+            case TokenKind::LeftSquare: {
+                SourceRange range = expr->GetSourceRange();
+                NEXT_TOKEN();
+                Expr* index = ParseExpression();
+                if (!index)
+                    return nullptr;
+                EXPECT_TOKEN(token, TokenKind::RightSquare);
+                range.end = token->range.end;
+                NEXT_TOKEN();
+                expr = sema.ActOnSubscriptExpr(expr, index, range);
                 break;
             }
             default:

@@ -279,14 +279,19 @@ namespace VCL {
 
     class SubscriptExpr : public Expr {
     public:
-        SubscriptExpr(Expr* expr, Expr* index) : expr{ expr }, index{ index }, Expr{ Expr::SubscriptExprClass } {}
+        SubscriptExpr(Expr* expr, Expr* index, bool isSpan) 
+                : expr{ expr }, index{ index }, isSpan{ isSpan }, Expr{ Expr::SubscriptExprClass } {
+            SetValueCategory(Expr::LValue);
+        }
         ~SubscriptExpr() = default;
 
         inline Expr* GetExpr() { return expr; }
         inline Expr* GetIndex() { return index; }
+        inline bool IsSpan() const { return isSpan; }
 
         static inline SubscriptExpr* Create(ASTContext& context, Expr* expr, Expr* index, QualType resultType, SourceRange range) {
-            SubscriptExpr* instance = context.AllocateNode<SubscriptExpr>(expr, index);
+            bool isSpan = Type::GetTrueType(expr->GetResultType().GetType())->GetTypeClass() == Type::SpanTypeClass;
+            SubscriptExpr* instance = context.AllocateNode<SubscriptExpr>(expr, index, isSpan);
             instance->SetResultType(resultType);
             instance->SetSourceRange(range);
             return instance;
@@ -295,6 +300,7 @@ namespace VCL {
     private:
         Expr* expr;
         Expr* index;
+        bool isSpan;
     };
 
 }

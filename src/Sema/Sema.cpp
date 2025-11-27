@@ -785,6 +785,10 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
 }
 
 VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange range) {
+    index = ActOnLoad(index);
+    if (!index)
+        return nullptr;
+
     if (!Type::IsTypeIntegral(index->GetResultType().GetType())) {
         diagnosticReporter.Error(Diagnostic::NotIntegralType)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)

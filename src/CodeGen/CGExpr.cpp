@@ -24,6 +24,8 @@ llvm::Value* VCL::CodeGenFunction::GenerateExpr(Expr* expr) {
             return GenerateCallExpr((CallExpr*)expr);
         case Expr::FieldAccessExprClass:
             return GenerateFieldAccessExpr((FieldAccessExpr*)expr);
+        case Expr::SubscriptExprClass:
+            return GenerateSubscriptExpr((SubscriptExpr*)expr);
         default:
             cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -315,6 +317,25 @@ llvm::Value* VCL::CodeGenFunction::GenerateFieldAccessExpr(FieldAccessExpr* expr
         return nullptr;
     llvm::Type* recordType = cgm.GetCGT().ConvertRecordDeclType(expr->GetRecordType());
     return builder.CreateStructGEP(recordType, lhs, expr->GetFieldIndex());
+}
+
+llvm::Value* VCL::CodeGenFunction::GenerateSubscriptExpr(SubscriptExpr* expr) {
+    llvm::Value* lhs = GenerateExpr(expr->GetExpr());
+    llvm::Value* index = GenerateExpr(expr->GetIndex());
+
+    if (expr->IsSpan()) {
+        SpanType* spanType = (SpanType*)Type::GetTrueType(expr->GetExpr()->GetResultType().GetType());
+        llvm::Type* spanTypeLLVM = cgm.GetCGT().ConvertSpanType(spanType);
+        llvm::Type* type = cgm.GetCGT().ConvertType(spanType->GetElementType());
+        lhs = builder.CreateLoad(spanTypeLLVM->getStructElementType(0), builder.CreateStructGEP(spanTypeLLVM, lhs, 0));
+        llvm::Value* result = builder.CreateGEP(type, lhs, index);
+        return result;
+    } else {
+        llvm::Type* type = cgm.GetCGT().ConvertType(Type::GetTrueType(expr->GetExpr()->GetResultType().GetType()));
+        llvm::Value* zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(cgm.GetLLVMContext()), 0);
+        llvm::Value* result = builder.CreateGEP(type, lhs, { zero, index });
+        return result;
+    }
 }
 
 llvm::Value* VCL::CodeGenFunction::DispatchBinaryComparisonOp(Expr* lhs, Expr* rhs, llvm::CmpInst::Predicate signedPredicate,
