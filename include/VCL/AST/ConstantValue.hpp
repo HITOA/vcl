@@ -11,7 +11,9 @@ namespace VCL {
     class ConstantValue {
     public:
         enum ConstantValueClass {
-            ConstantScalarClass
+            ConstantScalarClass,
+            ConstantAggregateClass,
+            ConstantNullClass
         };
 
     public:
@@ -112,11 +114,42 @@ namespace VCL {
 
     private:
         template<typename T>
-        inline void Set(T value) { *((T*)data) = value; }
+        inline void Set(T value) { 
+            memset(data, 0x0, sizeof(uint8_t) * 8);
+            memcpy(data, &value, sizeof(value));
+        }
 
     private:
         uint8_t data[8]{};
         BuiltinType::Kind kind = BuiltinType::Void;
+    };
+
+    class ConstantAggregate : public ConstantValue {
+    public:
+        ConstantAggregate(llvm::ArrayRef<ConstantValue*> values, QualType type) 
+                : values{ values }, type{ type }, ConstantValue{ ConstantValue::ConstantAggregateClass } {}
+        ~ConstantAggregate() = default;
+
+        llvm::ArrayRef<ConstantValue*> GetValues() const { return { values.begin(), values.size() }; }
+        ConstantValue* GetValue(size_t index) { return values[index]; }
+        size_t GetValueCount() const { return values.size(); }
+
+        QualType GetType() { return type; }
+
+    private:
+        llvm::SmallVector<ConstantValue*> values{};
+        QualType type{};
+    };
+
+    class ConstantNull : public ConstantValue {
+    public:
+        ConstantNull(QualType type) : type{ type }, ConstantValue{ ConstantValue::ConstantNullClass } {}
+        ~ConstantNull() = default;
+        
+        QualType GetType() { return type; }
+
+    private:
+        QualType type{};
     };
 
 }

@@ -54,6 +54,8 @@ namespace VCL {
         llvm::Value* GenerateCallExpr(CallExpr* expr);
         llvm::Value* GenerateFieldAccessExpr(FieldAccessExpr* expr);
         llvm::Value* GenerateSubscriptExpr(SubscriptExpr* expr);
+        llvm::Value* GenerateAggregateExpr(AggregateExpr* expr);
+        llvm::Value* GenerateNullExpr(NullExpr* expr);
 
         llvm::Value* DispatchBinaryArithmeticOp(Expr* lhs, Expr* rhs, llvm::Instruction::BinaryOps signedop, 
             llvm::Instruction::BinaryOps unsignedop, llvm::Instruction::BinaryOps floatop);

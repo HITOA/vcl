@@ -76,7 +76,8 @@ namespace VCL {
         Expr* ParseParentExpression();
         Expr* ParseNumericConstantExpr();
         Expr* ParseIdentifierExpr();
-        Expr* ParseCallExpr(IdentifierInfo* identifier, SourceRange range);
+        Expr* ParseCallExpr();
+        Expr* ParseAggregateExpr();
 
     private:
         class TentativeParsingGuard {

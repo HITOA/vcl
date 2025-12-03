@@ -22,7 +22,9 @@ namespace VCL {
             UnaryExprClass,
             CallExprClass,
             FieldAccessExprClass,
-            SubscriptExprClass
+            SubscriptExprClass,
+            NullExprClass,
+            AggregateExprClass
         };
 
         enum ValueCategory {
@@ -290,7 +292,7 @@ namespace VCL {
         inline bool IsSpan() const { return isSpan; }
 
         static inline SubscriptExpr* Create(ASTContext& context, Expr* expr, Expr* index, QualType resultType, SourceRange range) {
-            bool isSpan = Type::GetTrueType(expr->GetResultType().GetType())->GetTypeClass() == Type::SpanTypeClass;
+            bool isSpan = Type::GetCanonicalType(expr->GetResultType().GetType())->GetTypeClass() == Type::SpanTypeClass;
             SubscriptExpr* instance = context.AllocateNode<SubscriptExpr>(expr, index, isSpan);
             instance->SetResultType(resultType);
             instance->SetSourceRange(range);
@@ -301,6 +303,40 @@ namespace VCL {
         Expr* expr;
         Expr* index;
         bool isSpan;
+    };
+
+    class NullExpr : public Expr {
+    public:
+        NullExpr() : Expr{ Expr::NullExprClass } {}
+        ~NullExpr() = default;
+
+        static inline NullExpr* Create(ASTContext& context, QualType type, SourceRange range) {
+            NullExpr* instance = context.AllocateNode<NullExpr>();
+            instance->SetResultType(type);
+            instance->SetSourceRange(range);
+            return instance;
+        }
+    };
+
+    class AggregateExpr : public Expr {
+    public:
+        AggregateExpr(llvm::ArrayRef<Expr*> elems) : elements{ elems }, Expr{ Expr::AggregateExprClass } {}
+        ~AggregateExpr() = default;
+
+        llvm::ArrayRef<Expr*> GetElements() { return { elements.begin(), elements.size() }; }
+        Expr* GetElement(size_t index) { return elements[index]; }
+        void SetElement(Expr* expr, size_t index) { elements[index] = expr; }
+        void AddElement(Expr* expr) { elements.push_back(expr); }
+        size_t GetElementCount() const { return elements.size(); }
+
+        static inline AggregateExpr* Create(ASTContext& context, llvm::ArrayRef<Expr*> elements, SourceRange range) {
+            AggregateExpr* instance = context.AllocateNode<AggregateExpr>(elements);
+            instance->SetSourceRange(range);
+            return instance;
+        }
+
+    private:
+        llvm::SmallVector<Expr*> elements{};
     };
 
 }

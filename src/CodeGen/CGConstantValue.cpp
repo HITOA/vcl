@@ -7,6 +7,10 @@ llvm::Constant* VCL::CodeGenModule::GenerateConstantValue(ConstantValue* value) 
     switch (value->GetConstantValueClass()) {
         case ConstantValue::ConstantScalarClass:
             return GenerateConstantScalar((ConstantScalar*)value);
+        case ConstantValue::ConstantAggregateClass:
+            return GenerateConstantAggregate((ConstantAggregate*)value);
+        case ConstantValue::ConstantNullClass:
+            return GenerateConstantNull((ConstantNull*)value);
         default:
             diagnosticReporter.Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -43,4 +47,42 @@ llvm::Constant* VCL::CodeGenModule::GenerateConstantScalar(ConstantScalar* scala
                 .Report();
             return nullptr;
     }
+}
+
+llvm::Constant* VCL::CodeGenModule::GenerateConstantAggregate(ConstantAggregate* aggregate) {
+    llvm::SmallVector<llvm::Constant*> values{};
+    values.reserve(aggregate->GetValueCount());
+
+    for (ConstantValue* value : aggregate->GetValues()) {
+        llvm::Constant* constantValue = GenerateConstantValue(value);
+        if (!constantValue) {
+            diagnosticReporter.Error(Diagnostic::InternalError)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+        values.push_back(constantValue);
+    }
+
+    Type* type = Type::GetCanonicalType(aggregate->GetType().GetType());
+    llvm::Type* llvmType = cgt.ConvertType(type);
+
+    switch (type->GetTypeClass()) {
+        case Type::ArrayTypeClass: {
+            return llvm::ConstantArray::get(llvm::cast<llvm::ArrayType>(llvmType), values);
+        }
+        case Type::RecordTypeClass: {
+            return llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(llvmType), values);
+        }
+        default:
+            diagnosticReporter.Error(Diagnostic::InternalError)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+    }
+}
+
+llvm::Constant* VCL::CodeGenModule::GenerateConstantNull(ConstantNull* null) {
+    llvm::Type* type = cgt.ConvertType(null->GetType());
+    return llvm::Constant::getNullValue(type);
 }

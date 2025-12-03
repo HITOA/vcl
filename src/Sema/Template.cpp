@@ -200,7 +200,7 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateIntrinsicTemplateDecl(Intrinsic
 }
 
 VCL::RecordType* VCL::TemplateInstantiator::InstantiateTemplateRecordDecl(TemplateRecordDecl* decl) {
-    RecordDecl* newDecl = RecordDecl::Create(sema.GetASTContext(), nullptr, decl->GetSourceRange());
+    RecordDecl* newDecl = RecordDecl::Create(sema.GetASTContext(), decl->GetIdentifierInfo(), decl->GetSourceRange());
 
     for (auto d = decl->Begin(); d != decl->End(); ++d) {
         switch (d->GetDeclClass()) {

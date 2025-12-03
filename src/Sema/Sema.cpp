@@ -3,6 +3,7 @@
 #include <VCL/Core/Diagnostic.hpp>
 #include <VCL/Core/Identifier.hpp>
 #include <VCL/AST/ExprEvaluator.hpp>
+#include <VCL/AST/TypePrinter.hpp>
 #include <VCL/Sema/Template.hpp>
 
 #include <llvm/ADT/SmallPtrSet.h>
@@ -251,8 +252,13 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return nullptr;
-        
     } 
+
+    if (initializer && initializer->GetExprClass() == Expr::AggregateExprClass) {
+        initializer = ActOnAggregateExpr(type, (AggregateExpr*)initializer);
+        if (!initializer)
+            return nullptr;
+    }
 
     if (IsCurrentScopeGlobal() && initializer) {
         if (varAttrBitfield.hasInAttribute) {
@@ -475,7 +481,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                     return nullptr;
             }
             if (!Type::IsTypeNumeric(lhs->GetResultType().GetType())) {
-                diagnosticReporter.Error(Diagnostic::NotNumericType)
+                diagnosticReporter.Error(Diagnostic::NotNumericType, TypePrinter::Print(lhs->GetResultType()))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
                     .Report();
@@ -497,7 +503,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                     return nullptr;
             }
             if (!Type::IsTypeIntegral(lhs->GetResultType().GetType())) {
-                diagnosticReporter.Error(Diagnostic::NotIntegralType)
+                diagnosticReporter.Error(Diagnostic::NotIntegralType, TypePrinter::Print(lhs->GetResultType()))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
                     .Report();
@@ -525,13 +531,13 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                     return nullptr;
             }
             if (!Type::IsTypeNumeric(lhs->GetResultType().GetType())) {
-                diagnosticReporter.Error(Diagnostic::NotNumericType)
+                diagnosticReporter.Error(Diagnostic::NotNumericType, TypePrinter::Print(lhs->GetResultType()))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
                     .Report();
                 return nullptr;
             }
-            Type* trueType = Type::GetTrueType(lhs->GetResultType().GetType());
+            Type* trueType = Type::GetCanonicalType(lhs->GetResultType().GetType());
             Type* resultType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
             if (trueType->GetTypeClass() == Type::VectorTypeClass)
                 resultType = astContext.GetTypeCache().GetOrCreateVectorType(resultType);
@@ -544,7 +550,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
         case BinaryOperator::LogicalOr: {
             lhs = ActOnLoad(lhs);
             rhs = ActOnLoad(rhs);
-            Type* trueType = Type::GetTrueType(lhs->GetResultType().GetType());
+            Type* trueType = Type::GetCanonicalType(lhs->GetResultType().GetType());
             Type* resultType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
             if (trueType->GetTypeClass() == Type::VectorTypeClass)
                 resultType = astContext.GetTypeCache().GetOrCreateVectorType(resultType);
@@ -653,7 +659,7 @@ VCL::Expr* VCL::Sema::ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange r
             if (!IsExprAssignable(expr))
                 return nullptr;
             if (!Type::IsTypeNumeric(expr->GetResultType().GetType())) {
-                diagnosticReporter.Error(Diagnostic::NotNumericType)
+                diagnosticReporter.Error(Diagnostic::NotNumericType, TypePrinter::Print(expr->GetResultType()))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ expr->GetSourceRange() })
                     .Report();
@@ -665,7 +671,7 @@ VCL::Expr* VCL::Sema::ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange r
         case UnaryOperator::Minus: {
             expr = ActOnLoad(expr);
             if (!Type::IsTypeNumeric(expr->GetResultType().GetType())) {
-                diagnosticReporter.Error(Diagnostic::NotNumericType)
+                diagnosticReporter.Error(Diagnostic::NotNumericType, TypePrinter::Print(expr->GetResultType()))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ expr->GetSourceRange() })
                     .Report();
@@ -677,7 +683,7 @@ VCL::Expr* VCL::Sema::ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange r
         case UnaryOperator::LogicalNot: {
             expr = ActOnLoad(expr);
             if (!Type::IsTypeIntegral(expr->GetResultType().GetType())) {
-                diagnosticReporter.Error(Diagnostic::NotIntegralType)
+                diagnosticReporter.Error(Diagnostic::NotIntegralType, TypePrinter::Print(expr->GetResultType()))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ expr->GetSourceRange() })
                     .Report();
@@ -745,7 +751,7 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
     if (type->GetTypeClass() == Type::TemplateSpecializationTypeClass)
         type = ((TemplateSpecializationType*)type)->GetInstantiatedType();
     if (type->GetTypeClass() != Type::RecordTypeClass) {
-        diagnosticReporter.Error(Diagnostic::MustHaveStructType)
+        diagnosticReporter.Error(Diagnostic::MustHaveStructType, TypePrinter::Print(type))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
@@ -790,14 +796,14 @@ VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange ra
         return nullptr;
 
     if (!Type::IsTypeIntegral(index->GetResultType().GetType())) {
-        diagnosticReporter.Error(Diagnostic::NotIntegralType)
+        diagnosticReporter.Error(Diagnostic::NotIntegralType, TypePrinter::Print(index->GetResultType()))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ index->GetSourceRange() })
             .Report();
         return nullptr;
     }
 
-    Type* exprTrueType = Type::GetTrueType(expr->GetResultType().GetType());
+    Type* exprTrueType = Type::GetCanonicalType(expr->GetResultType().GetType());
     switch (exprTrueType->GetTypeClass()) {
         case Type::ArrayTypeClass: {
             QualType resultType = ((ArrayType*)exprTrueType)->GetElementType();
@@ -823,13 +829,98 @@ VCL::Expr* VCL::Sema::ActOnLoad(Expr* expr) {
 }
 
 std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs) {
-    // Todo
-    if (diagnosticReporter.Warn(Diagnostic::MissingImplementation).SetCompilerInfo(__FILE__, __func__, __LINE__).Report())
+    Type* lhsType = Type::GetCanonicalType(lhs->GetResultType().GetType());
+    Type* rhsType = Type::GetCanonicalType(rhs->GetResultType().GetType());
+
+    if (lhsType == rhsType)
+        return std::make_pair(lhs, rhs);
+
+    if (lhsType->GetTypeClass() != Type::BuiltinTypeClass && lhsType->GetTypeClass() != Type::VectorTypeClass) {
+        diagnosticReporter.Error(Diagnostic::InvalidArithmeticConversion, TypePrinter::Print(lhsType))
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ lhs->GetSourceRange() })
+            .Report();
         return std::make_pair(nullptr, nullptr);
-    return std::make_pair(lhs, ActOnCast(rhs, lhs->GetResultType(), SourceRange{ lhs->GetSourceRange().start, rhs->GetSourceRange().end }));
+    }
+    if (rhsType->GetTypeClass() != Type::BuiltinTypeClass && rhsType->GetTypeClass() != Type::VectorTypeClass) {
+        diagnosticReporter.Error(Diagnostic::InvalidArithmeticConversion, TypePrinter::Print(rhsType))
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ rhs->GetSourceRange() })
+            .Report();
+        return std::make_pair(nullptr, nullptr);
+    }
+
+    bool lhsVec = lhsType->GetTypeClass() == Type::VectorTypeClass;
+    bool rhsVec = rhsType->GetTypeClass() == Type::VectorTypeClass;
+
+    BuiltinType::Kind lhsKind = GetScalarKindFromBuiltinOrVectorType(lhsType);
+    BuiltinType::Kind rhsKind = GetScalarKindFromBuiltinOrVectorType(rhsType);
+
+    uint32_t lhsBitWidth = BuiltinType::GetKindBitWidth(lhsKind);
+    BuiltinType::Category lhsCategory = BuiltinType::GetKindCategory(lhsKind);
+
+    uint32_t rhsBitWidth = BuiltinType::GetKindBitWidth(rhsKind);
+    BuiltinType::Category rhsCategory = BuiltinType::GetKindCategory(rhsKind);
+
+    Type* toType = lhsType; // both operands are casted to this type wich may or may not be the type of one of the operand
+
+    // trying to ~follow usual arithmetic conversions : https://en.cppreference.com/w/cpp/language/usual_arithmetic_conversions.html
+
+    if (!lhsVec && rhsVec) { // non-vec to vec
+        toType = rhsType;
+    } else if (lhsVec == rhsVec) { // both operand are either vec or non-vec
+        // if either operand is of floating point type
+        if (lhsCategory == BuiltinType::FloatingPointKind || rhsCategory == BuiltinType::FloatingPointKind) {
+            if (lhsCategory != BuiltinType::FloatingPointKind) { // non-floating point to floating point
+                toType = rhsType;
+            } else if (rhsBitWidth > lhsBitWidth) { // lesser to greater rank
+                toType = rhsType;
+            }
+        } else { // otherwise both operands are of integer types
+            if (lhsCategory == rhsCategory && rhsBitWidth > lhsBitWidth) { // both signed or unsigned so lesser to greater rank
+                toType = rhsType;
+            } else { // unsigned/signed conversion
+                if (rhsCategory == BuiltinType::UnsignedKind && rhsBitWidth >= lhsBitWidth) { // if U is greater or equal than S then cast to U
+                    toType = rhsType;
+                } else if (rhsCategory == BuiltinType::SignedKind && rhsBitWidth > lhsBitWidth) { // if S can contain U then cast to S
+                    toType = rhsType;
+                }
+            }
+        }
+    }
+
+    // check for lose of precision with non-vec to vec
+    if (lhsVec != rhsVec) {
+        Type* nonVecType = lhsVec ? rhsType : lhsType;
+        SourceRange range = lhsVec ? rhs->GetSourceRange() : lhs->GetSourceRange();
+
+        BuiltinType::Kind nonVecKind = GetScalarKindFromBuiltinOrVectorType(nonVecType);
+        uint32_t nonVecBitWidth = BuiltinType::GetKindBitWidth(nonVecKind);
+        BuiltinType::Category nonVecCategory = BuiltinType::GetKindCategory(nonVecKind);
+
+        BuiltinType::Kind toKind = GetScalarKindFromBuiltinOrVectorType(toType);
+        uint32_t toBitWidth = BuiltinType::GetKindBitWidth(toKind);
+        BuiltinType::Category toCategory = BuiltinType::GetKindCategory(toKind);
+
+        if (nonVecCategory != toCategory || nonVecBitWidth > toBitWidth) {
+            Diagnostic::DiagnosticMsg msg = 
+                    nonVecCategory == BuiltinType::FloatingPointKind ? Diagnostic::LoseOfFloatingPointPrecision : Diagnostic::LoseOfIntegerPrecision;
+            bool r = diagnosticReporter.Warn(msg, TypePrinter::Print(nonVecType), TypePrinter::Print(toType))
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ range })
+                .Report();
+            if (r)
+                return std::make_pair(nullptr, nullptr);
+        }
+    }
+
+    return std::make_pair(ActOnCast(lhs, toType, lhs->GetSourceRange()), ActOnCast(rhs, toType, rhs->GetSourceRange()));
 }
 
 VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) {
+    if (expr->GetExprClass() == Expr::AggregateExprClass)
+        return ActOnAggregateExpr(toType, (AggregateExpr*)expr);
+
     Type* srcType = GetInstantiatedType(expr->GetResultType().GetType());
     Type* dstType = GetInstantiatedType(toType.GetType());
 
@@ -850,7 +941,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
         return expr;
 
     if (!CheckTypeCastability(srcType) || !CheckTypeCastability(dstType)) {
-        diagnosticReporter.Error(Diagnostic::InvalidCast)
+        diagnosticReporter.Error(Diagnostic::InvalidCast, TypePrinter::Print(expr->GetResultType()), TypePrinter::Print(toType))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -858,7 +949,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
     }
 
     if (srcType->GetTypeClass() == Type::VectorTypeClass && dstType->GetTypeClass() != Type::VectorTypeClass) {
-        diagnosticReporter.Error(Diagnostic::InvalidVectorCast)
+        diagnosticReporter.Error(Diagnostic::InvalidVectorCast, TypePrinter::Print(expr->GetResultType()), TypePrinter::Print(toType))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -918,7 +1009,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
 VCL::Expr* VCL::Sema::ActOnSplat(Expr* expr, SourceRange range) {
     Type* type = expr->GetResultType().GetType();
     if (type->GetTypeClass() != Type::BuiltinTypeClass) {
-        diagnosticReporter.Error(Diagnostic::InvalidSplat)
+        diagnosticReporter.Error(Diagnostic::InvalidSplat, TypePrinter::Print(type))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -926,7 +1017,7 @@ VCL::Expr* VCL::Sema::ActOnSplat(Expr* expr, SourceRange range) {
     }
     BuiltinType* builtinType = (BuiltinType*)type;
     if (builtinType->GetKind() == BuiltinType::Void) {
-        diagnosticReporter.Error(Diagnostic::InvalidSplat)
+        diagnosticReporter.Error(Diagnostic::InvalidSplat, TypePrinter::Print(type))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -993,14 +1084,14 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<E
                 return nullptr;
             }
             if (arg->GetResultType().GetType() != actualType.GetType()) {
-                diagnosticReporter.Error(Diagnostic::IncorrectType)
+                diagnosticReporter.Error(Diagnostic::IncorrectType, TypePrinter::Print(arg->GetResultType()), TypePrinter::Print(paramType))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ arg->GetSourceRange() })
                     .Report();
                 return nullptr;
             }
             if ((arg->GetResultType().GetQualifiers() & paramType.GetQualifiers()) != arg->GetResultType().GetQualifiers()) {
-                diagnosticReporter.Error(Diagnostic::QualifierDropped)
+                diagnosticReporter.Error(Diagnostic::QualifierDropped, TypePrinter::Print(arg->GetResultType()), TypePrinter::Print(paramType))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ arg->GetSourceRange() })
                     .Report();
@@ -1024,6 +1115,81 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<E
     }
 
     return CallExpr::Create(astContext, decl, trueArgs, type->GetReturnType(), range);
+}
+
+VCL::Expr* VCL::Sema::ActOnAggregateExpr(llvm::ArrayRef<Expr*> elems, SourceRange range) {
+    return AggregateExpr::Create(astContext, elems, range);
+}
+
+VCL::Expr* VCL::Sema::ActOnAggregateExpr(QualType type, AggregateExpr* aggregate) {
+    Type* trueType = Type::GetCanonicalType(type.GetType());
+    
+    switch (trueType->GetTypeClass())
+    {
+    case Type::ArrayTypeClass: {
+        QualType ofType = ((ArrayType*)trueType)->GetElementType();
+        uint64_t ofSize = ((ArrayType*)trueType)->GetElementCount();
+        llvm::ArrayRef<Expr*> elements = aggregate->GetElements();
+        if (elements.size() > ofSize) {
+            diagnosticReporter.Error(Diagnostic::TooManyInitializerValue)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ elements[ofSize]->GetSourceRange() })
+                .Report();
+            return nullptr;
+        }
+        for (size_t i = 0; i < ofSize; ++i) {
+            if (i < elements.size()) {
+                aggregate->SetElement(ActOnCast(elements[i], ofType, elements[i]->GetSourceRange()), i);
+                if (elements[i] == nullptr)
+                    return nullptr;
+            } else {
+                aggregate->AddElement(NullExpr::Create(astContext, ofType, aggregate->GetSourceRange()));
+            }
+        }
+        aggregate->SetResultType(trueType);
+        return aggregate;
+    }
+    case Type::RecordTypeClass: {
+        RecordDecl* recordDecl = ((RecordType*)trueType)->GetRecordDecl();
+        uint32_t i = 0;
+        llvm::ArrayRef<Expr*> elements = aggregate->GetElements();
+        for (auto it = recordDecl->Begin(); it != recordDecl->End(); ++it) {
+            if (it->GetDeclClass() != Decl::FieldDeclClass)
+                continue;
+            FieldDecl* fieldDecl = (FieldDecl*)it.Get();
+            QualType ofType = fieldDecl->GetType();
+            if (elements.size() <= i) {
+                aggregate->AddElement(NullExpr::Create(astContext, ofType, aggregate->GetSourceRange()));
+            } else {
+                aggregate->SetElement(ActOnCast(elements[i], ofType, elements[i]->GetSourceRange()), i);
+                if (elements[i] == nullptr)
+                    return nullptr;
+            }
+            ++i;
+        }
+        if (i < elements.size()) {
+            diagnosticReporter.Error(Diagnostic::TooManyInitializerValue)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ elements[i]->GetSourceRange() })
+                .Report();
+            return nullptr;
+        }
+        aggregate->SetResultType(trueType);
+        return aggregate;
+    }
+    default:
+        diagnosticReporter.Error(Diagnostic::InvalidAggregateType, TypePrinter::Print(type))
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ aggregate->GetSourceRange() })
+            .Report();
+        break;
+    }
+
+    diagnosticReporter.Error(Diagnostic::MissingImplementation)
+        .SetCompilerInfo(__FILE__, __func__, __LINE__)
+        .AddHint(DiagnosticHint{ aggregate->GetSourceRange() })
+        .Report();    
+    return nullptr;
 }
 
 VCL::NamedDecl* VCL::Sema::LookupNamedDecl(IdentifierInfo* identifier, int depth) {

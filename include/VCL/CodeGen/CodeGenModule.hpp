@@ -47,6 +47,8 @@ namespace VCL {
 
         llvm::Constant* GenerateConstantValue(ConstantValue* value);
         llvm::Constant* GenerateConstantScalar(ConstantScalar* scalar);
+        llvm::Constant* GenerateConstantAggregate(ConstantAggregate* aggregate);
+        llvm::Constant* GenerateConstantNull(ConstantNull* null);
         
     private:
         llvm::Module& module;

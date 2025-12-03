@@ -55,12 +55,12 @@ bool VCL::Type::IsTypeIntegral(Type* type) {
     }
 }
 
-VCL::Type* VCL::Type::GetTrueType(Type* type) {
+VCL::Type* VCL::Type::GetCanonicalType(Type* type) {
     switch (type->GetTypeClass()) {
         case Type::ReferenceTypeClass:
-            return ((ReferenceType*)type)->GetType().GetType();
+            return GetCanonicalType(((ReferenceType*)type)->GetType().GetType());
         case Type::TemplateSpecializationTypeClass:
-            return ((TemplateSpecializationType*)type)->GetInstantiatedType();
+            return GetCanonicalType(((TemplateSpecializationType*)type)->GetInstantiatedType());
         default:
             return type;
     }

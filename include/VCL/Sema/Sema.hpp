@@ -86,6 +86,8 @@ namespace VCL {
         Expr* ActOnNumericConstant(Token* value);
         Expr* ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRange range);
         Expr* ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, SourceRange range);
+        Expr* ActOnAggregateExpr(llvm::ArrayRef<Expr*> elems, SourceRange range);
+        Expr* ActOnAggregateExpr(QualType type, AggregateExpr* aggregate);
 
         NamedDecl* LookupNamedDecl(IdentifierInfo* identifier, int depth = -1);
         IntrinsicTemplateDecl* LookupIntrinsicTemplateDecl(IdentifierInfo* identifier, int depth = -1);

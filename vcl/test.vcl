@@ -4,7 +4,7 @@
 
 struct MyStruct {
     float32 f;
-    int8 i;
+    uint8 i;
 }
 
 struct MyTemplatedStruct<typename T, uint64 Size> {
@@ -15,17 +15,17 @@ struct MyTemplatedStruct<typename T, uint64 Size> {
 float32 f1;
 int8 i8 = 34;
 in Span<float32> span;
-out Array<float32, 8> array;
 out Vec<float32> vec = 2.0;
-MyStruct myStruct;
-MyTemplatedStruct<float32, 1024> myTemplatedStruct;
+out Array<float32, 8> array = { 1.0, 2.0, 3.0, 4.0 };
+MyStruct myStruct = { 3.1415, 163 };
+MyTemplatedStruct<float32, 2> myTemplatedStruct = { { 1.0 }, 0 };
 
-MyTemplatedStruct<float32, 1024> Test(inout float64 value) {
+MyTemplatedStruct<float32, 2> Test(inout float64 value) {
     value = 2.0;
     return myTemplatedStruct;
 }
 
-float32 Sub(float32 a, float32 b) {
+float64 Sub(float32 a, float32 b) {
     return a - b;
 }
 
@@ -34,9 +34,11 @@ void Sub2(MyStruct t, float32 b) {
 }
 
 void Main() {
+    Array<float32, 2> a = { f1 * 2.0 };
+    MyTemplatedStruct<float32, 2> b = { { 2.0 } };
     int16 f2 = (int16)f1;
     f2 += 1;
     Vec<float32> v = 5.0;
-    v += Sub(myStruct.f, 1.0);
+    v += (Vec<float32>)Sub(myStruct.f, 1.0);
     Sub2(myStruct, 1.0);
 }

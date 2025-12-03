@@ -47,7 +47,8 @@ namespace VCL {
 
         static bool IsTypeNumeric(Type* type);
         static bool IsTypeIntegral(Type* type);
-        static Type* GetTrueType(Type* type);
+
+        static Type* GetCanonicalType(Type* type);
 
     protected:
         TypeClass typeClass;

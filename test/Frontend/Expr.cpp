@@ -1077,17 +1077,15 @@ TEST_CASE("Subscript Expressions", "[Frontend]") {
         REQUIRE(session.DefineSymbolPtr("span", &span));
         REQUIRE(session.DefineSymbolPtr("index", &index));
 
-        int32_t* arrayOut = (int32_t*)session.Lookup("arrayOut");
-        int32_t* spanOut = (int32_t*)session.Lookup("spanOut");
+        int32_t* valuesOut = (int32_t*)session.Lookup("valuesOut");
 
-        REQUIRE(arrayOut != nullptr);
-        REQUIRE(spanOut != nullptr);
+        REQUIRE(valuesOut != nullptr);
 
         void* main = session.Lookup("Main");
         REQUIRE(main != nullptr);
         ((void(*)())main)();
 
-        REQUIRE(*arrayOut == array[index]);
-        REQUIRE(*spanOut == span.ptr[index]);
+        REQUIRE(valuesOut[0] == array[index]);
+        REQUIRE(valuesOut[1] == span.ptr[index]);
     }
 }

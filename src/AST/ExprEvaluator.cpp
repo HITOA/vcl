@@ -80,3 +80,21 @@ VCL::ConstantValue* VCL::ExprEvaluator::VisitSplatExpr(SplatExpr* expr) {
 VCL::ConstantValue* VCL::ExprEvaluator::VisitBinaryExpr(BinaryExpr* expr) {
     return nullptr;
 }
+
+VCL::ConstantValue* VCL::ExprEvaluator::VisitAggregateExpr(AggregateExpr* expr) {
+    llvm::SmallVector<ConstantValue*> values{};
+    values.reserve(expr->GetElementCount());
+
+    for (Expr* element : expr->GetElements()) {
+        ConstantValue* value = Visit(element);
+        if (!value)
+            return nullptr;
+        values.push_back(value);
+    }
+
+    return context.AllocateNode<ConstantAggregate>(values, expr->GetResultType());
+}
+
+VCL::ConstantValue* VCL::ExprEvaluator::VisitNullExpr(NullExpr* expr) {
+    return context.AllocateNode<ConstantNull>(expr->GetResultType());
+}

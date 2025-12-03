@@ -26,6 +26,10 @@ llvm::Value* VCL::CodeGenFunction::GenerateExpr(Expr* expr) {
             return GenerateFieldAccessExpr((FieldAccessExpr*)expr);
         case Expr::SubscriptExprClass:
             return GenerateSubscriptExpr((SubscriptExpr*)expr);
+        case Expr::AggregateExprClass:
+            return GenerateAggregateExpr((AggregateExpr*)expr);
+        case Expr::NullExprClass:
+            return GenerateNullExpr((NullExpr*)expr);
         default:
             cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -324,18 +328,37 @@ llvm::Value* VCL::CodeGenFunction::GenerateSubscriptExpr(SubscriptExpr* expr) {
     llvm::Value* index = GenerateExpr(expr->GetIndex());
 
     if (expr->IsSpan()) {
-        SpanType* spanType = (SpanType*)Type::GetTrueType(expr->GetExpr()->GetResultType().GetType());
+        SpanType* spanType = (SpanType*)Type::GetCanonicalType(expr->GetExpr()->GetResultType().GetType());
         llvm::Type* spanTypeLLVM = cgm.GetCGT().ConvertSpanType(spanType);
         llvm::Type* type = cgm.GetCGT().ConvertType(spanType->GetElementType());
         lhs = builder.CreateLoad(spanTypeLLVM->getStructElementType(0), builder.CreateStructGEP(spanTypeLLVM, lhs, 0));
         llvm::Value* result = builder.CreateGEP(type, lhs, index);
         return result;
     } else {
-        llvm::Type* type = cgm.GetCGT().ConvertType(Type::GetTrueType(expr->GetExpr()->GetResultType().GetType()));
+        llvm::Type* type = cgm.GetCGT().ConvertType(Type::GetCanonicalType(expr->GetExpr()->GetResultType().GetType()));
         llvm::Value* zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(cgm.GetLLVMContext()), 0);
         llvm::Value* result = builder.CreateGEP(type, lhs, { zero, index });
         return result;
     }
+}
+
+llvm::Value* VCL::CodeGenFunction::GenerateAggregateExpr(AggregateExpr* expr) {
+    llvm::Type* type = cgm.GetCGT().ConvertType(expr->GetResultType());
+    llvm::Value* agg = llvm::PoisonValue::get(type);
+
+    uint32_t i = 0;
+    for (Expr* element : expr->GetElements()) {
+        llvm::Value* value = GenerateExpr(element);
+        if (!value)
+            return nullptr;
+        agg = builder.CreateInsertValue(agg, value, { i++ });
+    }
+    return agg;
+}
+
+llvm::Value* VCL::CodeGenFunction::GenerateNullExpr(NullExpr* expr) {
+    llvm::Type* type = cgm.GetCGT().ConvertType(expr->GetResultType());
+    return llvm::Constant::getNullValue(type);
 }
 
 llvm::Value* VCL::CodeGenFunction::DispatchBinaryComparisonOp(Expr* lhs, Expr* rhs, llvm::CmpInst::Predicate signedPredicate,
