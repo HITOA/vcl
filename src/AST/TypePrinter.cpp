@@ -7,7 +7,7 @@
 
 std::string VCL::TypePrinter::Print(QualType type) {
     if (type.GetAsOpaquePtr() == 0)
-        return "invalid";
+        return "nullptr";
     std::string qualifiers = PrintQualifier(type);
     switch (type.GetType()->GetTypeClass()) {
         case Type::BuiltinTypeClass:
@@ -97,8 +97,50 @@ std::string VCL::TypePrinter::PrintTemplateTypeParamType(TemplateTypeParamType* 
 }
 
 std::string VCL::TypePrinter::PrintTemplateSpecializationType(TemplateSpecializationType* type) {
-    std::string result = type->GetTemplateDecl()->GetIdentifierInfo()->GetName().str();
-    SourceRange range = type->GetTemplateArgumentList()->GetSourceRange();
-    std::string_view args{ range.start.GetPtr(), (size_t)(range.end.GetPtr() - range.start.GetPtr()) };
-    return result + std::string{ args };
+    std::string result = type->GetTemplateDecl()->GetTemplatedNamedDecl()->GetIdentifierInfo()->GetName().str() += "<";
+    for (size_t i = 0; i < type->GetTemplateArgumentList()->GetCount(); ++i) {
+        TemplateArgument arg = type->GetTemplateArgumentList()->GetData()[i];
+        std::string_view args{ arg.GetSourceRange().start.GetPtr(), (size_t)(arg.GetSourceRange().end.GetPtr() - arg.GetSourceRange().start.GetPtr()) };
+        switch (arg.GetKind()) {
+            case TemplateArgument::Kind::Type: {
+                result += Print(arg.GetType());
+                break;
+            }
+            case TemplateArgument::Kind::Integral: {
+                switch (arg.GetIntegral().GetKind()) {
+                    case BuiltinType::Float32: {
+                        result += std::to_string(arg.GetIntegral().Get<float>());
+                        break;
+                    }
+                    case BuiltinType::Float64: {
+                        result += std::to_string(arg.GetIntegral().Get<double>());
+                        break;
+                    }
+                    case BuiltinType::Int8:
+                    case BuiltinType::Int16:
+                    case BuiltinType::Int32:
+                    case BuiltinType::Int64: {
+                        result += std::to_string(arg.GetIntegral().Get<int64_t>());
+                        break;
+                    }
+                    case BuiltinType::UInt8:
+                    case BuiltinType::UInt16:
+                    case BuiltinType::UInt32:
+                    case BuiltinType::UInt64: {
+                        result += std::to_string(arg.GetIntegral().Get<uint64_t>());
+                        break;
+                    }
+                }
+                break;
+            }
+            default: { 
+                result += args;
+                break;
+            }
+        }
+        if (i + 1 < type->GetTemplateArgumentList()->GetCount())
+            result += ", ";
+    }
+    result += ">";
+    return result;
 }

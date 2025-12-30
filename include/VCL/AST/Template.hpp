@@ -36,6 +36,14 @@ namespace VCL {
         inline ConstantScalar GetIntegral() const { return integral; }
         inline Expr* GetExpr() const { return expr; }
 
+        inline bool IsDependent() const { 
+            switch (kind) {
+                case Kind::Type: return GetType().GetType()->IsDependent();
+                case Kind::Expression: return GetExpr()->GetResultType().GetType()->IsDependent();
+                default: return false;
+            }
+        }
+
         inline SourceRange GetSourceRange() const { return range; }
         inline void SetSourceRange(SourceRange range) { this->range = range; }
 
@@ -64,11 +72,18 @@ namespace VCL {
         TemplateArgumentList& operator=(const TemplateArgumentList& other) = delete;
         TemplateArgumentList& operator=(TemplateArgumentList&& other) = delete;
 
-        inline llvm::ArrayRef<TemplateArgument> GetArgs() { return { getTrailingObjects(), argCount }; }
+        inline llvm::ArrayRef<TemplateArgument> GetArgs() const { return { getTrailingObjects(), argCount }; }
         inline SourceRange GetSourceRange() const { return range; }
 
         inline TemplateArgument* GetData() { return getTrailingObjects(); }
         inline size_t GetCount() const { return argCount; }
+
+        inline bool IsDependent() const {
+            for (TemplateArgument arg : GetArgs())
+                if (arg.IsDependent())
+                    return true;
+            return false;
+        }
 
         static inline TemplateArgumentList* Create(ASTContext& context, llvm::ArrayRef<TemplateArgument> args, SourceRange range) {
             size_t size = totalSizeToAlloc<TemplateArgument>(args.size());

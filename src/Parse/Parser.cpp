@@ -51,6 +51,8 @@ VCL::Decl* VCL::Parser::ParseTopLevelDecl() {
     if (token->kind == TokenKind::Identifier)
         kind = token->identifier->GetTokenKind();
     switch (kind) {
+        case TokenKind::Keyword_template:
+            return ParseTemplateDecl();
         case TokenKind::Keyword_struct:
             return ParseRecordDecl();
         default: {
@@ -128,6 +130,50 @@ VCL::CompoundStmt* VCL::Parser::ParseCompoundStmt() {
     return sema.ActOnCompoundStmt(stmts, range);
 }
 
+VCL::TemplateDecl* VCL::Parser::ParseTemplateDecl() {
+    SourceRange range;
+    Token* token;
+    EXPECT_TOKEN(token, TokenKind::Keyword_template);
+    range = token->range;
+    NEXT_TOKEN();
+    TemplateParameterList* parameters = ParseTemplateParameterList();
+    if (!parameters)
+        return nullptr;
+    range.end = parameters->GetSourceRange().end;
+
+    TemplateDecl* templateDecl = sema.ActOnTemplateDecl(parameters, range);
+
+    ParserScopeGuard scopeGuard{ this, templateDecl };
+
+    GET_TOKEN(token);
+    TokenKind kind = token->kind;
+    if (token->kind == TokenKind::Identifier)
+        kind = token->identifier->GetTokenKind();
+
+    switch (kind) {
+        case TokenKind::Keyword_struct: {
+            NamedDecl* decl = ParseRecordDecl();
+            if (!decl)
+                return nullptr;
+            templateDecl->SetTemplatedNamedDecl(decl);
+            return templateDecl;
+        }
+        default: {
+            NamedDecl* decl = ParseFunctionDecl();
+            if (!decl)
+                return nullptr;
+            templateDecl->SetTemplatedNamedDecl(decl);
+            return templateDecl;
+        }
+    }
+
+    sema.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
+        .AddHint(DiagnosticHint{ token->range })
+        .SetCompilerInfo(__FILE__, __func__, __LINE__)
+        .Report();
+    return nullptr;
+}
+
 VCL::NamedDecl* VCL::Parser::ParseRecordDecl() {
     SourceRange range;
     Token* token;
@@ -138,33 +184,10 @@ VCL::NamedDecl* VCL::Parser::ParseRecordDecl() {
     IdentifierInfo* identifier = token->identifier;
     range.end = token->range.end;
     NEXT_TOKEN();
-    GET_TOKEN(token);
-    TemplateParameterList* params = nullptr;
-    if (token->kind == TokenKind::Lesser) {
-        params = ParseTemplateParameterList();
-        if (!params)
-            return nullptr;
-        range.end = params->GetSourceRange().end;
-    }
     
-    NamedDecl* namedDecl = nullptr;
-    DeclContext* declContext = nullptr;
+    RecordDecl* decl = sema.ActOnRecordDecl(identifier, range);
 
-    if (!params) {
-        RecordDecl* decl = sema.ActOnRecordDecl(identifier, range);
-        if (!decl)
-            return nullptr;
-        namedDecl = decl;
-        declContext = decl;
-    } else {
-        TemplateRecordDecl* decl = sema.ActOnTemplateRecordDecl(identifier, params, range);
-        if (!decl)
-            return nullptr;
-        namedDecl = decl;
-        declContext = decl;
-    }
-    
-    ParserScopeGuard scopeGuard{ this, declContext };
+    ParserScopeGuard scopeGuard{ this, decl };
 
     EXPECT_TOKEN(token, TokenKind::LeftBrace);
     NEXT_TOKEN();
@@ -176,7 +199,7 @@ VCL::NamedDecl* VCL::Parser::ParseRecordDecl() {
     }
     NEXT_TOKEN();
 
-    return namedDecl;
+    return decl;
 }
 
 VCL::FieldDecl* VCL::Parser::ParseFieldDecl() {
@@ -213,12 +236,14 @@ VCL::NamedDecl* VCL::Parser::ParseFunctionDecl() {
         return nullptr;
     }
 
-    TransientFunctionDecl* transientFunctionDecl = sema.ActOnTransientFunctionDecl(returnType.value, identifier, range);
+    FunctionDecl* functionDecl = FunctionDecl::Create(sema.GetASTContext(), identifier);
+
     llvm::SmallVector<QualType> paramsType{};
-    if (!transientFunctionDecl)
+    if (!functionDecl)
         return nullptr;
+
     {
-        ParserScopeGuard sg{ this, transientFunctionDecl };
+        ParserScopeGuard sg{ this, functionDecl };
         EXPECT_TOKEN(token, TokenKind::LeftPar);
         NEXT_TOKEN();
         GET_TOKEN(token);
@@ -240,7 +265,9 @@ VCL::NamedDecl* VCL::Parser::ParseFunctionDecl() {
     }
     NEXT_TOKEN();
     GET_TOKEN(token);
-    FunctionDecl* functionDecl = sema.ActOnFunctionDecl(transientFunctionDecl, range);
+    functionDecl = sema.ActOnFunctionDecl(functionDecl, returnType.value, range);
+    if (!functionDecl)
+        return nullptr;
     if (token->kind == TokenKind::Semicolon) {
         NEXT_TOKEN();
         return functionDecl;
@@ -311,11 +338,6 @@ VCL::VarDecl* VCL::Parser::ParseVarDecl() {
     IdentifierInfo* identifier = token->identifier;
     declRange.end = token->range.end;
     NEXT_TOKEN();
-    return ParseEndVarDecl(attr, declType, identifier, declRange);
-}
-
-VCL::VarDecl* VCL::Parser::ParseEndVarDecl(VarDecl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range) {
-    Token* token;
     GET_TOKEN(token);
     Expr* initializer = nullptr;
     if (token->kind == TokenKind::Equal) {
@@ -326,8 +348,7 @@ VCL::VarDecl* VCL::Parser::ParseEndVarDecl(VarDecl::VarAttrBitfield attr, QualTy
     }
     EXPECT_TOKEN(token, TokenKind::Semicolon);
     NEXT_TOKEN();
-    VarDecl* decl = sema.ActOnVarDecl(type, identifier, attr, initializer, range);
-    return decl;
+    return sema.ActOnVarDecl(declType, identifier, attr, initializer, declRange);
 }
 
 std::optional<VCL::VarDecl::VarAttrBitfield> VCL::Parser::ParseVarAttrBitfield() {
@@ -544,6 +565,8 @@ VCL::TemplateArgumentList* VCL::Parser::ParseTemplateArgumentList() {
             args.emplace_back(type.value).SetSourceRange(type.range);
         } else {
             Expr* expr = ParseExpression();
+            if (!expr)
+                return nullptr;
             args.emplace_back(expr).SetSourceRange(expr->GetSourceRange());
         }
         GET_TOKEN(token);
@@ -552,6 +575,18 @@ VCL::TemplateArgumentList* VCL::Parser::ParseTemplateArgumentList() {
     NEXT_TOKEN();
 
     return sema.ActOnTemplateArgumentList(args, range);
+}
+
+int VCL::Parser::TryParseTemplateArgumentList(int n) {
+    TentativeParsingGuard tp{ this };
+    for (int i = 0; i < n; ++i) 
+        if (!NextToken()) 
+            return 0;
+    uint32_t beg = stream.GetTokIndex();
+    TemplateArgumentList* list = ParseTemplateArgumentList();
+    if (list != nullptr)
+        return stream.GetTokIndex() - beg;
+    return 0;
 }
 
 VCL::Expr* VCL::Parser::ParseExpression() {
@@ -773,6 +808,8 @@ VCL::Expr* VCL::Parser::ParseIdentifierExpr() {
     token = GetToken(1);
     if (!token)
         return nullptr;
+    if (TryParseTemplateArgumentList(1) != 0)
+        return ParseCallExpr();
     if (token->kind == TokenKind::LeftPar)
         return ParseCallExpr();
     GET_TOKEN(token);
@@ -787,7 +824,11 @@ VCL::Expr* VCL::Parser::ParseCallExpr() {
     EXPECT_TOKEN(token, TokenKind::Identifier);
     IdentifierInfo* identifier = token->identifier;
     SourceRange range = token->range;
+    TemplateArgumentList* templateArguments = nullptr;
     NEXT_TOKEN();
+    GET_TOKEN(token);
+    if (token->kind == TokenKind::Lesser)
+        templateArguments = ParseTemplateArgumentList();
     EXPECT_TOKEN(token, TokenKind::LeftPar);
     NEXT_TOKEN();
     GET_TOKEN(token);
@@ -807,7 +848,7 @@ VCL::Expr* VCL::Parser::ParseCallExpr() {
     }
     range.end = token->range.end;
     NEXT_TOKEN();
-    return sema.ActOnCallExpr(identifier, args, range);
+    return sema.ActOnCallExpr(identifier, args, templateArguments, range);
 }
 
 VCL::Expr* VCL::Parser::ParseAggregateExpr() {

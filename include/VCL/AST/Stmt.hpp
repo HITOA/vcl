@@ -87,6 +87,7 @@ namespace VCL {
         ~ReturnStmt() = default;
         
         inline Expr* GetExpr() { return expr; }
+        inline void SetExpr(Expr* expr) { this->expr = expr; }
 
         static inline ReturnStmt* Create(ASTContext& context, Expr* expr, SourceRange range) {
             ReturnStmt* stmt = context.AllocateNode<ReturnStmt>(expr);

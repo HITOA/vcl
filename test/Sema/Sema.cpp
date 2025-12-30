@@ -80,7 +80,7 @@ TEST_CASE("Not A Type Declaration", "[Sema]") {
 }
 
 TEST_CASE("Template Redeclared", "[Sema]") { 
-    CheckForError<VCL::Diagnostic::TemplateRedeclared>("struct MyStruct<typename T, typename T> { float32 v; }");
+    CheckForError<VCL::Diagnostic::TemplateRedeclared>("template<typename T, typename T> struct MyStruct { float32 v; }");
 }
 
 TEST_CASE("Expression Does Not Evaluate At Compile Time", "[Sema]") { 

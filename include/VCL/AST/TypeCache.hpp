@@ -41,6 +41,8 @@ namespace VCL {
         TemplateTypeParamType* GetOrCreateTemplateTypeParamType(TemplateTypeParamDecl* decl);
         /** Get a TemplateSpecializationType of the given decl and argument list. if it does not exists, create it and return it instead. */
         TemplateSpecializationType* GetOrCreateTemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args);
+        /** Get a DependentType */
+        DependentType* GetOrCreateDependentType();
 
     private:
         llvm::BumpPtrAllocator typeAllocator{};
@@ -53,6 +55,7 @@ namespace VCL {
         llvm::FoldingSet<FunctionType> functionTypeCache{};
         llvm::FoldingSet<TemplateTypeParamType> templateTypeParamTypeCache{};
         llvm::FoldingSet<TemplateSpecializationType> templateSpecializationTypeTypeCache{};
+        llvm::FoldingSet<DependentType> dependentTypeCache{};
     };
 
 }

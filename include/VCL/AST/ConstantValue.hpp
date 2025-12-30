@@ -112,6 +112,9 @@ namespace VCL {
             return *this;
         }
 
+        inline bool operator==(const ConstantScalar& rhs) { return kind == rhs.kind && memcmp(data, rhs.data, sizeof(data)) == 0; }
+        inline bool operator!=(const ConstantScalar& rhs) { return !(*this == rhs); }
+
     private:
         template<typename T>
         inline void Set(T value) { 

@@ -60,3 +60,7 @@ VCL::TemplateTypeParamType* VCL::TypeCache::GetOrCreateTemplateTypeParamType(Tem
 VCL::TemplateSpecializationType* VCL::TypeCache::GetOrCreateTemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args) {
     return GetOrCreateInFoldingSet(typeAllocator, templateSpecializationTypeTypeCache, decl, args);
 }
+
+VCL::DependentType* VCL::TypeCache::GetOrCreateDependentType() {
+    return GetOrCreateInFoldingSet(typeAllocator, dependentTypeCache);
+}

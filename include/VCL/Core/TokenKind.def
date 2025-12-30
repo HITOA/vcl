@@ -67,6 +67,7 @@ KEYWORD(while)
 KEYWORD(for)
 KEYWORD(break)
 KEYWORD(struct)
+KEYWORD(template)
 KEYWORD(typename)
 
 // Type Qualifiers

@@ -68,49 +68,48 @@ namespace VCL {
         SourceRange range;
     };
 
-    class TemplateDecl : public NamedDecl {
+    class TemplateSpecializationDecl : public Decl {
     public:
-        TemplateDecl(TemplateParameterList* params, IdentifierInfo* identifier, DeclClass declClass) 
-            : params{ params }, NamedDecl{ identifier, declClass } {
+        TemplateSpecializationDecl(TemplateArgumentList* arguments, NamedDecl* decl)
+                : arguments{ arguments }, decl{ decl }, Decl{ Decl::TemplateSpecializationDeclClass } {}
+        ~TemplateSpecializationDecl() = default;
+
+        inline TemplateArgumentList* GetTemplateArgumentList() { return arguments; }
+        inline NamedDecl* GetNamedDecl() { return decl; }
+
+        static inline TemplateSpecializationDecl* Create(ASTContext& context, TemplateArgumentList* arguments, NamedDecl* decl) {
+            TemplateSpecializationDecl* instance = context.AllocateNode<TemplateSpecializationDecl>(arguments, decl);
+            return instance;
+        }
+
+    private:
+        TemplateArgumentList* arguments;
+        NamedDecl* decl;
+    };
+
+    class TemplateDecl : public Decl, public DeclContext {
+    public:
+        TemplateDecl(TemplateParameterList* params)
+                : params{ params }, decl{ nullptr }, Decl{ Decl::TemplateDeclClass }, DeclContext{ DeclContext::TemplateDeclContextClass } {
             SetTemplateDecl(true);
         }
         ~TemplateDecl() = default;
 
         inline TemplateParameterList* GetTemplateParametersList() { return params; }
+        inline void SetTemplatedNamedDecl(NamedDecl* decl) { this->decl = decl; }
+        inline NamedDecl* GetTemplatedNamedDecl() { return decl; }
+
+        static inline TemplateDecl* Create(ASTContext& context, TemplateParameterList* params, SourceRange range) {
+            TemplateDecl* instance = context.AllocateNode<TemplateDecl>(params);
+            for (auto param : params->GetParams())
+                instance->InsertBack(param);
+            instance->SetSourceRange(range);
+            return instance;
+        }
 
     private:
         TemplateParameterList* params;
-    };
-
-    /**
-     * This class is for all intrinsic templated type. (ex: Vec, Array, Span)
-     */
-    class IntrinsicTemplateDecl : public TemplateDecl {
-    public:
-        IntrinsicTemplateDecl(TemplateParameterList* params, IdentifierInfo* identifier) 
-                : TemplateDecl{ params, identifier, DeclClass::IntrinsicTemplateDeclClass } {}
-        ~IntrinsicTemplateDecl() = default;
-
-        static inline IntrinsicTemplateDecl* Create(ASTContext& context, TemplateParameterList* params, IdentifierInfo* identifier) {
-            return context.AllocateNode<IntrinsicTemplateDecl>(params, identifier);
-        }
-    };
-
-    class TemplateRecordDecl : public TemplateDecl, public DeclContext {
-    public:
-        TemplateRecordDecl(TemplateParameterList* params, IdentifierInfo* identifier) 
-                : TemplateDecl{ params, identifier, DeclClass::TemplateRecordDeclClass }, DeclContext{ DeclContext::TemplateRecordDeclContextClass } {
-            SetDeclContext(true);
-        }
-        ~TemplateRecordDecl() = default;
-
-        static inline TemplateRecordDecl* Create(ASTContext& context, IdentifierInfo* identifier, TemplateParameterList* params, SourceRange range) {
-            TemplateRecordDecl* decl = context.AllocateNode<TemplateRecordDecl>(params, identifier);
-            for (auto param : params->GetParams())
-                decl->InsertBack(param);
-            decl->SetSourceRange(range);
-            return decl;
-        }
+        NamedDecl* decl;
     };
 
 }

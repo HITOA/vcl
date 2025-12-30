@@ -29,7 +29,8 @@ namespace VCL {
             RecordTypeClass,
             FunctionTypeClass,
             TemplateTypeParamTypeClass,
-            TemplateSpecializationTypeClass
+            TemplateSpecializationTypeClass,
+            DependentTypeClass
         };
 
     public:
@@ -41,9 +42,11 @@ namespace VCL {
 
         Type& operator=(const Type& other) = delete;
         Type& operator=(Type&& other) = delete;
-        
 
         inline TypeClass GetTypeClass() const { return typeClass; }
+        
+        inline bool IsDependent() const { return bitfield.isDependent; }
+        inline void SetDependent(bool isDependent) { bitfield.isDependent = isDependent; }
 
         static bool IsTypeNumeric(Type* type);
         static bool IsTypeIntegral(Type* type);
@@ -52,6 +55,10 @@ namespace VCL {
 
     protected:
         TypeClass typeClass;
+
+        struct TypeBitfield {
+            unsigned isDependent : 1 = 0;
+        } bitfield{};
     };
 
 
@@ -134,7 +141,9 @@ namespace VCL {
 
     class ReferenceType : public Type, public llvm::FoldingSetNode {
     public:
-        ReferenceType(QualType type) : type{ type }, Type{ Type::ReferenceTypeClass } {}
+        ReferenceType(QualType type) : type{ type }, Type{ Type::ReferenceTypeClass } {
+            SetDependent(type.GetType()->IsDependent());
+        }
         ~ReferenceType() = default;
         
         inline QualType GetType() const { return type; }
@@ -153,7 +162,9 @@ namespace VCL {
      */
     class VectorType : public Type, public llvm::FoldingSetNode {
     public:
-        VectorType(QualType ofType) : ofType{ ofType }, Type{ Type::VectorTypeClass } {}
+        VectorType(QualType ofType) : ofType{ ofType }, Type{ Type::VectorTypeClass } {
+            SetDependent(ofType.GetType()->IsDependent());
+        }
         ~VectorType() = default;
         
         inline QualType GetElementType() const { return ofType; }
@@ -172,7 +183,9 @@ namespace VCL {
      */
     class ArrayType : public Type, public llvm::FoldingSetNode {
     public:
-        ArrayType(QualType ofType, uint64_t ofSize) : ofType{ ofType }, ofSize{ ofSize }, Type{ Type::ArrayTypeClass } {}
+        ArrayType(QualType ofType, uint64_t ofSize) : ofType{ ofType }, ofSize{ ofSize }, Type{ Type::ArrayTypeClass } {
+            SetDependent(ofType.GetType()->IsDependent());
+        }
         ~ArrayType() = default;
 
         inline QualType GetElementType() const { return ofType; }
@@ -191,7 +204,9 @@ namespace VCL {
 
     class SpanType : public Type, public llvm::FoldingSetNode {
     public:
-        SpanType(QualType ofType) : ofType{ ofType }, Type{ Type::SpanTypeClass } {}
+        SpanType(QualType ofType) : ofType{ ofType }, Type{ Type::SpanTypeClass } {
+            SetDependent(ofType.GetType()->IsDependent());
+        }
         ~SpanType() = default;
 
         inline QualType GetElementType() const { return ofType; }
@@ -207,7 +222,7 @@ namespace VCL {
 
     class RecordType : public Type, public llvm::FoldingSetNode {
     public:
-        RecordType(RecordDecl* decl) : decl{ decl }, Type{ Type::RecordTypeClass } {}
+        RecordType(RecordDecl* decl);
         ~RecordType() = default;
         
         inline RecordDecl* GetRecordDecl() const { return decl; }
@@ -228,6 +243,11 @@ namespace VCL {
         FunctionType(QualType returnType, llvm::ArrayRef<QualType> paramsType) :
                 returnType{ returnType }, paramCount{ paramsType.size() }, Type{ Type::FunctionTypeClass } {
             std::uninitialized_copy(paramsType.begin(), paramsType.end(), getTrailingObjects());
+            bool isDependent = returnType.GetType()->IsDependent();
+            for (auto& type : paramsType) {
+                isDependent |= type.GetType()->IsDependent();
+            }
+            SetDependent(isDependent);
         }
         ~FunctionType() = default;
 
@@ -250,7 +270,9 @@ namespace VCL {
 
     class TemplateTypeParamType : public Type, public llvm::FoldingSetNode {
     public:
-        TemplateTypeParamType(TemplateTypeParamDecl* decl) : decl{ decl }, Type{ Type::TemplateTypeParamTypeClass } {}
+        TemplateTypeParamType(TemplateTypeParamDecl* decl) : decl{ decl }, Type{ Type::TemplateTypeParamTypeClass } {
+            SetDependent(true);
+        }
         ~TemplateTypeParamType() = default;
         
         inline TemplateTypeParamDecl* GetTemplateTypeParamDecl() const { return decl; }
@@ -266,8 +288,7 @@ namespace VCL {
 
     class TemplateSpecializationType : public Type, public llvm::FoldingSetNode {
     public:
-        TemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args)
-            : decl{ decl }, args{ args }, instantiatedType{ nullptr }, Type{ Type::TemplateSpecializationTypeClass } {}
+        TemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args);
         ~TemplateSpecializationType() = default;
 
         inline TemplateDecl* GetTemplateDecl() const { return decl; }
@@ -282,5 +303,17 @@ namespace VCL {
         TemplateDecl* decl;
         TemplateArgumentList* args;
         Type* instantiatedType;
+    };
+
+    class DependentType : public Type, public llvm::FoldingSetNode {
+    public:
+        DependentType() : Type{ Type::DependentTypeClass } {
+            SetDependent(true);
+        }
+        ~DependentType() = default;
+
+        inline static void Profile(llvm::FoldingSetNodeID& id) {
+            id.AddInteger(0);
+        }
     };
 }

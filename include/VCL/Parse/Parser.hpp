@@ -42,8 +42,9 @@ namespace VCL {
         Decl* ParseTopLevelDecl();
         Decl* ParseRecordLevelDecl();
         CompoundStmt* ParseCompoundStmt();
+
+        TemplateDecl* ParseTemplateDecl();
         
-        /** Parse a RecordDecl or a TemplateRecordDecl */
         NamedDecl* ParseRecordDecl();
         FieldDecl* ParseFieldDecl();
 
@@ -54,7 +55,6 @@ namespace VCL {
         ReturnStmt* ParseReturnStmt();
 
         VarDecl* ParseVarDecl();
-        VarDecl* ParseEndVarDecl(VarDecl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range);
 
         std::optional<VarDecl::VarAttrBitfield> ParseVarAttrBitfield();
 
@@ -65,6 +65,7 @@ namespace VCL {
 
         TemplateParameterList* ParseTemplateParameterList();
         TemplateArgumentList* ParseTemplateArgumentList();
+        int TryParseTemplateArgumentList(int n = 0);
 
         Expr* ParseExpression();
 

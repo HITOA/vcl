@@ -12,7 +12,8 @@ namespace VCL {
             RecordDeclContextClass,
             TransientFunctionDeclContextClass,
             FunctionDeclContextClass,
-            TemplateRecordDeclContextClass
+            TemplateDeclContextClass/*,
+            TemplateRecordDeclContextClass*/
         };
 
         class Iterator {

@@ -11,7 +11,7 @@
 
 VCL::Sema::Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable) 
         : astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable } {
-    sm.EmplaceScopeFront(astContext.GetTranslationUnitDecl());
+    translationUnitScope = sm.EmplaceScopeFront(astContext.GetTranslationUnitDecl());
     AddBuiltinIntrinsicTemplateDecl();
 }
 
@@ -22,24 +22,30 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
     BuiltinType* ofSizeType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
 
     // Vec
+    IntrinsicDecl* vecDecl = IntrinsicDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Vec));
     NamedDecl* vecOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
     TemplateParameterList* vecParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
-    IntrinsicTemplateDecl* vecDecl = IntrinsicTemplateDecl::Create(astContext, vecParamList, identifierTable.GetKeyword(TokenKind::Keyword_Vec));
-    astContext.GetTranslationUnitDecl()->InsertBack(vecDecl);
+    TemplateDecl* templatedVecDecl = TemplateDecl::Create(astContext, vecParamList, SourceRange{});
+    templatedVecDecl->SetTemplatedNamedDecl(vecDecl);
+    astContext.GetTranslationUnitDecl()->InsertBack(templatedVecDecl);
 
     // Array
+    IntrinsicDecl* arrayDecl = IntrinsicDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Array));
     NamedDecl* arrayOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
     NamedDecl* arrayOfSize = NonTypeTemplateParamDecl::Create(astContext, ofSizeType, ofSizeIdentifier, SourceRange{});
     llvm::SmallVector<NamedDecl*> arrayParams{ arrayOfType, arrayOfSize };
     TemplateParameterList* arrayParamList = TemplateParameterList::Create(astContext, arrayParams, SourceRange{});
-    IntrinsicTemplateDecl* arrayDecl = IntrinsicTemplateDecl::Create(astContext, arrayParamList, identifierTable.GetKeyword(TokenKind::Keyword_Array));
-    astContext.GetTranslationUnitDecl()->InsertBack(arrayDecl);
+    TemplateDecl* templatedArrayDecl = TemplateDecl::Create(astContext, arrayParamList, SourceRange{});
+    templatedArrayDecl->SetTemplatedNamedDecl(arrayDecl);
+    astContext.GetTranslationUnitDecl()->InsertBack(templatedArrayDecl);
 
     // Span
+    IntrinsicDecl* spanDecl = IntrinsicDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Span));
     NamedDecl* spanOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
-    TemplateParameterList* spanParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
-    IntrinsicTemplateDecl* spanDecl = IntrinsicTemplateDecl::Create(astContext, vecParamList, identifierTable.GetKeyword(TokenKind::Keyword_Span));
-    astContext.GetTranslationUnitDecl()->InsertBack(spanDecl);
+    TemplateParameterList* spanParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &spanOfType, 1 }, SourceRange{});
+    TemplateDecl* templatedSpanDecl = TemplateDecl::Create(astContext, spanParamList, SourceRange{});
+    templatedSpanDecl->SetTemplatedNamedDecl(spanDecl);
+    astContext.GetTranslationUnitDecl()->InsertBack(templatedSpanDecl);
 
 }
 
@@ -67,16 +73,27 @@ VCL::DeclStmt* VCL::Sema::ActOnDeclStmt(Decl* decl, SourceRange range) {
     return DeclStmt::Create(astContext, decl, range);
 }
 
-VCL::RecordDecl* VCL::Sema::ActOnRecordDecl(IdentifierInfo* identifier, SourceRange range) {
-    RecordDecl* decl = RecordDecl::Create(astContext, identifier, range);
+VCL::TemplateDecl* VCL::Sema::ActOnTemplateDecl(TemplateParameterList* parameters, SourceRange range) {
+    TemplateDecl* decl = TemplateDecl::Create(astContext, parameters, range);
     sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
     return decl;
 }
 
-VCL::TemplateRecordDecl* VCL::Sema::ActOnTemplateRecordDecl(IdentifierInfo* identifier, TemplateParameterList* params, SourceRange range) {
-    TemplateRecordDecl* decl = TemplateRecordDecl::Create(astContext, identifier, params, range);
+VCL::RecordDecl* VCL::Sema::ActOnRecordDecl(IdentifierInfo* identifier, SourceRange range) {
+    NamedDecl* decl = LookupNamedDecl(identifier);
+    if (decl) {
+        SourceRange redeclRange = decl->GetSourceRange();
+        diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
+            .AddHint(DiagnosticHint{ range })
+            .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+
+    decl = RecordDecl::Create(astContext, identifier, range);
     sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
-    return decl;
+    return (RecordDecl*)decl;
 }
 
 VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identifier, SourceRange range) {
@@ -91,16 +108,54 @@ VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identif
         return nullptr;
     }
 
+    if (!type.GetType()->IsDependent()) {
+        TemplateInstantiator instantiator{ *this };
+        if (!instantiator.MakeTypeComplete(type.GetType()))
+            return nullptr;
+    }
+
     decl = FieldDecl::Create(astContext, identifier, type, range);
     sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
     return (FieldDecl*)decl;
 }
 
-VCL::TransientFunctionDecl* VCL::Sema::ActOnTransientFunctionDecl(QualType returnType, IdentifierInfo* identifier, SourceRange range) {
-    TemplateInstantiator instantiator{ *this };
-    if (!instantiator.MakeTypeComplete(returnType.GetType()))
+VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType returnType, SourceRange range) {
+    NamedDecl* lookupDecl = LookupNamedDecl(decl->GetIdentifierInfo(), 1);
+    if (lookupDecl) {
+        SourceRange redeclRange = lookupDecl->GetSourceRange();
+        diagnosticReporter.Error(Diagnostic::Redeclaration, lookupDecl->GetIdentifierInfo()->GetName().str())
+            .AddHint(DiagnosticHint{ range })
+            .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
         return nullptr;
+    }
     
+    llvm::SmallVector<QualType> paramsType{};
+    for (auto it = decl->Begin(); it != decl->End(); ++it) {
+        if (it->GetDeclClass() != Decl::ParamDeclClass)
+            continue;
+        ParamDecl* paramDecl = (ParamDecl*)it.Get();
+        paramsType.push_back(paramDecl->GetValueType());
+    }
+
+    FunctionType* type = astContext.GetTypeCache().GetOrCreateFunctionType(returnType, paramsType);
+    decl->SetType(type);
+    decl->SetSourceRange(range);
+
+    if (!type->IsDependent()) {
+        TemplateInstantiator instantiator{ *this };
+        if (!instantiator.MakeTypeComplete(decl->GetType()->GetReturnType().GetType()))
+            return nullptr;
+    }
+
+    if (sm.GetScopeFront()->GetDeclContext() != decl)
+        sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+
+    return decl;
+}
+
+VCL::ParamDecl* VCL::Sema::ActOnParamDecl(Decl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range) {
     NamedDecl* decl = LookupNamedDecl(identifier, 1);
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
@@ -112,38 +167,19 @@ VCL::TransientFunctionDecl* VCL::Sema::ActOnTransientFunctionDecl(QualType retur
         return nullptr;
     }
 
-    return TransientFunctionDecl::Create(astContext, returnType, identifier, range);
-}
+    if (!type.GetType()->IsDependent()) {
+        TemplateInstantiator instantiator{ *this };
+        if (!instantiator.MakeTypeComplete(type.GetType()))
+            return nullptr;
 
-VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(TransientFunctionDecl* decl, SourceRange range) {
-    FunctionDecl* functionDecl = FunctionDecl::Create(astContext, decl, range);
-    sm.GetScopeFront()->GetDeclContext()->InsertBack(functionDecl);
-    return functionDecl;
-}
-
-VCL::ParamDecl* VCL::Sema::ActOnParamDecl(VarDecl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range) {
-    TemplateInstantiator instantiator{ *this };
-    if (!instantiator.MakeTypeComplete(type.GetType()))
-        return nullptr;
-    
-    bool isPassedByReference = attr.hasOutAttribute || (!attr.hasInAttribute && TypePreferByReference(type.GetType()));
-    if (isPassedByReference) {
-        Type* refType = astContext.GetTypeCache().GetOrCreateReferenceType(type);
-        type = QualType{ refType, type.GetQualifiers() };
+        bool isPassedByReference = attr.hasOutAttribute || (!attr.hasInAttribute && TypePreferByReference(type.GetType()));
+        if (isPassedByReference) {
+            Type* refType = astContext.GetTypeCache().GetOrCreateReferenceType(type);
+            type = QualType{ refType, type.GetQualifiers() };
+        }
     }
 
-    NamedDecl* decl = LookupNamedDecl(identifier, 1);
-    if (decl) {
-        SourceRange redeclRange = decl->GetSourceRange();
-        diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
-            .AddHint(DiagnosticHint{ range })
-            .AddHint(DiagnosticHint{ redeclRange, DiagnosticHint::PreviouslyDeclared })
-            .SetCompilerInfo(__FILE__, __func__, __LINE__)
-            .Report();
-        return nullptr;
-    }
-
-    decl = ParamDecl::Create(astContext, type, identifier, range);
+    decl = ParamDecl::Create(astContext, type, identifier, attr, range);
     sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
     return (ParamDecl*)decl;
 }
@@ -194,32 +230,37 @@ VCL::ReturnStmt* VCL::Sema::ActOnReturnStmt(Expr* expr, SourceRange range) {
         return nullptr;
     }
 
-    bool isFunctionVoid = false;
-
     Type* returnType = function->GetType()->GetReturnType().GetType();
-    if (returnType->GetTypeClass() == Type::BuiltinTypeClass)
-        isFunctionVoid = ((BuiltinType*)returnType)->GetKind() == BuiltinType::Void;
 
-    if (expr != nullptr && isFunctionVoid) {
-        diagnosticReporter.Error(Diagnostic::InvalidReturnStmtExpr)
-            .SetCompilerInfo(__FILE__, __func__, __LINE__)
-            .AddHint(DiagnosticHint{ range })
-            .Report();
-        return nullptr;
-    } else if (expr == nullptr && !isFunctionVoid) {
-        diagnosticReporter.Error(Diagnostic::InvalidReturnStmtNoExpr)
-            .SetCompilerInfo(__FILE__, __func__, __LINE__)
-            .AddHint(DiagnosticHint{ range })
-            .Report();
-        return nullptr;
-    }
+    bool isExprDependent = expr ? expr->IsDependent() : false;
 
-    if (expr) {
-        expr = ActOnCast(ActOnLoad(expr), function->GetType()->GetReturnType(), range);
-        if (!expr)
+    if (!returnType->IsDependent() && !isExprDependent) {
+        bool isFunctionVoid = false;
+        
+        if (returnType->GetTypeClass() == Type::BuiltinTypeClass)
+            isFunctionVoid = ((BuiltinType*)returnType)->GetKind() == BuiltinType::Void;
+
+        if (expr != nullptr && isFunctionVoid) {
+            diagnosticReporter.Error(Diagnostic::InvalidReturnStmtExpr)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ range })
+                .Report();
             return nullptr;
+        } else if (expr == nullptr && !isFunctionVoid) {
+            diagnosticReporter.Error(Diagnostic::InvalidReturnStmtNoExpr)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ range })
+                .Report();
+            return nullptr;
+        }
+
+        if (expr) {
+            expr = ActOnCast(ActOnLoad(expr), function->GetType()->GetReturnType(), range);
+            if (!expr)
+                return nullptr;
+        }
     }
-    
+
     return ReturnStmt::Create(astContext, expr, range);
 }
 
@@ -241,10 +282,6 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
             .Report();
         return nullptr;
     }
-    
-    TemplateInstantiator instantiator{ *this };
-    if (!instantiator.MakeTypeComplete(type.GetType()))
-        return nullptr;
 
     if ((varAttrBitfield.hasInAttribute || varAttrBitfield.hasOutAttribute) && !IsCurrentScopeGlobal()) {
         diagnosticReporter.Error(Diagnostic::AttrInvalidUse)
@@ -254,12 +291,6 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
         return nullptr;
     } 
 
-    if (initializer && initializer->GetExprClass() == Expr::AggregateExprClass) {
-        initializer = ActOnAggregateExpr(type, (AggregateExpr*)initializer);
-        if (!initializer)
-            return nullptr;
-    }
-
     if (IsCurrentScopeGlobal() && initializer) {
         if (varAttrBitfield.hasInAttribute) {
             diagnosticReporter.Error(Diagnostic::InitializerInputVarDecl)
@@ -268,24 +299,41 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
                 .Report();
             return nullptr;
         }
-        if (initializer->GetResultType().GetType() != type.GetType()) {
-            Expr* castedInitializer = ActOnCast(initializer, type, initializer->GetSourceRange());
-            if (!castedInitializer)
-                return nullptr;
-            initializer = castedInitializer;
-        }
-        ExprEvaluator exprEvaluator{ astContext };
-        ConstantValue* value = exprEvaluator.Visit(initializer);
-        if (!value) {
-            diagnosticReporter.Error(Diagnostic::ExprDoesNotEvaluate)
-                .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .AddHint(DiagnosticHint{ initializer->GetSourceRange() })
-                .Report();
+    }
+
+    bool isInitializerDependent = initializer ? initializer->IsDependent() : false;
+    if (!type.GetType()->IsDependent() && !isInitializerDependent) {
+        TemplateInstantiator instantiator{ *this };
+        if (!instantiator.MakeTypeComplete(type.GetType()))
             return nullptr;
+
+        if (initializer && initializer->GetExprClass() == Expr::AggregateExprClass) {
+            AggregateExpr* aggregateExpr = (AggregateExpr*)initializer;
+            aggregateExpr->SetResultType(type);
+            if (!ActOnAggregateExpr(aggregateExpr))
+                return nullptr;
         }
-        initializer->SetConstantValue(value);
-    } else if (initializer) {
-        initializer = ActOnCast(ActOnLoad(initializer), type, initializer->GetSourceRange());
+
+        if (IsCurrentScopeGlobal() && initializer) {
+            if (initializer->GetResultType().GetType() != type.GetType()) {
+                Expr* castedInitializer = ActOnCast(initializer, type, initializer->GetSourceRange());
+                if (!castedInitializer)
+                    return nullptr;
+                initializer = castedInitializer;
+            }
+            ExprEvaluator exprEvaluator{ astContext };
+            ConstantValue* value = exprEvaluator.Visit(initializer);
+            if (!value) {
+                diagnosticReporter.Error(Diagnostic::ExprDoesNotEvaluate)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ initializer->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+            initializer->SetConstantValue(value);
+        } else if (initializer) {
+            initializer = ActOnCast(ActOnLoad(initializer), type, initializer->GetSourceRange());
+        }
     }
 
     decl = VarDecl::Create(astContext, type, identifier, varAttrBitfield, range);
@@ -304,10 +352,11 @@ VCL::QualType VCL::Sema::ActOnQualType(Type* type, Qualifier qualifiers, SourceR
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)\
                     .Report(); \
                 return nullptr; }
-                
+
 VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList* list, SourceRange range) {
     if (!identifier->IsKeyword()) {
         NamedDecl* decl = LookupNamedDecl(identifier);
+        
         if (decl == nullptr) {
             diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
                 .AddHint(DiagnosticHint{ range })
@@ -315,7 +364,8 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
                 .Report();
             return nullptr;
         }
-        if (list && !decl->IsTemplateDecl()) {
+        TemplateDecl* templateDecl = LookupTemplateDecl(identifier);
+        if (list && !templateDecl) {
             diagnosticReporter.Error(Diagnostic::DoesNotTakeTemplateArgList, identifier->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
@@ -323,7 +373,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
                 .Report();
             return nullptr;
         }
-        if (!list && decl->IsTemplateDecl()) {
+        if (!list && templateDecl) {
             diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, identifier->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
@@ -343,7 +393,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
         if (!list)
             return ((TypeDecl*)decl)->GetType();
         else
-            return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType((TemplateDecl*)decl, list);
+            return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType(templateDecl, list);
     }
 
     switch (identifier->GetTokenKind()) {
@@ -384,7 +434,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
             return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Float64);
         default:
-            IntrinsicTemplateDecl* decl = LookupIntrinsicTemplateDecl(identifier);
+            TemplateDecl* decl = LookupTemplateDecl(identifier);
             if (decl == nullptr) {
                 diagnosticReporter.Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
                     .AddHint(DiagnosticHint{ range })
@@ -392,7 +442,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
                     .Report();
                 return nullptr;
             }
-            if (!list && decl->IsTemplateDecl()) {
+            if (!list) {
                 diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, identifier->GetName().str())
                     .AddHint(DiagnosticHint{ range })
                     .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
@@ -433,6 +483,10 @@ VCL::TemplateArgumentList* VCL::Sema::ActOnTemplateArgumentList(llvm::ArrayRef<T
     llvm::SmallVector<TemplateArgument> argsEval{};
 
     for (auto arg : args) {
+        if (arg.IsDependent()) {
+            argsEval.push_back(arg);
+            continue;
+        }
         switch (arg.GetKind()) {
             case TemplateArgument::Expression: {
                 ExprEvaluator eval{ astContext };
@@ -464,6 +518,28 @@ VCL::NonTypeTemplateParamDecl* VCL::Sema::ActOnNonTypeTemplateParamDecl(BuiltinT
 }
 
 VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op) {
+    if (lhs->GetResultType().GetType()->IsDependent() || rhs->GetResultType().GetType()->IsDependent()) {
+        Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+        expr->SetResultType(astContext.GetTypeCache().GetOrCreateDependentType());
+        switch (op) {
+            case BinaryOperator::Assignment:
+            case BinaryOperator::AssignmentAdd:
+            case BinaryOperator::AssignmentSub:
+            case BinaryOperator::AssignmentMul:
+            case BinaryOperator::AssignmentDiv:
+            case BinaryOperator::AssignmentRemainder:
+            case BinaryOperator::AssignmentBitwiseAnd:
+            case BinaryOperator::AssignmentBitwiseXor:
+            case BinaryOperator::AssignmentBitwiseOr:
+            case BinaryOperator::AssignmentLeftShift:
+            case BinaryOperator::AssignmentRightShift:
+                expr->SetValueCategory(Expr::LValue);
+            default:
+                expr->SetValueCategory(Expr::RValue);
+        }
+        return expr;
+    }
+    
     switch (op) {
         // Arithmetic
         case BinaryOperator::Add:
@@ -472,14 +548,11 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
         case BinaryOperator::Div: {
             lhs = ActOnLoad(lhs);
             rhs = ActOnLoad(rhs);
-            if (lhs->GetResultType() != rhs->GetResultType()) {
-                // Try implicite cast
-                std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
-                lhs = r.first;
-                rhs = r.second;
-                if (!lhs || !rhs)
-                    return nullptr;
-            }
+            std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
+            lhs = r.first;
+            rhs = r.second;
+            if (!lhs || !rhs)
+                return nullptr;
             if (!Type::IsTypeNumeric(lhs->GetResultType().GetType())) {
                 diagnosticReporter.Error(Diagnostic::NotNumericType, TypePrinter::Print(lhs->GetResultType()))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -493,15 +566,12 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
         }
         case BinaryOperator::Remainder: {
             lhs = ActOnLoad(lhs);
-            rhs = ActOnLoad(rhs);
-            if (lhs->GetResultType() != rhs->GetResultType()) {
-                // Try implicite cast
-                std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
-                lhs = r.first;
-                rhs = r.second;
-                if (!lhs || !rhs)
-                    return nullptr;
-            }
+            rhs = ActOnLoad(rhs);    
+            std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
+            lhs = r.first;
+            rhs = r.second;
+            if (!lhs || !rhs)
+                return nullptr;
             if (!Type::IsTypeIntegral(lhs->GetResultType().GetType())) {
                 diagnosticReporter.Error(Diagnostic::NotIntegralType, TypePrinter::Print(lhs->GetResultType()))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -522,14 +592,11 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
         case BinaryOperator::NotEqual: {
             lhs = ActOnLoad(lhs);
             rhs = ActOnLoad(rhs);
-            if (lhs->GetResultType() != rhs->GetResultType()) {
-                // Try implicite cast
-                std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
-                lhs = r.first;
-                rhs = r.second;
-                if (!lhs || !rhs)
-                    return nullptr;
-            }
+            std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
+            lhs = r.first;
+            rhs = r.second;
+            if (!lhs || !rhs)
+                return nullptr;
             if (!Type::IsTypeNumeric(lhs->GetResultType().GetType())) {
                 diagnosticReporter.Error(Diagnostic::NotNumericType, TypePrinter::Print(lhs->GetResultType()))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -570,14 +637,11 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
         case BinaryOperator::RightShift: {
             lhs = ActOnLoad(lhs);
             rhs = ActOnLoad(rhs);
-            if (lhs->GetResultType() != rhs->GetResultType()) {
-                // Try implicite cast
-                std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
-                lhs = r.first;
-                rhs = r.second;
-                if (!lhs || !rhs)
-                    return nullptr;
-            }
+            std::pair<Expr*, Expr*> r = ActOnImplicitBinaryArithmeticCast(lhs, rhs);
+            lhs = r.first;
+            rhs = r.second;
+            if (!lhs || !rhs)
+                return nullptr;
             if (!Type::IsTypeIntegral(lhs->GetResultType().GetType())) {
                 diagnosticReporter.Error(Diagnostic::NotIntegralType)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -651,6 +715,9 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
 }
 
 VCL::Expr* VCL::Sema::ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange range) {
+    if (expr->GetResultType().GetType()->IsDependent())
+        return UnaryExpr::Create(astContext, expr, op, range);
+
     switch (op) {
         case UnaryOperator::PrefixIncrement:
         case UnaryOperator::PrefixDecrement:
@@ -746,6 +813,9 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
     }
 
     Type* type = lhs->GetResultType().GetType();
+    if (type->IsDependent())
+        return DependentFieldAccessExpr::Create(astContext, lhs, field, range);
+
     if (type->GetTypeClass() == Type::ReferenceTypeClass)
         type = ((ReferenceType*)type)->GetType().GetType();
     if (type->GetTypeClass() == Type::TemplateSpecializationTypeClass)
@@ -761,6 +831,7 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
     RecordDecl* recordDecl = ((RecordType*)type)->GetRecordDecl();
 
     FieldDecl* correctFieldDecl = nullptr;
+
     uint32_t fieldIdx = 0;
 
     for (auto it = recordDecl->Begin(); it != recordDecl->End(); ++it) {
@@ -795,12 +866,17 @@ VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange ra
     if (!index)
         return nullptr;
 
-    if (!Type::IsTypeIntegral(index->GetResultType().GetType())) {
+    if (!index->GetResultType().GetType()->IsDependent() && !Type::IsTypeIntegral(index->GetResultType().GetType())) {
         diagnosticReporter.Error(Diagnostic::NotIntegralType, TypePrinter::Print(index->GetResultType()))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ index->GetSourceRange() })
             .Report();
         return nullptr;
+    }
+
+    if (expr->GetResultType().GetType()->IsDependent()) {
+        QualType resultType = astContext.GetTypeCache().GetOrCreateDependentType();
+        return SubscriptExpr::Create(astContext, expr, index, resultType, range);
     }
 
     Type* exprTrueType = Type::GetCanonicalType(expr->GetResultType().GetType());
@@ -829,11 +905,10 @@ VCL::Expr* VCL::Sema::ActOnLoad(Expr* expr) {
 }
 
 std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs) {
+    if (lhs->GetResultType().GetType()->IsDependent() || rhs->GetResultType().GetType()->IsDependent())
+        return std::make_pair(lhs, rhs);
     Type* lhsType = Type::GetCanonicalType(lhs->GetResultType().GetType());
     Type* rhsType = Type::GetCanonicalType(rhs->GetResultType().GetType());
-
-    if (lhsType == rhsType)
-        return std::make_pair(lhs, rhs);
 
     if (lhsType->GetTypeClass() != Type::BuiltinTypeClass && lhsType->GetTypeClass() != Type::VectorTypeClass) {
         diagnosticReporter.Error(Diagnostic::InvalidArithmeticConversion, TypePrinter::Print(lhsType))
@@ -862,6 +937,9 @@ std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(E
     uint32_t rhsBitWidth = BuiltinType::GetKindBitWidth(rhsKind);
     BuiltinType::Category rhsCategory = BuiltinType::GetKindCategory(rhsKind);
 
+    if (lhsType == rhsType && lhsBitWidth != 1)
+        return std::make_pair(lhs, rhs);
+
     Type* toType = lhsType; // both operands are casted to this type wich may or may not be the type of one of the operand
 
     // trying to ~follow usual arithmetic conversions : https://en.cppreference.com/w/cpp/language/usual_arithmetic_conversions.html
@@ -879,6 +957,10 @@ std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(E
         } else { // otherwise both operands are of integer types
             if (lhsCategory == rhsCategory && rhsBitWidth > lhsBitWidth) { // both signed or unsigned so lesser to greater rank
                 toType = rhsType;
+            } else if (lhsCategory == rhsCategory && rhsBitWidth == lhsBitWidth && lhsBitWidth == 1) { // is both are boolean then cast to int8
+                toType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int8);
+                if (lhsVec)
+                    toType = astContext.GetTypeCache().GetOrCreateVectorType(toType);
             } else { // unsigned/signed conversion
                 if (rhsCategory == BuiltinType::UnsignedKind && rhsBitWidth >= lhsBitWidth) { // if U is greater or equal than S then cast to U
                     toType = rhsType;
@@ -918,8 +1000,15 @@ std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(E
 }
 
 VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) {
-    if (expr->GetExprClass() == Expr::AggregateExprClass)
-        return ActOnAggregateExpr(toType, (AggregateExpr*)expr);
+    
+    if (expr->GetExprClass() == Expr::AggregateExprClass) {
+        AggregateExpr* aggregateExpr = (AggregateExpr*)expr;
+        aggregateExpr->SetResultType(toType);
+        return ActOnAggregateExpr(aggregateExpr) ? aggregateExpr : nullptr;
+    }
+
+    if (expr->GetResultType().GetType()->IsDependent() || toType.GetType()->IsDependent())
+        return expr;
 
     Type* srcType = GetInstantiatedType(expr->GetResultType().GetType());
     Type* dstType = GetInstantiatedType(toType.GetType());
@@ -941,7 +1030,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
         return expr;
 
     if (!CheckTypeCastability(srcType) || !CheckTypeCastability(dstType)) {
-        diagnosticReporter.Error(Diagnostic::InvalidCast, TypePrinter::Print(expr->GetResultType()), TypePrinter::Print(toType))
+        diagnosticReporter.Error(Diagnostic::InvalidCast, TypePrinter::Print(srcType), TypePrinter::Print(dstType))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -949,7 +1038,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
     }
 
     if (srcType->GetTypeClass() == Type::VectorTypeClass && dstType->GetTypeClass() != Type::VectorTypeClass) {
-        diagnosticReporter.Error(Diagnostic::InvalidVectorCast, TypePrinter::Print(expr->GetResultType()), TypePrinter::Print(toType))
+        diagnosticReporter.Error(Diagnostic::InvalidVectorCast, TypePrinter::Print(srcType), TypePrinter::Print(dstType))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
@@ -1008,6 +1097,8 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
 
 VCL::Expr* VCL::Sema::ActOnSplat(Expr* expr, SourceRange range) {
     Type* type = expr->GetResultType().GetType();
+    if (type->IsDependent())
+        return expr;
     if (type->GetTypeClass() != Type::BuiltinTypeClass) {
         diagnosticReporter.Error(Diagnostic::InvalidSplat, TypePrinter::Print(type))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -1032,7 +1123,15 @@ VCL::Expr* VCL::Sema::ActOnNumericConstant(Token* value) {
         double v = std::stod(valueStr.str());
         return NumericLiteralExpr::Create(astContext, ConstantScalar{ v }, value->range);
     } else {
-        uint64_t v = std::stoull(valueStr.str());
+        int64_t v = std::stoll(valueStr.str());
+
+        if (v < std::numeric_limits<int8_t>::max())
+            return NumericLiteralExpr::Create(astContext, ConstantScalar{ (int8_t)v }, value->range);
+        if (v < std::numeric_limits<int16_t>::max())
+            return NumericLiteralExpr::Create(astContext, ConstantScalar{ (int16_t)v }, value->range);
+        if (v < std::numeric_limits<int32_t>::max())
+            return NumericLiteralExpr::Create(astContext, ConstantScalar{ (int32_t)v }, value->range);
+
         return NumericLiteralExpr::Create(astContext, ConstantScalar{ v }, value->range);
     }
 }
@@ -1051,14 +1150,48 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRang
     return expr;
 }
 
-VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, SourceRange range) {
+VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
     FunctionDecl* decl = LookupFunctionDecl(identifier);
     if (!decl) {
-        diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
-            .SetCompilerInfo(__FILE__, __func__, __LINE__)
-            .AddHint(DiagnosticHint{ range })
-            .Report();
-        return nullptr;
+        TemplateDecl* templateDecl = LookupTemplateDecl(identifier);
+
+        if (!templateDecl || templateDecl->GetTemplatedNamedDecl()->GetDeclClass() != Decl::FunctionDeclClass) {
+            diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ range })
+                .Report();
+            return nullptr;
+        }
+
+        FunctionDecl* templatedFunctionDecl = (FunctionDecl*)templateDecl->GetTemplatedNamedDecl();
+
+        TemplateParameterList* parameters = templateDecl->GetTemplateParametersList();
+        templateArgs = DeduceTemplateArgumentFromCall(templatedFunctionDecl, args, templateArgs, parameters);
+
+        if (templateArgs->IsDependent())
+            return DependentCallExpr::Create(astContext, identifier, args, templateArgs, range);
+
+        for (auto it = templateDecl->Begin(); it != templateDecl->End(); ++it) {
+            if (it->GetDeclClass() != Decl::TemplateSpecializationDeclClass)
+                continue;
+            TemplateSpecializationDecl* specializationDecl = (TemplateSpecializationDecl*)it.Get();
+            if (MatchTemplateArgumentList(specializationDecl->GetTemplateArgumentList(), templateArgs)) {
+                decl = (FunctionDecl*)specializationDecl->GetNamedDecl();
+                break;
+            }
+        }
+
+        if (!decl) {
+            TemplateInstantiator instantiator{ *this };
+            if (!instantiator.AddTemplateArgumentListAndDecl(templateArgs, templateDecl))
+                return nullptr;
+            decl = instantiator.InstantiateTemplatedFunctionDecl(templateDecl);
+            if (!decl)
+                return nullptr;
+
+            TemplateSpecializationDecl* specializationDecl = TemplateSpecializationDecl::Create(astContext, templateArgs, decl);
+            templateDecl->InsertBack(specializationDecl);
+        }
     }
 
     FunctionType* type = decl->GetType();
@@ -1074,6 +1207,10 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<E
     for (size_t i = 0; i < args.size(); ++i) {
         Expr* arg = args[i];
         QualType paramType = type->GetParamsType()[i];
+        if (paramType.GetType()->IsDependent() || arg->GetResultType().GetType()->IsDependent()) {
+            trueArgs.push_back(arg);
+            continue;
+        }
         if (paramType.GetType()->GetTypeClass() == Type::ReferenceTypeClass) {
             QualType actualType = ((ReferenceType*)paramType.GetType())->GetType();
             if (arg->GetValueCategory() != Expr::LValue) {
@@ -1121,8 +1258,10 @@ VCL::Expr* VCL::Sema::ActOnAggregateExpr(llvm::ArrayRef<Expr*> elems, SourceRang
     return AggregateExpr::Create(astContext, elems, range);
 }
 
-VCL::Expr* VCL::Sema::ActOnAggregateExpr(QualType type, AggregateExpr* aggregate) {
-    Type* trueType = Type::GetCanonicalType(type.GetType());
+bool VCL::Sema::ActOnAggregateExpr(AggregateExpr* aggregate) {
+    if (aggregate->GetResultType().GetType()->IsDependent())
+        return true;
+    Type* trueType = Type::GetCanonicalType(aggregate->GetResultType().GetType());
     
     switch (trueType->GetTypeClass())
     {
@@ -1135,19 +1274,20 @@ VCL::Expr* VCL::Sema::ActOnAggregateExpr(QualType type, AggregateExpr* aggregate
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ elements[ofSize]->GetSourceRange() })
                 .Report();
-            return nullptr;
+            return false;
         }
         for (size_t i = 0; i < ofSize; ++i) {
             if (i < elements.size()) {
-                aggregate->SetElement(ActOnCast(elements[i], ofType, elements[i]->GetSourceRange()), i);
-                if (elements[i] == nullptr)
-                    return nullptr;
+                Expr* expr = ActOnLoad(elements[i]);
+                aggregate->SetElement(ActOnCast(expr, ofType, expr->GetSourceRange()), i);
+                if (expr == nullptr)
+                    return false;
             } else {
                 aggregate->AddElement(NullExpr::Create(astContext, ofType, aggregate->GetSourceRange()));
             }
         }
         aggregate->SetResultType(trueType);
-        return aggregate;
+        return true;
     }
     case Type::RecordTypeClass: {
         RecordDecl* recordDecl = ((RecordType*)trueType)->GetRecordDecl();
@@ -1161,9 +1301,10 @@ VCL::Expr* VCL::Sema::ActOnAggregateExpr(QualType type, AggregateExpr* aggregate
             if (elements.size() <= i) {
                 aggregate->AddElement(NullExpr::Create(astContext, ofType, aggregate->GetSourceRange()));
             } else {
-                aggregate->SetElement(ActOnCast(elements[i], ofType, elements[i]->GetSourceRange()), i);
-                if (elements[i] == nullptr)
-                    return nullptr;
+                Expr* expr = ActOnLoad(elements[i]);
+                aggregate->SetElement(ActOnCast(expr, ofType, expr->GetSourceRange()), i);
+                if (expr == nullptr)
+                    return false;
             }
             ++i;
         }
@@ -1172,24 +1313,18 @@ VCL::Expr* VCL::Sema::ActOnAggregateExpr(QualType type, AggregateExpr* aggregate
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ elements[i]->GetSourceRange() })
                 .Report();
-            return nullptr;
+            return false;
         }
         aggregate->SetResultType(trueType);
-        return aggregate;
+        return true;
     }
     default:
-        diagnosticReporter.Error(Diagnostic::InvalidAggregateType, TypePrinter::Print(type))
+        diagnosticReporter.Error(Diagnostic::InvalidAggregateType, TypePrinter::Print(aggregate->GetResultType()))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ aggregate->GetSourceRange() })
             .Report();
-        break;
+        return false;
     }
-
-    diagnosticReporter.Error(Diagnostic::MissingImplementation)
-        .SetCompilerInfo(__FILE__, __func__, __LINE__)
-        .AddHint(DiagnosticHint{ aggregate->GetSourceRange() })
-        .Report();    
-    return nullptr;
 }
 
 VCL::NamedDecl* VCL::Sema::LookupNamedDecl(IdentifierInfo* identifier, int depth) {
@@ -1199,11 +1334,19 @@ VCL::NamedDecl* VCL::Sema::LookupNamedDecl(IdentifierInfo* identifier, int depth
     while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
         DeclContext* declContext = currentScope->GetDeclContext();
         for (auto it = declContext->Begin(); it != declContext->End(); ++it) {
-            if (!it->IsNamedDecl())
-                continue;
-            NamedDecl* decl = (NamedDecl*)it.Get();
-            if (identifier == decl->GetIdentifierInfo())
-                return decl;
+            if (it->GetDeclClass() == Decl::TemplateDeclClass) {
+                TemplateDecl* decl = (TemplateDecl*)it.Get();
+                if (decl->GetTemplatedNamedDecl() == nullptr)
+                    continue;
+                if (identifier == decl->GetTemplatedNamedDecl()->GetIdentifierInfo())
+                    return decl->GetTemplatedNamedDecl();
+            } else {
+                if (!it->IsNamedDecl())
+                    continue;
+                NamedDecl* decl = (NamedDecl*)it.Get();
+                if (identifier == decl->GetIdentifierInfo())
+                    return decl;
+            }
         }
         currentScope = currentScope->GetParentScope();
         ++currentDepth;
@@ -1212,23 +1355,25 @@ VCL::NamedDecl* VCL::Sema::LookupNamedDecl(IdentifierInfo* identifier, int depth
     return nullptr;
 }
 
-VCL::IntrinsicTemplateDecl* VCL::Sema::LookupIntrinsicTemplateDecl(IdentifierInfo* identifier, int depth) {
+VCL::TemplateDecl* VCL::Sema::LookupTemplateDecl(IdentifierInfo* identifier, int depth) {
     Scope* currentScope = sm.GetScopeFront();
 
     int currentDepth = 0;
     while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
         DeclContext* declContext = currentScope->GetDeclContext();
         for (auto it = declContext->Begin(); it != declContext->End(); ++it) {
-            if (!it->GetDeclClass() == Decl::IntrinsicTemplateDeclClass)
-                continue;
-            IntrinsicTemplateDecl* decl = (IntrinsicTemplateDecl*)it.Get();
-            if (identifier == decl->GetIdentifierInfo())
-                return decl;
+            if (it->GetDeclClass() == Decl::TemplateDeclClass) {
+                TemplateDecl* decl = (TemplateDecl*)it.Get();
+                if (decl->GetTemplatedNamedDecl() == nullptr)
+                    continue;
+                if (identifier == decl->GetTemplatedNamedDecl()->GetIdentifierInfo())
+                    return decl;
+            }
         }
         currentScope = currentScope->GetParentScope();
         ++currentDepth;
     }
-
+    
     return nullptr;
 }
 
@@ -1321,4 +1466,73 @@ VCL::BuiltinType::Kind VCL::Sema::GetScalarKindFromBuiltinOrVectorType(Type* typ
 bool VCL::Sema::IsCurrentScopeGlobal() {
     DeclContext* frontDeclContext = sm.GetScopeFront()->GetDeclContext();
     return frontDeclContext->GetDeclContextClass() == DeclContext::TranslationUnitDeclContextClass;
+}
+
+VCL::TemplateArgumentList* VCL::Sema::DeduceTemplateArgumentFromCall(
+        FunctionDecl* functionDecl, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, TemplateParameterList* parameters) {
+    llvm::ArrayRef<NamedDecl*> paramArray = parameters->GetParams();
+    FunctionType* functionType = functionDecl->GetType();
+
+    llvm::SmallVector<TemplateArgument> newTemplateArgs{};
+
+    for (size_t i = 0; i < parameters->GetParams().size(); ++i) {
+        if (templateArgs && templateArgs->GetCount() > i) {
+            newTemplateArgs.push_back(templateArgs->GetArgs()[i]);
+            continue;
+        }
+
+        bool deduced = false;
+
+        for (size_t j = 0; j < functionType->GetParamsType().size(); ++i) {
+            QualType paramType = functionType->GetParamsType()[j];
+            if (paramType.GetType()->GetTypeClass() != Type::TemplateTypeParamTypeClass)
+                continue;
+            TemplateTypeParamType* templateParamType = (TemplateTypeParamType*)paramType.GetType();
+            if (templateParamType->GetTemplateTypeParamDecl() == paramArray[i]) {
+                newTemplateArgs.push_back(TemplateArgument{ args[j]->GetResultType() });
+                deduced = true;
+                break;
+            }
+        }
+
+        if (!deduced) {
+            diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, functionDecl->GetIdentifierInfo()->GetName().str())
+                .AddHint(DiagnosticHint{ functionDecl->GetSourceRange() })
+                .AddHint(DiagnosticHint{ paramArray[i]->GetSourceRange(), DiagnosticHint::Declared })
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+    }
+
+    return TemplateArgumentList::Create(astContext, newTemplateArgs, SourceRange{});
+}
+
+bool VCL::Sema::MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateArgumentList* args2) {
+    if (args1->GetCount() != args2->GetCount())
+        return false;
+    
+    for (size_t i = 0; i < args1->GetCount(); ++i) {
+        TemplateArgument arg1 = args1->GetArgs()[i];
+        TemplateArgument arg2 = args2->GetArgs()[i];
+
+        if (arg1.GetKind() != arg2.GetKind())
+            return false;
+
+        switch (arg1.GetKind()) {
+            case TemplateArgument::Type: {
+                if (arg1.GetType() != arg2.GetType())
+                    return false;
+                break;
+            }
+            case TemplateArgument::Integral: {
+                if (arg1.GetIntegral() != arg2.GetIntegral())
+                    return false;
+                break;
+            }
+            default: return false;
+        }
+    }
+
+    return true;
 }

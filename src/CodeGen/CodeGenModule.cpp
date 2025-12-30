@@ -1,6 +1,8 @@
 #include <VCL/CodeGen/CodeGenModule.hpp>
 
 #include <VCL/AST/Expr.hpp>
+#include <VCL/AST/Decl.hpp>
+#include <VCL/AST/DeclTemplate.hpp>
 
 
 VCL::CodeGenModule::CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target)
@@ -19,11 +21,10 @@ bool VCL::CodeGenModule::Emit() {
 }
 
 bool VCL::CodeGenModule::EmitTopLevelDecl(Decl* decl) {
-    if (decl->IsTemplateDecl())
-        return true;
     switch (decl->GetDeclClass()) {
         case Decl::VarDeclClass: return EmitGlobalVarDecl((VarDecl*)decl);
         case Decl::FunctionDeclClass: return EmitFunctionDecl((FunctionDecl*)decl);
+        case Decl::TemplateDeclClass: return EmitTemplateDecl((TemplateDecl*)decl);
         default: return true;
     }
 }
@@ -84,6 +85,23 @@ bool VCL::CodeGenModule::EmitFunctionDecl(FunctionDecl* decl) {
     if (function == nullptr)
         return false;
     globals.insert(std::make_pair(decl, function));
+    return true;
+}
+
+bool VCL::CodeGenModule::EmitTemplateDecl(TemplateDecl* decl) {
+    for (auto it = decl->Begin(); it != decl->End(); ++it) {
+        if (it->GetDeclClass() != Decl::TemplateSpecializationDeclClass)
+            continue;
+
+        TemplateSpecializationDecl* specializationDecl = (TemplateSpecializationDecl*)it.Get();
+        NamedDecl* specializedDecl = specializationDecl->GetNamedDecl();
+        switch (specializedDecl->GetDeclClass()) {
+            case Decl::FunctionDeclClass: {
+                if (!EmitFunctionDecl((FunctionDecl*)specializedDecl))
+                    return false;
+            }
+        }
+    }
     return true;
 }
 

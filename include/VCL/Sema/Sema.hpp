@@ -48,19 +48,23 @@ namespace VCL {
 
         DeclStmt* ActOnDeclStmt(Decl* decl, SourceRange range);
 
+        TemplateDecl* ActOnTemplateDecl(TemplateParameterList* parameters, SourceRange range);
+
         RecordDecl* ActOnRecordDecl(IdentifierInfo* identifier, SourceRange range);
-        TemplateRecordDecl* ActOnTemplateRecordDecl(IdentifierInfo* identifier, TemplateParameterList* params, SourceRange range);
+
         FieldDecl* ActOnFieldDecl(QualType type, IdentifierInfo* identifier, SourceRange range);
 
-        TransientFunctionDecl* ActOnTransientFunctionDecl(QualType returnType, IdentifierInfo* identifier, SourceRange range);
-        FunctionDecl* ActOnFunctionDecl(TransientFunctionDecl* decl, SourceRange range);
+        FunctionDecl* ActOnFunctionDecl(FunctionDecl* decl, QualType returnType, SourceRange range);
+
         ParamDecl* ActOnParamDecl(VarDecl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range);
+        
         CompoundStmt* ActOnFunctionBody(FunctionDecl* function, CompoundStmt* body);
         bool ActRecOnFunctionBodyReturnStmt(FunctionDecl* function, llvm::ArrayRef<Stmt*> stmts);
 
         ReturnStmt* ActOnReturnStmt(Expr* expr, SourceRange range);
 
         VarDecl* ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range);
+        
         QualType ActOnQualType(Type* type, Qualifier qualifiers, SourceRange range);
         Type* ActOnType(IdentifierInfo* identifier, TemplateArgumentList* list, SourceRange range);
         
@@ -85,12 +89,13 @@ namespace VCL {
 
         Expr* ActOnNumericConstant(Token* value);
         Expr* ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRange range);
-        Expr* ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, SourceRange range);
+        Expr* ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range);
+
         Expr* ActOnAggregateExpr(llvm::ArrayRef<Expr*> elems, SourceRange range);
-        Expr* ActOnAggregateExpr(QualType type, AggregateExpr* aggregate);
+        bool ActOnAggregateExpr(AggregateExpr* aggregate);
 
         NamedDecl* LookupNamedDecl(IdentifierInfo* identifier, int depth = -1);
-        IntrinsicTemplateDecl* LookupIntrinsicTemplateDecl(IdentifierInfo* identifier, int depth = -1);
+        TemplateDecl* LookupTemplateDecl(IdentifierInfo* identifier, int depth = -1);
         VarDecl* LookupVarDecl(IdentifierInfo* identifier, int depth = -1);
         FunctionDecl* LookupFunctionDecl(IdentifierInfo* identifier, int depth = -1);
         
@@ -102,11 +107,16 @@ namespace VCL {
         BuiltinType::Kind GetScalarKindFromBuiltinOrVectorType(Type* type);
         bool IsCurrentScopeGlobal();
 
+        TemplateArgumentList* DeduceTemplateArgumentFromCall(
+            FunctionDecl* functionDecl, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, TemplateParameterList* parameters);
+        bool MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateArgumentList* args2);
+
     private:
         ASTContext& astContext;
         DiagnosticReporter& diagnosticReporter;
         IdentifierTable& identifierTable;
         ScopeManager sm{};
+        Scope* translationUnitScope;
     };
 
 }

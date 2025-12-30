@@ -21,7 +21,9 @@ namespace VCL {
             BinaryExprClass,
             UnaryExprClass,
             CallExprClass,
+            DependentCallExprClass,
             FieldAccessExprClass,
+            DependentFieldAccessExprClass,
             SubscriptExprClass,
             NullExprClass,
             AggregateExprClass
@@ -51,11 +53,18 @@ namespace VCL {
         inline ConstantValue* GetConstantValue() const { return constantValue; }
         inline void SetConstantValue(ConstantValue* constantValue) { this->constantValue = constantValue; }
 
+        inline bool IsDependent() const { return bitfield.isDependent; }
+        inline void SetDependent(bool isDependent) { bitfield.isDependent = true; }
+
     private:
         ExprClass exprClass;
         ValueCategory valueCategory;
         QualType resultType;
         ConstantValue* constantValue;
+
+        struct ExprBitfield {
+            unsigned isDependent : 1 = 0;
+        } bitfield{};
     };
 
     class NumericLiteralExpr : public Expr {
@@ -253,6 +262,36 @@ namespace VCL {
         size_t argsCount;
     };
 
+    class DependentCallExpr final : public Expr, private llvm::TrailingObjects<DependentCallExpr, Expr*> {
+        friend TrailingObjects;
+
+    public:
+        DependentCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs)
+                : identifier{ identifier }, templateArgs{ templateArgs }, argsCount{ args.size() }, Expr{ Expr::DependentCallExprClass } {
+            std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects());
+        }
+        ~DependentCallExpr() = default;
+
+        inline IdentifierInfo* GetIdentifierInfo() { return identifier; }
+        inline llvm::ArrayRef<Expr*> GetArgs() { return { getTrailingObjects(), argsCount }; }
+        inline TemplateArgumentList* GetTemplateArgs() { return templateArgs; }
+
+        static inline DependentCallExpr* Create(
+                ASTContext& context, IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
+            size_t size = totalSizeToAlloc<Expr*>(args.size());
+            void* ptr = context.Allocate(sizeof(DependentCallExpr) + size);
+            DependentCallExpr* instance = new (ptr) DependentCallExpr{ identifier, args, templateArgs };
+            instance->SetResultType(context.GetTypeCache().GetOrCreateDependentType());
+            instance->SetSourceRange(range);
+            return instance;
+        }
+
+    private:
+        IdentifierInfo* identifier;
+        TemplateArgumentList* templateArgs;
+        size_t argsCount;
+    };
+
     class FieldAccessExpr : public Expr {
     public:
         FieldAccessExpr(Expr* expr, RecordType* recordType, uint32_t fieldIndex) 
@@ -279,6 +318,29 @@ namespace VCL {
         uint32_t fieldIndex;
     };
 
+    class DependentFieldAccessExpr : public Expr {
+    public:
+        DependentFieldAccessExpr(Expr* expr, IdentifierInfo* field) 
+                : expr{ expr }, field{ field }, Expr{ Expr::DependentFieldAccessExprClass } {
+            SetValueCategory(Expr::LValue);
+        }
+        ~DependentFieldAccessExpr() = default;
+
+        inline Expr* GetExpr() { return expr; }
+        inline IdentifierInfo* GetField() { return field; }
+
+        static inline DependentFieldAccessExpr* Create(ASTContext& context, Expr* expr, IdentifierInfo* field, SourceRange range) {
+            DependentFieldAccessExpr* instance = context.AllocateNode<DependentFieldAccessExpr>(expr, field);
+            instance->SetResultType(context.GetTypeCache().GetOrCreateDependentType());
+            instance->SetSourceRange(range);
+            return instance;
+        }
+
+    private:
+        Expr* expr;
+        IdentifierInfo* field;
+    };
+
     class SubscriptExpr : public Expr {
     public:
         SubscriptExpr(Expr* expr, Expr* index, bool isSpan) 
@@ -292,7 +354,9 @@ namespace VCL {
         inline bool IsSpan() const { return isSpan; }
 
         static inline SubscriptExpr* Create(ASTContext& context, Expr* expr, Expr* index, QualType resultType, SourceRange range) {
-            bool isSpan = Type::GetCanonicalType(expr->GetResultType().GetType())->GetTypeClass() == Type::SpanTypeClass;
+            bool isSpan = false;
+            if (!expr->GetResultType().GetType()->IsDependent())
+                isSpan = Type::GetCanonicalType(expr->GetResultType().GetType())->GetTypeClass() == Type::SpanTypeClass;
             SubscriptExpr* instance = context.AllocateNode<SubscriptExpr>(expr, index, isSpan);
             instance->SetResultType(resultType);
             instance->SetSourceRange(range);

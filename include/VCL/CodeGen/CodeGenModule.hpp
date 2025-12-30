@@ -40,6 +40,7 @@ namespace VCL {
         bool EmitTopLevelDecl(Decl* decl);
         bool EmitGlobalVarDecl(VarDecl* decl);
         bool EmitFunctionDecl(FunctionDecl* decl);
+        bool EmitTemplateDecl(TemplateDecl* decl);
 
         llvm::GlobalValue* GetGlobalDeclValue(Decl* decl);
 

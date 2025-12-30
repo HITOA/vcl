@@ -100,6 +100,22 @@ VCL::BuiltinType::Category VCL::BuiltinType::GetKindCategory(Kind kind) {
     }
 }
 
+VCL::RecordType::RecordType(RecordDecl* decl) : decl{ decl }, Type{ Type::RecordTypeClass } {
+    bool isDependent = false;
+    for (auto it = decl->Begin(); it != decl->End(); ++it) {
+        if (it->GetDeclClass() != Decl::FieldDeclClass)
+            continue;
+        FieldDecl* fieldDecl = (FieldDecl*)it.Get();
+        isDependent |= fieldDecl->GetType().GetType()->IsDependent();
+    }
+    SetDependent(isDependent);
+}
+
+VCL::TemplateSpecializationType::TemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args)
+        : decl{ decl }, args{ args }, instantiatedType{ nullptr }, Type{ Type::TemplateSpecializationTypeClass } {
+    SetDependent(args->IsDependent());
+}
+
 void VCL::TemplateSpecializationType::Profile(llvm::FoldingSetNodeID& id, TemplateDecl* decl, TemplateArgumentList* args) {
     id.AddPointer(decl);
     for (auto& arg : args->GetArgs()) {

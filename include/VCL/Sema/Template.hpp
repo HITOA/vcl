@@ -27,24 +27,50 @@ namespace VCL {
         bool CheckTemplateArgumentsParametersMatch(TemplateArgumentList* args, TemplateParameterList* params);
         bool EvaluateTemplateArgumentsExpr(TemplateArgumentList* args);
 
-        Type* InstantiateIntrinsicTemplateDecl(IntrinsicTemplateDecl* decl);
-        RecordType* InstantiateTemplateRecordDecl(TemplateRecordDecl* decl);
+        Type* InstantiateTemplatedIntrinsicDecl(TemplateDecl* decl);
+        Type* InstantiateTemplatedRecordDecl(TemplateDecl* decl);
+        FunctionDecl* InstantiateTemplatedFunctionDecl(TemplateDecl* decl);
 
         void AddSubstitution(NamedDecl* param, TemplateArgument* arg);
         TemplateArgument* Lookup(NamedDecl* param);
 
+        TemplateArgumentList* TransformTemplateArgumentList(TemplateArgumentList* templateArgs);
         QualType TransformType(QualType type);
+        Stmt* TransformStmt(Stmt* stmt);
         Decl* TransformDecl(Decl* decl);
         Expr* TransformExpr(Expr* expr);
+
+        // Transform Type
 
         QualType TransformTemplateTypeParamType(QualType type);
         QualType TransformTemplateSpecializationType(QualType type);
 
-        Decl* TransformFieldDecl(FieldDecl* decl);
+        // Transform Stmt
 
+        Stmt* TransformDeclStmt(DeclStmt* stmt);
+        Stmt* TransformCompoundStmt(CompoundStmt* stmt);
+        Stmt* TransformReturnStmt(ReturnStmt* stmt);
+
+        // Transform Decl
+
+        Decl* TransformFieldDecl(FieldDecl* decl);
+        Decl* TransformVarDecl(VarDecl* decl);
+        Decl* TransformParamDecl(ParamDecl* decl);
+
+        // Transform Expr
+
+        Expr* TransformLoadExpr(LoadExpr* expr);
         Expr* TransformDeclRefExpr(DeclRefExpr* expr);
         Expr* TransformCastExpr(CastExpr* expr);
+        Expr* TransformSplatExpr(SplatExpr* expr);
         Expr* TransformBinaryExpr(BinaryExpr* expr);
+        Expr* TransformUnaryExpr(UnaryExpr* expr);
+        Expr* TransformCallExpr(CallExpr* expr);
+        Expr* TransformDependentCallExpr(DependentCallExpr* expr);
+        Expr* TransformFieldAccessExpr(FieldAccessExpr* expr);
+        Expr* TransformDependentFieldAccessExpr(DependentFieldAccessExpr* expr);
+        Expr* TransformSubscriptExpr(SubscriptExpr* expr);
+        Expr* TransformAggregateExpr(AggregateExpr* expr);
 
     private:
         Sema& sema;
