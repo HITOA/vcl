@@ -71,6 +71,42 @@ VCL::Decl* VCL::Parser::ParseRecordLevelDecl() {
     return ParseFieldDecl();
 }
 
+VCL::Stmt* VCL::Parser::ParseStmt() {
+    Token* token;
+    GET_TOKEN(token);
+    TokenKind kind = token->kind;
+    if (token->kind == TokenKind::Identifier)
+        kind = token->identifier->GetTokenKind();
+    switch (kind) {
+        case TokenKind::Keyword_return: return ParseReturnStmt();
+        case TokenKind::Keyword_if: return ParseIfStmt();
+        case TokenKind::LeftBrace: return ParseCompoundStmt();
+        case TokenKind::Keyword_in:
+        case TokenKind::Keyword_out: {
+            sema.GetDiagnosticReporter().Error(Diagnostic::AttrInvalidUse)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ token->range })
+                .Report();
+            return nullptr;
+        }
+        default: {
+            if (TryParseQualType()) {
+                VarDecl* decl = ParseVarDecl();
+                if (!decl)
+                    return nullptr;
+                return sema.ActOnDeclStmt(decl, decl->GetSourceRange());
+            } else {
+                Expr* expr = ParseExpression();
+                if (!expr)
+                    return nullptr;
+                EXPECT_TOKEN(token, TokenKind::Semicolon);
+                NEXT_TOKEN();
+                return expr;
+            }
+        }
+    }
+}
+
 VCL::CompoundStmt* VCL::Parser::ParseCompoundStmt() {
     llvm::SmallVector<Stmt*> stmts{};
     
@@ -81,47 +117,10 @@ VCL::CompoundStmt* VCL::Parser::ParseCompoundStmt() {
     GET_TOKEN(token);
 
     while (token->kind != TokenKind::RightBrace) {
-        GET_TOKEN(token);
-        TokenKind kind = token->kind;
-        if (token->kind == TokenKind::Identifier)
-            kind = token->identifier->GetTokenKind();
-        switch (kind) {
-            case TokenKind::Keyword_return: {
-                ReturnStmt* stmt = ParseReturnStmt();
-                if (!stmt)
-                    return nullptr;
-                stmts.push_back(stmt);
-                break;
-            }
-            case TokenKind::Keyword_in:
-            case TokenKind::Keyword_out: {
-                sema.GetDiagnosticReporter().Error(Diagnostic::AttrInvalidUse)
-                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                    .AddHint(DiagnosticHint{ token->range })
-                    .Report();
-                return nullptr;
-            }
-            default: {
-                if (TryParseQualType()) {
-                    VarDecl* decl = ParseVarDecl();
-                    if (!decl)
-                        return nullptr;
-                    DeclStmt* stmt = sema.ActOnDeclStmt(decl, decl->GetSourceRange());
-                    if (!stmt)
-                        return nullptr;
-                    stmts.push_back(stmt);
-                    break;
-                } else {
-                    Expr* expr = ParseExpression();
-                    if (!expr)
-                        return nullptr;
-                    EXPECT_TOKEN(token, TokenKind::Semicolon);
-                    NEXT_TOKEN();
-                    stmts.push_back(expr);
-                    break;
-                }
-            }
-        }
+        Stmt* stmt = ParseStmt();
+        if (!stmt)
+            return nullptr;
+        stmts.push_back(stmt);
         GET_TOKEN(token);
     }
     range.end = token->range.end;
@@ -144,6 +143,10 @@ VCL::TemplateDecl* VCL::Parser::ParseTemplateDecl() {
     TemplateDecl* templateDecl = sema.ActOnTemplateDecl(parameters, range);
 
     ParserScopeGuard scopeGuard{ this, templateDecl };
+
+    for (auto param : parameters->GetParams())
+        if (!sema.AddDeclToScopeAndContext(param))
+            return nullptr;
 
     GET_TOKEN(token);
     TokenKind kind = token->kind;
@@ -321,6 +324,44 @@ VCL::ReturnStmt* VCL::Parser::ParseReturnStmt() {
     EXPECT_TOKEN(token, TokenKind::Semicolon);
     NEXT_TOKEN();
     return sema.ActOnReturnStmt(expr, range);
+}
+
+VCL::IfStmt* VCL::Parser::ParseIfStmt() {
+    Token* token;
+    EXPECT_TOKEN(token, TokenKind::Keyword_if);
+    SourceRange range = token->range;
+    NEXT_TOKEN();
+    EXPECT_TOKEN(token, TokenKind::LeftPar);
+    NEXT_TOKEN();
+
+    ParserScopeGuard sg{ this, nullptr }; //If stmt scope guard
+
+    Expr* condition = ParseExpression();
+    if (!condition)
+        return nullptr;
+
+    EXPECT_TOKEN(token, TokenKind::RightPar);
+    range.end = token->range.end;
+    NEXT_TOKEN();
+
+    Stmt* thenStmt = ParseStmt();
+    if (!thenStmt)
+        return nullptr;
+    
+    Stmt* elseStmt = nullptr;
+
+    GET_TOKEN(token);
+    TokenKind kind = token->kind;
+    if (token->kind == TokenKind::Identifier)
+        kind = token->identifier->GetTokenKind();
+    if (kind == TokenKind::Keyword_else) {
+        NEXT_TOKEN();
+        elseStmt = ParseStmt();
+        if (!elseStmt)
+            return nullptr;
+    }
+
+    return sema.ActOnIfStmt(condition, thenStmt, elseStmt, range);
 }
 
 VCL::VarDecl* VCL::Parser::ParseVarDecl() {

@@ -35,6 +35,7 @@ namespace VCL {
         bool GenerateDeclStmt(DeclStmt* stmt);
         bool GenerateCompoundStmt(CompoundStmt* stmt);
         bool GenerateReturnStmt(ReturnStmt* stmt);
+        bool GenerateIfStmt(IfStmt* stmt);
 
         // CGDecl
 

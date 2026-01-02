@@ -27,7 +27,8 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
     TemplateParameterList* vecParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
     TemplateDecl* templatedVecDecl = TemplateDecl::Create(astContext, vecParamList, SourceRange{});
     templatedVecDecl->SetTemplatedNamedDecl(vecDecl);
-    astContext.GetTranslationUnitDecl()->InsertBack(templatedVecDecl);
+    if (!AddDeclToScopeAndContext(templatedVecDecl))
+        return;
 
     // Array
     IntrinsicDecl* arrayDecl = IntrinsicDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Array));
@@ -37,7 +38,8 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
     TemplateParameterList* arrayParamList = TemplateParameterList::Create(astContext, arrayParams, SourceRange{});
     TemplateDecl* templatedArrayDecl = TemplateDecl::Create(astContext, arrayParamList, SourceRange{});
     templatedArrayDecl->SetTemplatedNamedDecl(arrayDecl);
-    astContext.GetTranslationUnitDecl()->InsertBack(templatedArrayDecl);
+    if (!AddDeclToScopeAndContext(templatedArrayDecl))
+        return;
 
     // Span
     IntrinsicDecl* spanDecl = IntrinsicDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Span));
@@ -45,7 +47,8 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
     TemplateParameterList* spanParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &spanOfType, 1 }, SourceRange{});
     TemplateDecl* templatedSpanDecl = TemplateDecl::Create(astContext, spanParamList, SourceRange{});
     templatedSpanDecl->SetTemplatedNamedDecl(spanDecl);
-    astContext.GetTranslationUnitDecl()->InsertBack(templatedSpanDecl);
+    if (!AddDeclToScopeAndContext(templatedSpanDecl))
+        return;
 
 }
 
@@ -65,6 +68,80 @@ bool VCL::Sema::PopDeclContextScope(DeclContext* context) {
     return true;
 }
 
+bool VCL::Sema::AddDeclToScope(Decl* decl) {
+    return sm.GetScopeFront()->AddDeclInScope(decl);
+}
+
+bool VCL::Sema::AddDeclToContext(Decl* decl) {
+    Scope* currentScope = sm.GetScopeFront();
+    while (currentScope->GetDeclContext() == nullptr) {
+        currentScope = currentScope->GetParentScope();
+        if (!currentScope)
+            return false;
+    }
+    currentScope->GetDeclContext()->InsertBack(decl);
+    return true;
+}
+
+bool VCL::Sema::AddDeclToScopeAndContext(Decl* decl) {
+    bool r = AddDeclToScope(decl) && AddDeclToContext(decl);
+    if (!r) {
+        diagnosticReporter.Error(Diagnostic::InternalError)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return false;
+    }
+    return true;
+}
+
+VCL::NamedDecl* VCL::Sema::LookupNamedDecl(IdentifierInfo* identifier, int depth) {
+    Scope* currentScope = sm.GetScopeFront();
+
+    int currentDepth = 0;
+    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
+        for (Decl* decl : *currentScope) {
+            if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
+                TemplateDecl* templateDecl = (TemplateDecl*)decl;
+                if (templateDecl->GetTemplatedNamedDecl() == nullptr)
+                    continue;
+                if (identifier == templateDecl->GetTemplatedNamedDecl()->GetIdentifierInfo())
+                    return templateDecl->GetTemplatedNamedDecl();
+            } else {
+                if (!decl->IsNamedDecl())
+                    continue;
+                NamedDecl* namedDecl = (NamedDecl*)decl;
+                if (identifier == namedDecl->GetIdentifierInfo())
+                    return namedDecl;
+            }
+        }
+        currentScope = currentScope->GetParentScope();
+        ++currentDepth;
+    }
+    
+    return nullptr;
+}
+
+VCL::TemplateDecl* VCL::Sema::LookupTemplateDecl(IdentifierInfo* identifier, int depth) {
+    Scope* currentScope = sm.GetScopeFront();
+
+    int currentDepth = 0;
+    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
+        for (Decl* decl : *currentScope) {
+            if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
+                TemplateDecl* templateDecl = (TemplateDecl*)decl;
+                if (templateDecl->GetTemplatedNamedDecl() == nullptr)
+                    continue;
+                if (identifier == templateDecl->GetTemplatedNamedDecl()->GetIdentifierInfo())
+                    return templateDecl;
+            }
+        }
+        currentScope = currentScope->GetParentScope();
+        ++currentDepth;
+    }
+    
+    return nullptr;
+}
+
 VCL::CompoundStmt* VCL::Sema::ActOnCompoundStmt(llvm::ArrayRef<Stmt*> stmts, SourceRange range) {
     return CompoundStmt::Create(astContext, stmts, range);
 }
@@ -75,7 +152,8 @@ VCL::DeclStmt* VCL::Sema::ActOnDeclStmt(Decl* decl, SourceRange range) {
 
 VCL::TemplateDecl* VCL::Sema::ActOnTemplateDecl(TemplateParameterList* parameters, SourceRange range) {
     TemplateDecl* decl = TemplateDecl::Create(astContext, parameters, range);
-    sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    if (!AddDeclToScopeAndContext(decl))
+        return nullptr;
     return decl;
 }
 
@@ -92,7 +170,8 @@ VCL::RecordDecl* VCL::Sema::ActOnRecordDecl(IdentifierInfo* identifier, SourceRa
     }
 
     decl = RecordDecl::Create(astContext, identifier, range);
-    sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    if (!AddDeclToScopeAndContext(decl))
+        return nullptr;
     return (RecordDecl*)decl;
 }
 
@@ -115,7 +194,8 @@ VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identif
     }
 
     decl = FieldDecl::Create(astContext, identifier, type, range);
-    sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    if (!AddDeclToScopeAndContext(decl))
+        return nullptr;
     return (FieldDecl*)decl;
 }
 
@@ -149,8 +229,10 @@ VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType ret
             return nullptr;
     }
 
-    if (sm.GetScopeFront()->GetDeclContext() != decl)
-        sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    if (sm.GetScopeFront()->GetDeclContext() != decl) {
+        if (!AddDeclToScopeAndContext(decl))
+            return nullptr;
+    }
 
     return decl;
 }
@@ -180,7 +262,8 @@ VCL::ParamDecl* VCL::Sema::ActOnParamDecl(Decl::VarAttrBitfield attr, QualType t
     }
 
     decl = ParamDecl::Create(astContext, type, identifier, attr, range);
-    sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    if (!AddDeclToScopeAndContext(decl))
+        return nullptr;
     return (ParamDecl*)decl;
 }
 
@@ -264,6 +347,13 @@ VCL::ReturnStmt* VCL::Sema::ActOnReturnStmt(Expr* expr, SourceRange range) {
     return ReturnStmt::Create(astContext, expr, range);
 }
 
+VCL::IfStmt* VCL::Sema::ActOnIfStmt(Expr* condition, Stmt* thenStmt, Stmt* elseStmt, SourceRange range) {
+    condition = ActOnCast(ActOnLoad(condition), astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool), condition->GetSourceRange());
+    if (!condition)
+        return nullptr;
+    return IfStmt::Create(astContext, condition, thenStmt, elseStmt, range);
+}
+
 VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range) {
     if (identifier->IsKeyword()) {
         diagnosticReporter.Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
@@ -338,7 +428,8 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
 
     decl = VarDecl::Create(astContext, type, identifier, varAttrBitfield, range);
     ((VarDecl*)decl)->SetInitializer(initializer);
-    sm.GetScopeFront()->GetDeclContext()->InsertBack(decl);
+    if (!AddDeclToScopeAndContext(decl))
+        return nullptr;
     return (VarDecl*)decl;
 }
 
@@ -1151,18 +1242,8 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRang
 }
 
 VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
-    FunctionDecl* decl = LookupFunctionDecl(identifier);
-    if (!decl) {
-        TemplateDecl* templateDecl = LookupTemplateDecl(identifier);
-
-        if (!templateDecl || templateDecl->GetTemplatedNamedDecl()->GetDeclClass() != Decl::FunctionDeclClass) {
-            diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
-                .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .AddHint(DiagnosticHint{ range })
-                .Report();
-            return nullptr;
-        }
-
+    FunctionDecl* decl = nullptr;
+    if (TemplateDecl* templateDecl = LookupTemplateDecl(identifier)) {
         FunctionDecl* templatedFunctionDecl = (FunctionDecl*)templateDecl->GetTemplatedNamedDecl();
 
         TemplateParameterList* parameters = templateDecl->GetTemplateParametersList();
@@ -1192,6 +1273,22 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<E
             TemplateSpecializationDecl* specializationDecl = TemplateSpecializationDecl::Create(astContext, templateArgs, decl);
             templateDecl->InsertBack(specializationDecl);
         }
+    } else if (NamedDecl* namedDecl = LookupNamedDecl(identifier)) {
+        if (namedDecl->GetDeclClass() == Decl::FunctionDeclClass) {
+            decl = (FunctionDecl*)namedDecl;
+        } else {
+            diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ range })
+                .Report();
+            return nullptr;
+        }
+    } else {
+        diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ range })
+            .Report();
+        return nullptr;
     }
 
     FunctionType* type = decl->GetType();
@@ -1327,103 +1424,13 @@ bool VCL::Sema::ActOnAggregateExpr(AggregateExpr* aggregate) {
     }
 }
 
-VCL::NamedDecl* VCL::Sema::LookupNamedDecl(IdentifierInfo* identifier, int depth) {
-    Scope* currentScope = sm.GetScopeFront();
-
-    int currentDepth = 0;
-    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
-        DeclContext* declContext = currentScope->GetDeclContext();
-        for (auto it = declContext->Begin(); it != declContext->End(); ++it) {
-            if (it->GetDeclClass() == Decl::TemplateDeclClass) {
-                TemplateDecl* decl = (TemplateDecl*)it.Get();
-                if (decl->GetTemplatedNamedDecl() == nullptr)
-                    continue;
-                if (identifier == decl->GetTemplatedNamedDecl()->GetIdentifierInfo())
-                    return decl->GetTemplatedNamedDecl();
-            } else {
-                if (!it->IsNamedDecl())
-                    continue;
-                NamedDecl* decl = (NamedDecl*)it.Get();
-                if (identifier == decl->GetIdentifierInfo())
-                    return decl;
-            }
-        }
-        currentScope = currentScope->GetParentScope();
-        ++currentDepth;
-    }
-    
-    return nullptr;
-}
-
-VCL::TemplateDecl* VCL::Sema::LookupTemplateDecl(IdentifierInfo* identifier, int depth) {
-    Scope* currentScope = sm.GetScopeFront();
-
-    int currentDepth = 0;
-    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
-        DeclContext* declContext = currentScope->GetDeclContext();
-        for (auto it = declContext->Begin(); it != declContext->End(); ++it) {
-            if (it->GetDeclClass() == Decl::TemplateDeclClass) {
-                TemplateDecl* decl = (TemplateDecl*)it.Get();
-                if (decl->GetTemplatedNamedDecl() == nullptr)
-                    continue;
-                if (identifier == decl->GetTemplatedNamedDecl()->GetIdentifierInfo())
-                    return decl;
-            }
-        }
-        currentScope = currentScope->GetParentScope();
-        ++currentDepth;
-    }
-    
-    return nullptr;
-}
-
-VCL::VarDecl* VCL::Sema::LookupVarDecl(IdentifierInfo* identifier, int depth) {
-    Scope* currentScope = sm.GetScopeFront();
-
-    int currentDepth = 0;
-    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
-        DeclContext* declContext = currentScope->GetDeclContext();
-        for (auto it = declContext->Begin(); it != declContext->End(); ++it) {
-            if (it->GetDeclClass() != Decl::VarDeclClass)
-                continue;
-            VarDecl* decl = (VarDecl*)it.Get();
-            if (identifier == decl->GetIdentifierInfo())
-                return decl;
-        }
-        currentScope = currentScope->GetParentScope();
-        ++currentDepth;
-    }
-
-    return nullptr;
-}
-
-VCL::FunctionDecl* VCL::Sema::LookupFunctionDecl(IdentifierInfo* identifier, int depth) {
-    Scope* currentScope = sm.GetScopeFront();
-
-    int currentDepth = 0;
-    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
-        DeclContext* declContext = currentScope->GetDeclContext();
-        for (auto it = declContext->Begin(); it != declContext->End(); ++it) {
-            if (it->GetDeclClass() != Decl::FunctionDeclClass)
-                continue;
-            FunctionDecl* decl = (FunctionDecl*)it.Get();
-            if (identifier == decl->GetIdentifierInfo())
-                return decl;
-        }
-        currentScope = currentScope->GetParentScope();
-        ++currentDepth;
-    }
-
-    return nullptr;
-}
-
 VCL::FunctionDecl* VCL::Sema::GetFrontmostFunctionDecl() {
     Scope* currentScope = sm.GetScopeFront();
 
     while (currentScope != nullptr) {
         DeclContext* declContext = currentScope->GetDeclContext();
         
-        if (declContext->GetDeclContextClass() == DeclContext::FunctionDeclContextClass)
+        if (declContext && declContext->GetDeclContextClass() == DeclContext::FunctionDeclContextClass)
             return (FunctionDecl*)declContext;
 
         currentScope = currentScope->GetParentScope();
@@ -1465,6 +1472,8 @@ VCL::BuiltinType::Kind VCL::Sema::GetScalarKindFromBuiltinOrVectorType(Type* typ
 
 bool VCL::Sema::IsCurrentScopeGlobal() {
     DeclContext* frontDeclContext = sm.GetScopeFront()->GetDeclContext();
+    if (!frontDeclContext)
+        return false;
     return frontDeclContext->GetDeclContextClass() == DeclContext::TranslationUnitDeclContextClass;
 }
 

@@ -2,8 +2,10 @@
 
 #include <VCL/CodeGen/CodeGenModule.hpp>
 
-VCL::CodeGenFunction::CodeGenFunction(CodeGenModule& cgm) : cgm{ cgm }, builder{ cgm.GetLLVMContext() } {
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
+VCL::CodeGenFunction::CodeGenFunction(CodeGenModule& cgm) : cgm{ cgm }, builder{ cgm.GetLLVMContext() } {
+    
 }
 
 llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl) {
@@ -49,10 +51,18 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl) {
     Type* returnType = decl->GetType()->GetReturnType().GetType();
     if (returnType->GetTypeClass() == Type::BuiltinTypeClass)
         isFunctionVoid = ((BuiltinType*)returnType)->GetKind() == BuiltinType::Void;
-    if (isFunctionVoid && bb->getTerminator() == nullptr) {
-        builder.SetInsertPoint(bb);
-        builder.CreateRetVoid();
+
+    for (llvm::BasicBlock& bb : *function) {
+        if (bb.getTerminator() == nullptr) {
+            builder.SetInsertPoint(&bb);
+            if (isFunctionVoid)
+                builder.CreateRetVoid();
+            else
+                builder.CreateUnreachable();
+        }
     }
+
+    llvm::EliminateUnreachableBlocks(*function);
 
     return function;
 }

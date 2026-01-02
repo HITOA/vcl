@@ -101,8 +101,6 @@ namespace VCL {
 
         static inline TemplateDecl* Create(ASTContext& context, TemplateParameterList* params, SourceRange range) {
             TemplateDecl* instance = context.AllocateNode<TemplateDecl>(params);
-            for (auto param : params->GetParams())
-                instance->InsertBack(param);
             instance->SetSourceRange(range);
             return instance;
         }

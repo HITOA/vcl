@@ -43,6 +43,12 @@ namespace VCL {
 
         bool PushDeclContextScope(DeclContext* context);
         bool PopDeclContextScope(DeclContext* context);
+        bool AddDeclToScope(Decl* decl);
+        bool AddDeclToContext(Decl* decl);
+        bool AddDeclToScopeAndContext(Decl* decl);
+
+        NamedDecl* LookupNamedDecl(IdentifierInfo* identifier, int depth = -1);
+        TemplateDecl* LookupTemplateDecl(IdentifierInfo* identifier, int depth = -1);
 
         CompoundStmt* ActOnCompoundStmt(llvm::ArrayRef<Stmt*> stmts, SourceRange range);
 
@@ -62,6 +68,7 @@ namespace VCL {
         bool ActRecOnFunctionBodyReturnStmt(FunctionDecl* function, llvm::ArrayRef<Stmt*> stmts);
 
         ReturnStmt* ActOnReturnStmt(Expr* expr, SourceRange range);
+        IfStmt* ActOnIfStmt(Expr* condition, Stmt* thenStmt, Stmt* elseStmt, SourceRange range);
 
         VarDecl* ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range);
         
@@ -93,11 +100,6 @@ namespace VCL {
 
         Expr* ActOnAggregateExpr(llvm::ArrayRef<Expr*> elems, SourceRange range);
         bool ActOnAggregateExpr(AggregateExpr* aggregate);
-
-        NamedDecl* LookupNamedDecl(IdentifierInfo* identifier, int depth = -1);
-        TemplateDecl* LookupTemplateDecl(IdentifierInfo* identifier, int depth = -1);
-        VarDecl* LookupVarDecl(IdentifierInfo* identifier, int depth = -1);
-        FunctionDecl* LookupFunctionDecl(IdentifierInfo* identifier, int depth = -1);
         
         FunctionDecl* GetFrontmostFunctionDecl();
 

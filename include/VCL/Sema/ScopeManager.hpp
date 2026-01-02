@@ -3,6 +3,7 @@
 #include <VCL/Sema/Scope.hpp>
 
 #include <llvm/Support/Allocator.h>
+#include <llvm/ADT/DenseMap.h>
 
 
 namespace VCL {
@@ -18,8 +19,18 @@ namespace VCL {
         ScopeManager& operator=(ScopeManager&& other) = delete;
 
         inline Scope* EmplaceScopeFront(DeclContext* context) {
-            void* ptr = allocator.Allocate(sizeof(Scope), 4);
-            Scope* scope = new (ptr) Scope{ currentFrontScope, context };
+            Scope* scope = nullptr;
+            if (context && declContextScope.count(context)) {
+                scope = declContextScope.at(context);
+                scope->SetParentScope(currentFrontScope);
+            } else if (context) {
+                void* ptr = allocator.Allocate(sizeof(Scope), 4);
+                scope = new (ptr) Scope{ currentFrontScope, context };
+                declContextScope.insert({ context, scope });
+            } else {
+                void* ptr = allocator.Allocate(sizeof(Scope), 4);
+                scope = new (ptr) Scope{ currentFrontScope, context };
+            }
             currentFrontScope = scope;
             return scope;
         }
@@ -33,6 +44,7 @@ namespace VCL {
     private:
         llvm::BumpPtrAllocator allocator{};
         Scope* currentFrontScope = nullptr;
+        llvm::DenseMap<DeclContext*, Scope*> declContextScope{};
     };
 
 }

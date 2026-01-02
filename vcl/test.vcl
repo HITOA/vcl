@@ -48,6 +48,14 @@ void Main() {
     Array<float32, 2> a = { f1 * 2.0 };
     MyTemplatedStruct<float32, 2> b = { { 2.0 } };
     int16 f2 = (int16)f1;
+
+    if (f2 < 10.0)
+        return;
+    else if (f2 == 15.0) {
+        float32 f2 = ++f2;
+        return;
+    }
+    
     f2 += Abs2(1);
     Vec<float32> v = Abs(-2.0);
     v += (Vec<float32>)Sub(myStruct.f, 1.0);

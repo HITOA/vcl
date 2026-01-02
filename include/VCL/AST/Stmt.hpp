@@ -13,7 +13,11 @@ namespace VCL {
             ValueStmtClass,
             DeclStmtClass,
             CompoundStmtClass,
-            ReturnStmtClass
+            ReturnStmtClass,
+            IfStmtClass,
+            WhileStmtClass,
+            ForStmtClass,
+            BreakStmtClass
         };
 
     public:
@@ -100,7 +104,25 @@ namespace VCL {
     };
 
     class IfStmt : public Stmt {
+    public:
+        IfStmt(Expr* condition, Stmt* thenStmt, Stmt* elseStmt) 
+                : condition{ condition }, thenStmt{ thenStmt }, elseStmt{ elseStmt }, Stmt{ Stmt::IfStmtClass } {}
+        ~IfStmt() = default;
 
+        inline Expr* GetCondition() { return condition; }
+        inline Stmt* GetThenStmt() { return thenStmt; }
+        inline Stmt* GetElseStmt() { return elseStmt; }
+
+        static inline IfStmt* Create(ASTContext& context, Expr* condition, Stmt* thenStmt, Stmt* elseStmt, SourceRange range) {
+            IfStmt* stmt = context.AllocateNode<IfStmt>(condition, thenStmt, elseStmt);
+            stmt->SetSourceRange(range);
+            return stmt;
+        }
+
+    private:
+        Expr* condition;
+        Stmt* thenStmt;
+        Stmt* elseStmt;
     };
 
     class WhileStmt : public Stmt {

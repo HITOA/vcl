@@ -41,6 +41,8 @@ namespace VCL {
 
         Decl* ParseTopLevelDecl();
         Decl* ParseRecordLevelDecl();
+
+        Stmt* ParseStmt();
         CompoundStmt* ParseCompoundStmt();
 
         TemplateDecl* ParseTemplateDecl();
@@ -53,6 +55,7 @@ namespace VCL {
         CompoundStmt* ParseFunctionBody(FunctionDecl* function);
 
         ReturnStmt* ParseReturnStmt();
+        IfStmt* ParseIfStmt();
 
         VarDecl* ParseVarDecl();
 

@@ -228,7 +228,7 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedRecordDecl(TemplateDec
 VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(TemplateDecl* decl) {
     FunctionDecl* functionDecl = (FunctionDecl*)decl->GetTemplatedNamedDecl();
     FunctionDecl* newFunctionDecl = FunctionDecl::Create(sema.GetASTContext(), functionDecl->GetIdentifierInfo());
-
+    
     if (!newFunctionDecl)
         return nullptr;
 

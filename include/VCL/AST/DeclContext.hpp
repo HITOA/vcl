@@ -3,6 +3,7 @@
 
 namespace VCL {
 
+    class Scope;
     class Decl;
 
     class DeclContext {
