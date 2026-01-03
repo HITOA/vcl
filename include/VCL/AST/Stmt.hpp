@@ -126,11 +126,46 @@ namespace VCL {
     };
 
     class WhileStmt : public Stmt {
+    public:
+        WhileStmt(Expr* condition, Stmt* thenStmt) : condition{ condition }, thenStmt{ thenStmt }, Stmt{ Stmt::WhileStmtClass } {}
+        ~WhileStmt() = default;
 
+        inline Expr* GetCondition() { return condition; }
+        inline Stmt* GetThenStmt() { return thenStmt; }
+
+        static inline WhileStmt* Create(ASTContext& context, Expr* condition, Stmt* thenStmt, SourceRange range) {
+            WhileStmt* stmt = context.AllocateNode<WhileStmt>(condition, thenStmt);
+            stmt->SetSourceRange(range);
+            return stmt;
+        }
+
+    private:
+        Expr* condition;
+        Stmt* thenStmt;
     };
 
     class ForStmt : public Stmt {
+    public:
+        ForStmt(Stmt* startStmt, Expr* condition, Expr* loopExpr, Stmt* thenStmt)
+                : startStmt{ startStmt }, condition{ condition }, loopExpr{ loopExpr }, thenStmt{ thenStmt}, Stmt{ Stmt::ForStmtClass } {}
+        ~ForStmt() = default;
 
+        inline Stmt* GetStartStmt() { return startStmt; }
+        inline Expr* GetCondition() { return condition; }
+        inline Expr* GetLoopExpr() { return loopExpr; }
+        inline Stmt* GetThenStmt() { return thenStmt; }
+        
+        static inline ForStmt* Create(ASTContext& context, Stmt* startStmt, Expr* condition, Expr* loopExpr, Stmt* thenStmt, SourceRange range) {
+            ForStmt* stmt = context.AllocateNode<ForStmt>(startStmt, condition, loopExpr, thenStmt);
+            stmt->SetSourceRange(range);
+            return stmt;
+        }
+
+    private:
+        Stmt* startStmt;
+        Expr* condition;
+        Expr* loopExpr;
+        Stmt* thenStmt;
     };
 
     class BreakStmt : public Stmt {

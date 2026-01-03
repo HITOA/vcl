@@ -354,6 +354,22 @@ VCL::IfStmt* VCL::Sema::ActOnIfStmt(Expr* condition, Stmt* thenStmt, Stmt* elseS
     return IfStmt::Create(astContext, condition, thenStmt, elseStmt, range);
 }
 
+VCL::WhileStmt* VCL::Sema::ActOnWhileStmt(Expr* condition, Stmt* thenStmt, SourceRange range) {
+    condition = ActOnCast(ActOnLoad(condition), astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool), condition->GetSourceRange());
+    if (!condition)
+        return nullptr;
+    return WhileStmt::Create(astContext, condition, thenStmt, range);
+}
+
+VCL::ForStmt* VCL::Sema::ActOnForStmt(Stmt* startStmt, Expr* condition, Expr* loopExpr, Stmt* thenStmt, SourceRange range) {
+    if (condition) {
+        condition = ActOnCast(ActOnLoad(condition), astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool), condition->GetSourceRange());
+        if (!condition)
+            return nullptr;
+    }
+    return ForStmt::Create(astContext, startStmt, condition, loopExpr, thenStmt, range);
+}
+
 VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range) {
     if (identifier->IsKeyword()) {
         diagnosticReporter.Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())

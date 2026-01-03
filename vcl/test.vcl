@@ -55,7 +55,15 @@ void Main() {
         float32 f2 = ++f2;
         return;
     }
-    
+
+    while (1) {
+        int16 f2 = ++f2;
+    }
+
+    for (int16 f2; f2 < 10; ++f2) {
+
+    }
+
     f2 += Abs2(1);
     Vec<float32> v = Abs(-2.0);
     v += (Vec<float32>)Sub(myStruct.f, 1.0);

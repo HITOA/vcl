@@ -69,6 +69,8 @@ namespace VCL {
 
         ReturnStmt* ActOnReturnStmt(Expr* expr, SourceRange range);
         IfStmt* ActOnIfStmt(Expr* condition, Stmt* thenStmt, Stmt* elseStmt, SourceRange range);
+        WhileStmt* ActOnWhileStmt(Expr* condition, Stmt* thenStmt, SourceRange range);
+        ForStmt* ActOnForStmt(Stmt* startStmt, Expr* condition, Expr* loopExpr, Stmt* thenStmt, SourceRange range);
 
         VarDecl* ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range);
         

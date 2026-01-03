@@ -10,6 +10,8 @@ bool VCL::CodeGenFunction::GenerateStmt(Stmt* stmt) {
         case Stmt::CompoundStmtClass: return GenerateCompoundStmt((CompoundStmt*)stmt);
         case Stmt::ReturnStmtClass: return GenerateReturnStmt((ReturnStmt*)stmt);
         case Stmt::IfStmtClass: return GenerateIfStmt((IfStmt*)stmt);
+        case Stmt::WhileStmtClass: return GenerateWhileStmt((WhileStmt*)stmt);
+        case Stmt::ForStmtClass: return GenerateForStmt((ForStmt*)stmt);
         default:
             cgm.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -71,6 +73,65 @@ bool VCL::CodeGenFunction::GenerateIfStmt(IfStmt* stmt) {
     if (!builder.GetInsertBlock()->getTerminator())
         builder.CreateBr(endBB);
     
+    builder.SetInsertPoint(endBB);
+    return true;
+}
+
+bool VCL::CodeGenFunction::GenerateWhileStmt(WhileStmt* stmt) {
+    llvm::BasicBlock* conditionBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "while", function);
+    llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "loop", function);
+    llvm::BasicBlock* endBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "end", function);
+
+    builder.CreateBr(conditionBB);
+    builder.SetInsertPoint(conditionBB);
+    
+    llvm::Value* condition = GenerateExpr(stmt->GetCondition());
+    if (!condition)
+        return false;
+
+    builder.CreateCondBr(condition, thenBB, endBB);
+
+    builder.SetInsertPoint(thenBB);
+    if (!GenerateStmt(stmt->GetThenStmt()))
+        return false;
+    if (!builder.GetInsertBlock()->getTerminator())
+        builder.CreateBr(conditionBB);
+
+    builder.SetInsertPoint(endBB);
+    return true;
+}
+
+bool VCL::CodeGenFunction::GenerateForStmt(ForStmt* stmt) {
+    if (stmt->GetStartStmt())
+        if (!GenerateStmt(stmt->GetStartStmt()))
+            return false;
+
+    llvm::BasicBlock* conditionBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "for", function);
+    llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "loop", function);
+    llvm::BasicBlock* endBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "end", function);
+
+    builder.CreateBr(conditionBB);
+    builder.SetInsertPoint(conditionBB);
+
+    llvm::Value* condition = llvm::ConstantInt::get(llvm::IntegerType::get(cgm.GetLLVMContext(), 1), 1);
+    if (stmt->GetCondition()) {
+        condition = GenerateExpr(stmt->GetCondition());
+        if (!condition)
+            return false;
+    }
+
+    builder.CreateCondBr(condition, thenBB, endBB);
+
+    builder.SetInsertPoint(thenBB);
+    if (!GenerateStmt(stmt->GetThenStmt()))
+        return false;
+    if (!builder.GetInsertBlock()->getTerminator()) {
+        if (stmt->GetLoopExpr())
+            if (!GenerateExpr(stmt->GetLoopExpr()))
+                return false;
+        builder.CreateBr(conditionBB);
+    }
+
     builder.SetInsertPoint(endBB);
     return true;
 }

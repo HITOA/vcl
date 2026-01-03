@@ -71,7 +71,7 @@ VCL::Decl* VCL::Parser::ParseRecordLevelDecl() {
     return ParseFieldDecl();
 }
 
-VCL::Stmt* VCL::Parser::ParseStmt() {
+VCL::Stmt* VCL::Parser::ParseStmt(bool parseCompound) {
     Token* token;
     GET_TOKEN(token);
     TokenKind kind = token->kind;
@@ -80,7 +80,18 @@ VCL::Stmt* VCL::Parser::ParseStmt() {
     switch (kind) {
         case TokenKind::Keyword_return: return ParseReturnStmt();
         case TokenKind::Keyword_if: return ParseIfStmt();
-        case TokenKind::LeftBrace: return ParseCompoundStmt();
+        case TokenKind::Keyword_while: return ParseWhileStmt();
+        case TokenKind::Keyword_for: return ParseForStmt();
+        case TokenKind::LeftBrace: {
+            if (!parseCompound) {
+                sema.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
+                    .AddHint(DiagnosticHint{ token->range })
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .Report();
+                return nullptr;
+            }
+            return ParseCompoundStmt();
+        }
         case TokenKind::Keyword_in:
         case TokenKind::Keyword_out: {
             sema.GetDiagnosticReporter().Error(Diagnostic::AttrInvalidUse)
@@ -341,7 +352,6 @@ VCL::IfStmt* VCL::Parser::ParseIfStmt() {
         return nullptr;
 
     EXPECT_TOKEN(token, TokenKind::RightPar);
-    range.end = token->range.end;
     NEXT_TOKEN();
 
     Stmt* thenStmt = ParseStmt();
@@ -362,6 +372,83 @@ VCL::IfStmt* VCL::Parser::ParseIfStmt() {
     }
 
     return sema.ActOnIfStmt(condition, thenStmt, elseStmt, range);
+}
+
+VCL::WhileStmt* VCL::Parser::ParseWhileStmt() {
+    Token* token;
+    EXPECT_TOKEN(token, TokenKind::Keyword_while);
+    SourceRange range = token->range;
+    NEXT_TOKEN();
+
+    ParserScopeGuard sg{ this, nullptr };
+
+    EXPECT_TOKEN(token, TokenKind::LeftPar);
+    NEXT_TOKEN();
+    Expr* condition = ParseExpression();
+    if (!condition)
+        return nullptr;
+    EXPECT_TOKEN(token, TokenKind::RightPar);
+    NEXT_TOKEN();
+    Stmt* thenStmt = ParseStmt();
+    if (!thenStmt)
+        return nullptr;
+    return sema.ActOnWhileStmt(condition, thenStmt, range);
+}
+
+VCL::ForStmt* VCL::Parser::ParseForStmt() {
+    Token* token;
+    EXPECT_TOKEN(token, TokenKind::Keyword_for);
+    SourceRange range = token->range;
+    NEXT_TOKEN();
+
+    ParserScopeGuard sg{ this, nullptr };
+
+    Stmt* startStmt = nullptr;
+    Expr* condition = nullptr;
+    Expr* loopExpr = nullptr;
+
+    EXPECT_TOKEN(token, TokenKind::LeftPar);
+    NEXT_TOKEN();
+    GET_TOKEN(token);
+
+    if (token->kind != TokenKind::Semicolon) {
+        if (TryParseQualType()) {
+            VarDecl* decl = ParseVarDecl();
+            startStmt = sema.ActOnDeclStmt(decl, decl->GetSourceRange());
+            if (!startStmt)
+                return nullptr;
+        } else {
+            startStmt = ParseExpression();
+            if (!startStmt)
+                return nullptr;
+            EXPECT_TOKEN(token, TokenKind::Semicolon);
+            NEXT_TOKEN();
+        }
+    } else {
+        NEXT_TOKEN();
+    }
+
+    if (token->kind != TokenKind::Semicolon) {
+        condition = ParseExpression();
+        if (!condition)
+            return nullptr;
+    }
+    EXPECT_TOKEN(token, TokenKind::Semicolon);
+    NEXT_TOKEN();
+
+    if (token->kind != TokenKind::RightPar) {
+        loopExpr = ParseExpression();
+        if (!loopExpr)
+            return nullptr;
+    }
+    EXPECT_TOKEN(token, TokenKind::RightPar);
+    NEXT_TOKEN();
+
+    Stmt* thenStmt = ParseStmt();
+    if (!thenStmt)
+        return nullptr;
+    
+    return sema.ActOnForStmt(startStmt, condition, loopExpr, thenStmt, range);
 }
 
 VCL::VarDecl* VCL::Parser::ParseVarDecl() {
