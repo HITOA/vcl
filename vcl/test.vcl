@@ -58,10 +58,12 @@ void Main() {
 
     while (1) {
         int16 f2 = ++f2;
+        break;
     }
 
     for (int16 f2; f2 < 10; ++f2) {
-
+        if (f2 == 3)
+            continue;
     }
 
     f2 += Abs2(1);

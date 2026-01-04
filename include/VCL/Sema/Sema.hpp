@@ -41,7 +41,7 @@ namespace VCL {
 
         void AddBuiltinIntrinsicTemplateDecl();
 
-        bool PushDeclContextScope(DeclContext* context);
+        bool PushDeclContextScope(DeclContext* context, bool loopScope = false);
         bool PopDeclContextScope(DeclContext* context);
         bool AddDeclToScope(Decl* decl);
         bool AddDeclToContext(Decl* decl);
@@ -71,6 +71,8 @@ namespace VCL {
         IfStmt* ActOnIfStmt(Expr* condition, Stmt* thenStmt, Stmt* elseStmt, SourceRange range);
         WhileStmt* ActOnWhileStmt(Expr* condition, Stmt* thenStmt, SourceRange range);
         ForStmt* ActOnForStmt(Stmt* startStmt, Expr* condition, Expr* loopExpr, Stmt* thenStmt, SourceRange range);
+        BreakStmt* ActOnBreakStmt(SourceRange range);
+        ContinueStmt* ActOnContinueStmt(SourceRange range);
 
         VarDecl* ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range);
         
@@ -104,6 +106,7 @@ namespace VCL {
         bool ActOnAggregateExpr(AggregateExpr* aggregate);
         
         FunctionDecl* GetFrontmostFunctionDecl();
+        bool IsWithinALoop();
 
         bool TypePreferByReference(Type* type);
         Type* GetInstantiatedType(Type* type);

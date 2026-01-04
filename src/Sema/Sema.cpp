@@ -52,8 +52,13 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
 
 }
 
-bool VCL::Sema::PushDeclContextScope(DeclContext* context) {
-    sm.EmplaceScopeFront(context);
+bool VCL::Sema::PushDeclContextScope(DeclContext* context, bool loopScope) {
+    Scope* parent = sm.GetScopeFront();
+    Scope* scope = sm.EmplaceScopeFront(context);
+    if (loopScope) {
+        scope->SetBreakScope(parent);
+        scope->SetContinueScope(parent);
+    }
     return true;
 }
 
@@ -368,6 +373,28 @@ VCL::ForStmt* VCL::Sema::ActOnForStmt(Stmt* startStmt, Expr* condition, Expr* lo
             return nullptr;
     }
     return ForStmt::Create(astContext, startStmt, condition, loopExpr, thenStmt, range);
+}
+
+VCL::BreakStmt* VCL::Sema::ActOnBreakStmt(SourceRange range) {
+    if (!IsWithinALoop()) {
+        diagnosticReporter.Error(Diagnostic::BreakOutsideOfLoop)
+            .AddHint(DiagnosticHint{ range })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+    return BreakStmt::Create(astContext, range);
+}
+
+VCL::ContinueStmt* VCL::Sema::ActOnContinueStmt(SourceRange range) {
+    if (!IsWithinALoop()) {
+        diagnosticReporter.Error(Diagnostic::ContinueOutsideOfLoop)
+            .AddHint(DiagnosticHint{ range })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+    return ContinueStmt::Create(astContext, range);
 }
 
 VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range) {
@@ -1453,6 +1480,18 @@ VCL::FunctionDecl* VCL::Sema::GetFrontmostFunctionDecl() {
     }
 
     return nullptr;
+}
+
+bool VCL::Sema::IsWithinALoop() {
+    Scope* currentScope = sm.GetScopeFront();
+
+    while (currentScope != nullptr) {
+        if (currentScope->GetBreakScope() != nullptr)
+            return true;
+        currentScope = currentScope->GetParentScope();
+    }
+
+    return false;
 }
 
 bool VCL::Sema::TypePreferByReference(Type* type) {

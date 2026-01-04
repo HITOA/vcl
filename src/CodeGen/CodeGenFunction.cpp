@@ -4,7 +4,7 @@
 
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
-VCL::CodeGenFunction::CodeGenFunction(CodeGenModule& cgm) : cgm{ cgm }, builder{ cgm.GetLLVMContext() } {
+VCL::CodeGenFunction::CodeGenFunction(CodeGenModule& cgm) : cgm{ cgm }, builder{ cgm.GetLLVMContext() }, locals{}, breakBBStack{}, continueBBStack{} {
     
 }
 
@@ -79,4 +79,20 @@ llvm::Value* VCL::CodeGenFunction::GetDeclValue(Decl* decl) {
     if (locals.count(decl))
         return locals.at(decl);
     return cgm.GetGlobalDeclValue(decl);
+}
+
+void VCL::CodeGenFunction::PushBreakBB(llvm::BasicBlock* breakBB) {
+    breakBBStack.push_back(breakBB);
+}
+
+void VCL::CodeGenFunction::PopBreakBB() {
+    breakBBStack.pop_back();
+}
+
+void VCL::CodeGenFunction::PushContinueBB(llvm::BasicBlock* continueBB) {
+    continueBBStack.push_back(continueBB);
+}
+
+void VCL::CodeGenFunction::PopContinueBB() {
+    continueBBStack.pop_back();
 }

@@ -17,7 +17,8 @@ namespace VCL {
             IfStmtClass,
             WhileStmtClass,
             ForStmtClass,
-            BreakStmtClass
+            BreakStmtClass,
+            ContinueStmtClass
         };
 
     public:
@@ -169,7 +170,27 @@ namespace VCL {
     };
 
     class BreakStmt : public Stmt {
+    public:
+        BreakStmt() : Stmt{ Stmt::BreakStmtClass } {}
+        ~BreakStmt() = default;
 
+        static inline BreakStmt* Create(ASTContext& context, SourceRange range) {
+            BreakStmt* stmt = context.AllocateNode<BreakStmt>();
+            stmt->SetSourceRange(range);
+            return stmt;
+        }
+    };
+
+    class ContinueStmt : public Stmt {
+    public:
+        ContinueStmt() : Stmt{ Stmt::ContinueStmtClass } {}
+        ~ContinueStmt() = default;
+
+        static inline ContinueStmt* Create(ASTContext& context, SourceRange range) {
+            ContinueStmt* stmt = context.AllocateNode<ContinueStmt>();
+            stmt->SetSourceRange(range);
+            return stmt;
+        }
     };
 
 }

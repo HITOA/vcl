@@ -58,6 +58,8 @@ namespace VCL {
         IfStmt* ParseIfStmt();
         WhileStmt* ParseWhileStmt();
         ForStmt* ParseForStmt();
+        BreakStmt* ParseBreakStmt();
+        ContinueStmt* ParseContinueStmt();
 
         VarDecl* ParseVarDecl();
 
@@ -128,7 +130,7 @@ namespace VCL {
         class ParserScopeGuard {
         public:
             ParserScopeGuard() = delete;
-            ParserScopeGuard(Parser* parser, DeclContext* context);
+            ParserScopeGuard(Parser* parser, DeclContext* context, bool loopScope = false);
             ParserScopeGuard(const ParserScopeGuard& other) = delete;
             ParserScopeGuard(ParserScopeGuard&& other) = delete;
             ~ParserScopeGuard();

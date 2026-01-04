@@ -28,6 +28,11 @@ namespace VCL {
 
         llvm::Value* GetDeclValue(Decl* decl);
 
+        void PushBreakBB(llvm::BasicBlock* breakBB);
+        void PopBreakBB();
+        void PushContinueBB(llvm::BasicBlock* continueBB);
+        void PopContinueBB();
+
         // CGStmt
 
         bool GenerateStmt(Stmt* stmt);
@@ -38,6 +43,8 @@ namespace VCL {
         bool GenerateIfStmt(IfStmt* stmt);
         bool GenerateWhileStmt(WhileStmt* stmt);
         bool GenerateForStmt(ForStmt* stmt);
+        bool GenerateBreakStmt(BreakStmt* stmt);
+        bool GenerateContinueStmt(ContinueStmt* stmt);
 
         // CGDecl
 
@@ -77,6 +84,9 @@ namespace VCL {
         llvm::IRBuilder<> builder;
 
         llvm::DenseMap<Decl*, llvm::Value*> locals;
+
+        llvm::SmallVector<llvm::BasicBlock*, 16> breakBBStack;
+        llvm::SmallVector<llvm::BasicBlock*, 16> continueBBStack;
     };
     
 }

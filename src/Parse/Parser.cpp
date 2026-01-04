@@ -82,6 +82,8 @@ VCL::Stmt* VCL::Parser::ParseStmt(bool parseCompound) {
         case TokenKind::Keyword_if: return ParseIfStmt();
         case TokenKind::Keyword_while: return ParseWhileStmt();
         case TokenKind::Keyword_for: return ParseForStmt();
+        case TokenKind::Keyword_break: return ParseBreakStmt();
+        case TokenKind::Keyword_continue: return ParseContinueStmt();
         case TokenKind::LeftBrace: {
             if (!parseCompound) {
                 sema.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
@@ -380,7 +382,7 @@ VCL::WhileStmt* VCL::Parser::ParseWhileStmt() {
     SourceRange range = token->range;
     NEXT_TOKEN();
 
-    ParserScopeGuard sg{ this, nullptr };
+    ParserScopeGuard sg{ this, nullptr, true };
 
     EXPECT_TOKEN(token, TokenKind::LeftPar);
     NEXT_TOKEN();
@@ -401,7 +403,7 @@ VCL::ForStmt* VCL::Parser::ParseForStmt() {
     SourceRange range = token->range;
     NEXT_TOKEN();
 
-    ParserScopeGuard sg{ this, nullptr };
+    ParserScopeGuard sg{ this, nullptr, true };
 
     Stmt* startStmt = nullptr;
     Expr* condition = nullptr;
@@ -449,6 +451,26 @@ VCL::ForStmt* VCL::Parser::ParseForStmt() {
         return nullptr;
     
     return sema.ActOnForStmt(startStmt, condition, loopExpr, thenStmt, range);
+}
+
+VCL::BreakStmt* VCL::Parser::ParseBreakStmt() {
+    Token* token;
+    EXPECT_TOKEN(token, TokenKind::Keyword_break);
+    SourceRange range = token->range;
+    NEXT_TOKEN();
+    EXPECT_TOKEN(token, TokenKind::Semicolon);
+    NEXT_TOKEN();
+    return sema.ActOnBreakStmt(range);
+}
+
+VCL::ContinueStmt* VCL::Parser::ParseContinueStmt() {
+    Token* token;
+    EXPECT_TOKEN(token, TokenKind::Keyword_continue);
+    SourceRange range = token->range;
+    NEXT_TOKEN();
+    EXPECT_TOKEN(token, TokenKind::Semicolon);
+    NEXT_TOKEN();
+    return sema.ActOnContinueStmt(range);
 }
 
 VCL::VarDecl* VCL::Parser::ParseVarDecl() {
@@ -1013,8 +1035,8 @@ VCL::Parser::TentativeParsingGuard::~TentativeParsingGuard() {
         parser->sema.GetDiagnosticReporter().SetSupressAll(false);
 }
 
-VCL::Parser::ParserScopeGuard::ParserScopeGuard(Parser* parser, DeclContext* context) : parser{ parser }, context{ context } {
-    parser->sema.PushDeclContextScope(context);
+VCL::Parser::ParserScopeGuard::ParserScopeGuard(Parser* parser, DeclContext* context, bool loopScope) : parser{ parser }, context{ context } {
+    parser->sema.PushDeclContextScope(context, loopScope);
 }
 
 VCL::Parser::ParserScopeGuard::~ParserScopeGuard() { parser->sema.PopDeclContextScope(context); }

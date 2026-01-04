@@ -12,6 +12,8 @@ bool VCL::CodeGenFunction::GenerateStmt(Stmt* stmt) {
         case Stmt::IfStmtClass: return GenerateIfStmt((IfStmt*)stmt);
         case Stmt::WhileStmtClass: return GenerateWhileStmt((WhileStmt*)stmt);
         case Stmt::ForStmtClass: return GenerateForStmt((ForStmt*)stmt);
+        case Stmt::BreakStmtClass: return GenerateBreakStmt((BreakStmt*)stmt);
+        case Stmt::ContinueStmtClass: return GenerateContinueStmt((ContinueStmt*)stmt);
         default:
             cgm.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -92,8 +94,15 @@ bool VCL::CodeGenFunction::GenerateWhileStmt(WhileStmt* stmt) {
     builder.CreateCondBr(condition, thenBB, endBB);
 
     builder.SetInsertPoint(thenBB);
-    if (!GenerateStmt(stmt->GetThenStmt()))
+
+    PushBreakBB(endBB);
+    PushContinueBB(conditionBB);
+    bool s = GenerateStmt(stmt->GetThenStmt());
+    PopContinueBB();
+    PopBreakBB();
+    if (!s)
         return false;
+
     if (!builder.GetInsertBlock()->getTerminator())
         builder.CreateBr(conditionBB);
 
@@ -108,6 +117,7 @@ bool VCL::CodeGenFunction::GenerateForStmt(ForStmt* stmt) {
 
     llvm::BasicBlock* conditionBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "for", function);
     llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "loop", function);
+    llvm::BasicBlock* loopExprBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "loop_expr", function);
     llvm::BasicBlock* endBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "end", function);
 
     builder.CreateBr(conditionBB);
@@ -123,9 +133,18 @@ bool VCL::CodeGenFunction::GenerateForStmt(ForStmt* stmt) {
     builder.CreateCondBr(condition, thenBB, endBB);
 
     builder.SetInsertPoint(thenBB);
-    if (!GenerateStmt(stmt->GetThenStmt()))
+
+    PushBreakBB(endBB);
+    PushContinueBB(loopExprBB);
+    bool s = GenerateStmt(stmt->GetThenStmt());
+    PopContinueBB();
+    PopBreakBB();
+    if (!s)
         return false;
+
     if (!builder.GetInsertBlock()->getTerminator()) {
+        builder.CreateBr(loopExprBB);
+        builder.SetInsertPoint(loopExprBB);
         if (stmt->GetLoopExpr())
             if (!GenerateExpr(stmt->GetLoopExpr()))
                 return false;
@@ -133,5 +152,18 @@ bool VCL::CodeGenFunction::GenerateForStmt(ForStmt* stmt) {
     }
 
     builder.SetInsertPoint(endBB);
+    
+    return true;
+}
+
+bool VCL::CodeGenFunction::GenerateBreakStmt(BreakStmt* stmt) {
+    llvm::BasicBlock* breakBB = breakBBStack.back();
+    builder.CreateBr(breakBB);
+    return true;
+}
+
+bool VCL::CodeGenFunction::GenerateContinueStmt(ContinueStmt* stmt) {
+    llvm::BasicBlock* continueBB = continueBBStack.back();
+    builder.CreateBr(continueBB);
     return true;
 }
