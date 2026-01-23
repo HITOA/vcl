@@ -46,12 +46,14 @@ namespace VCL {
         inline TypeClass GetTypeClass() const { return typeClass; }
         
         inline bool IsDependent() const { return bitfield.isDependent; }
-        inline void SetDependent(bool isDependent) { bitfield.isDependent = isDependent; }
 
         static bool IsTypeNumeric(Type* type);
         static bool IsTypeIntegral(Type* type);
 
         static Type* GetCanonicalType(Type* type);
+        
+    protected:
+        inline void SetDependent(bool isDependent) { bitfield.isDependent = isDependent; }
 
     protected:
         TypeClass typeClass;

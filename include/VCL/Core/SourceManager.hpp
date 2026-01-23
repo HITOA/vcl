@@ -6,6 +6,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/ADT/StringMap.h>
 #include <llvm/ADT/IntrusiveRefCntPtr.h>
+#include <llvm/Support/Allocator.h>
 
 #include <expected>
 #include <vector>
@@ -43,7 +44,7 @@ namespace VCL {
 
     private:
         DiagnosticReporter& reporter;
-        llvm::StringMap<Source*> sources{};
+        llvm::StringMap<Source*, llvm::BumpPtrAllocator> sources{};
     };
 
 }
