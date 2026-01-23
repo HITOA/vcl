@@ -22,7 +22,7 @@ namespace VCL {
         CodeGenFunction& operator=(const CodeGenFunction& other) = delete;
         CodeGenFunction& operator=(CodeGenFunction&& other) = delete;
 
-        llvm::Function* Generate(FunctionDecl* decl);
+        llvm::Function* Generate(FunctionDecl* decl, bool imported = false);
 
         llvm::AllocaInst* GenerateAllocaInst(llvm::Type* type, llvm::StringRef name);
 

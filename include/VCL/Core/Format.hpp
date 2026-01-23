@@ -35,4 +35,34 @@ namespace VCL {
         return output;
     }
 
+    inline std::string ParseStringLiteral(const std::string& literal) {
+        if (literal.size() < 2 || literal.front() != '"' || literal.back() != '"')
+            return literal;
+        
+        std::string result{};
+        result.reserve(literal.size());
+
+        for (int i = 1; i < literal.size() - 1; ++i) {
+            if (literal[i] == '\\' && i + 1 < literal.size() - 1) {
+                switch (literal[++i]) {
+                    case 'n':  result += '\n'; break;
+                    case 't':  result += '\t'; break;
+                    case 'r':  result += '\r'; break;
+                    case '\\': result += '\\'; break;
+                    case '"':  result += '"';  break;
+                    case '0':  result += '\0'; break;
+                    case 'a':  result += '\a'; break;
+                    case 'b':  result += '\b'; break;
+                    case 'f':  result += '\f'; break;
+                    case 'v':  result += '\v'; break;
+                    default:   result += literal[i]; break;
+                }
+            } else {
+                result += literal[i];
+            }
+        }
+
+        return result;
+    }
+
 }

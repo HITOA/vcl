@@ -75,8 +75,10 @@ bool VCL::Lexer::LexString(Token& token) noexcept {
     while (token.range.end < range.end) {
         ++token.range.end;
         char c = token.range.end.GetChar();
-        if (c == '\"')
+        if (c == '\"') {
+            ++token.range.end;
             return true;
+        }
         if (c == '\n')
             return diagnosticReporter.Error(Diagnostic::UnterminatedString, 
                 std::string{ token.range.start.GetPtr(), token.range.end.GetPtr() })

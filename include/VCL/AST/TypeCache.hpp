@@ -3,6 +3,7 @@
 #include <VCL/AST/Type.hpp>
 
 #include <llvm/ADT/FoldingSet.h>
+#include <llvm/ADT/IntrusiveRefCntPtr.h>
 #include <llvm/Support/Allocator.h>
 
 
@@ -12,7 +13,7 @@ namespace VCL {
      * Store VCL Types into cache (FoldingSet). 
      * Provide an interface to get or create types.
      */
-    class TypeCache {
+    class TypeCache : public llvm::RefCountedBase<TypeCache> {
     public:
         TypeCache() = default;
         TypeCache(const TypeCache& other) = delete;

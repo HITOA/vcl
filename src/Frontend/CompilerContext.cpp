@@ -4,8 +4,14 @@
 #include <VCL/Core/DiagnosticConsumer.hpp>
 #include <VCL/Core/SourceManager.hpp>
 #include <VCL/Core/Identifier.hpp>
+#include <VCL/Core/Attribute.hpp>
+#include <VCL/Core/Directive.hpp>
 #include <VCL/Core/Target.hpp>
+#include <VCL/AST/TypeCache.hpp>
 #include <VCL/Frontend/CompilerInstance.hpp>
+#include <VCL/Frontend/ModuleCache.hpp>
+
+#include <assert.h>
 
 
 VCL::CompilerContext::CompilerContext() : invocation{ std::make_shared<CompilerInvocation>() } {}
@@ -31,10 +37,9 @@ bool VCL::CompilerContext::HasDiagnosticEngine() {
     return diagnosticsEngine != nullptr;
 }
 
-bool VCL::CompilerContext::CreateDiagnosticEngine() {
+void VCL::CompilerContext::CreateDiagnosticEngine() {
     diagnosticsEngine = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(invocation->GetDiagnosticOptions());
     diagnosticReporter = llvm::makeIntrusiveRefCnt<DiagnosticReporter>(*diagnosticsEngine);
-    return true;
 }
 
 VCL::SourceManager& VCL::CompilerContext::GetSourceManager() {
@@ -45,12 +50,10 @@ bool VCL::CompilerContext::HasSourceManager() {
     return sourceManager != nullptr;
 }
 
-bool VCL::CompilerContext::CreateSourceManager() {
-    if (!HasDiagnosticEngine())
-        return false;
+void VCL::CompilerContext::CreateSourceManager() {
+    assert(HasDiagnosticEngine() && "missing diagnostic engine");
     sourceManager = llvm::makeIntrusiveRefCnt<SourceManager>(GetDiagnosticReporter());
     invocation->GetDiagnosticOptions().GetDiagnosticConsumer()->SetSourceManager(sourceManager.get());
-    return true;
 }
 
 VCL::IdentifierTable& VCL::CompilerContext::GetIdentifierTable() {
@@ -61,10 +64,33 @@ bool VCL::CompilerContext::HasIdentifierTable() {
     return identifierTable != nullptr;
 }
 
-bool VCL::CompilerContext::CreateIdentifierTable() {
+void VCL::CompilerContext::CreateIdentifierTable() {
     identifierTable = llvm::makeIntrusiveRefCnt<IdentifierTable>();
     identifierTable->AddKeywords();
-    return true;
+}
+
+VCL::AttributeTable& VCL::CompilerContext::GetAttributeTable() {
+    return *attributeTable;
+}
+
+bool VCL::CompilerContext::HasAttributeTable() {
+    return attributeTable != nullptr;
+}
+
+void VCL::CompilerContext::CreateAttributeTable() {
+    attributeTable = llvm::makeIntrusiveRefCnt<AttributeTable>();
+}
+
+VCL::DirectiveRegistry& VCL::CompilerContext::GetDirectiveRegistry() {
+    return *directiveRegistry;
+}
+
+bool VCL::CompilerContext::HasDirectiveRegistry() {
+    return directiveRegistry != nullptr;
+}
+
+void VCL::CompilerContext::CreateDirectiveRegistry() {
+    directiveRegistry = llvm::makeIntrusiveRefCnt<DirectiveRegistry>();
 }
 
 VCL::Target& VCL::CompilerContext::GetTarget() {
@@ -75,9 +101,32 @@ bool VCL::CompilerContext::HasTarget() {
     return target != nullptr;
 }
 
-bool VCL::CompilerContext::CreateTarget() {
+void VCL::CompilerContext::CreateTarget() {
     target = llvm::makeIntrusiveRefCnt<Target>(invocation->GetTargetOptions());
-    return true;
+}
+
+VCL::TypeCache& VCL::CompilerContext::GetTypeCache() {
+    return *typeCache;
+}
+
+bool VCL::CompilerContext::HasTypeCache() {
+    return typeCache != nullptr;
+}
+
+void VCL::CompilerContext::CreateTypeCache() {
+    typeCache = llvm::makeIntrusiveRefCnt<TypeCache>();
+}
+
+VCL::ModuleCache& VCL::CompilerContext::GetModuleCache() {
+    return *moduleCache;
+}
+
+bool VCL::CompilerContext::HasModuleCache() {
+    return moduleCache != nullptr;
+}
+
+void VCL::CompilerContext::CreateModuleCache() {
+    moduleCache = llvm::makeIntrusiveRefCnt<ModuleCache>();
 }
 
 llvm::orc::ThreadSafeContext& VCL::CompilerContext::GetLLVMContext() {
@@ -88,9 +137,8 @@ bool VCL::CompilerContext::HasLLVMContext() {
     return llvmContext.withContextDo([](llvm::LLVMContext* ctx){ return ctx != nullptr; });
 }
 
-bool VCL::CompilerContext::CreateLLVMContext() {
+void VCL::CompilerContext::CreateLLVMContext() {
     llvmContext = llvm::orc::ThreadSafeContext{ std::make_unique<llvm::LLVMContext>() };
-    return true;
 }
 
 std::shared_ptr<VCL::CompilerInstance> VCL::CompilerContext::CreateInstance() {

@@ -9,6 +9,7 @@
 #include <VCL/Frontend/CompilerInstance.hpp>
 #include <VCL/Frontend/TextDiagnosticConsumer.hpp>
 #include <VCL/Frontend/FrontendActions.hpp>
+#include <VCL/Frontend/Directives.hpp>
 #include <VCL/Lex/Lexer.hpp>
 #include <VCL/Lex/TokenStream.hpp>
 #include <VCL/AST/ASTContext.hpp>
@@ -140,8 +141,17 @@ int main(int argc, const char* argv[]) {
     cc.CreateDiagnosticEngine();
     cc.CreateSourceManager();
     cc.CreateIdentifierTable();
+    cc.CreateAttributeTable();
+    cc.CreateDirectiveRegistry();
     cc.CreateTarget();
+    cc.CreateTypeCache();
+    cc.CreateModuleCache();
     cc.CreateLLVMContext();
+
+    cc.GetDirectiveRegistry().CreateDirectiveHandler<VCL::ImportDirective>(cc.GetIdentifierTable().Get("import"), cc, "../../vcl");
+
+    cc.GetAttributeTable().AddDefinition(cc.GetIdentifierTable().Get("Input"), 1, 1);
+    cc.GetAttributeTable().AddDefinition(cc.GetIdentifierTable().Get("Serialize"), 0, 0);
 
     VCL::Source* source = cc.GetSourceManager().LoadFromDisk(options.inputFilename);
 
@@ -154,6 +164,14 @@ int main(int argc, const char* argv[]) {
 
     if (!b)
         return -1;
+
+    std::string entryPointName = options.entryPoint;
+    if (auto r = instance->GetMangledSymbolName(entryPointName); r.has_value()) {
+        entryPointName = r.value();
+    } else {
+        std::cout << "entrypoint \'" << entryPointName << "\' was not found" << std::endl;
+        return -1;
+    }
 
     if (!options.dumpIrFilename.empty()) {
         std::ofstream irOutFile{ options.dumpIrFilename, std::ios::binary | std::ios::trunc };
@@ -170,7 +188,7 @@ int main(int argc, const char* argv[]) {
         return -1;
     }
 
-    void* entryPoint = session.Lookup(options.entryPoint);
+    void* entryPoint = session.Lookup(entryPointName);
     if (!entryPoint) {
         std::cout << llvm::toString(session.ConsumeLastError()) << std::endl;
         return -1;

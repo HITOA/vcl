@@ -4,6 +4,7 @@
 #include <VCL/Core/Diagnostic.hpp>
 
 #include <llvm/ADT/StringRef.h>
+#include <llvm/ADT/StringMap.h>
 #include <llvm/ADT/IntrusiveRefCntPtr.h>
 
 #include <expected>
@@ -36,13 +37,13 @@ namespace VCL {
          * a name can also be given and will be the Source's buffer identifier.
          */
         Source* LoadFromMemory(llvm::StringRef buffer, llvm::StringRef name = "");
-
+        
         Source* GetSourceFromLocation(SourceLocation location);
         inline Source* GetSourceFromRange(SourceRange range) { return GetSourceFromLocation(range.start); }
 
     private:
         DiagnosticReporter& reporter;
-        std::vector<Source> sources{};
+        llvm::StringMap<Source*> sources{};
     };
 
 }

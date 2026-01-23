@@ -35,6 +35,9 @@ PARSER_DIAGNOSTIC(UnexpectedTokenAfter,          "unexpected token '%0' after '%
 PARSER_DIAGNOSTIC(WrongTemplateArgument,         "wrong template argument")
 PARSER_DIAGNOSTIC(WrongTemplateParameter,        "wrong template parameter")
 PARSER_DIAGNOSTIC(FloatTemplateArgument,         "numeric constant template argument cannot be float")
+PARSER_DIAGNOSTIC(AttributeDoesNotExist,         "attribute '%0' is not defined")
+PARSER_DIAGNOSTIC(AttributeMissingArguments,     "'%0' arguments were given when at least '%1' are expected")
+PARSER_DIAGNOSTIC(AttributeTooManyArguments,     "'%0' arguments were given when at most '%1' are expected")
 
 SEMA_DIAGNOSTIC(Redeclaration,                   "redeclaration of '%0'")
 SEMA_DIAGNOSTIC(ReservedIdentifier,              "'%0' is a reserved identifier")
@@ -79,6 +82,14 @@ SEMA_DIAGNOSTIC(LoseOfFloatingPointPrecision,    "implicit conversion loses floa
 SEMA_DIAGNOSTIC(LoseOfIntegerPrecision,          "implicit conversion loses integer precision: '%0' to '%1'")
 SEMA_DIAGNOSTIC(BreakOutsideOfLoop,              "a break statement may only be used within a loop")
 SEMA_DIAGNOSTIC(ContinueOutsideOfLoop,           "a continue statement may only be used within a loop")
+SEMA_DIAGNOSTIC(CannotExportUnnamedDecl,         "cannot export unnamed declaration")
+SEMA_DIAGNOSTIC(AlreadyExported,                 "already exported symbol with name '%0'")
+SEMA_DIAGNOSTIC(DirectiveDoesNotExist,           "directive `%0` is not a valid compiler directive")
+SEMA_DIAGNOSTIC(DirectiveSemaError,              "an error was produced while evaluating this directive")
+SEMA_DIAGNOSTIC(DirectiveError,                  "directive error: `%0`")
+SEMA_DIAGNOSTIC(ImportRedeclaration,             "imported symbol '%0' redeclaration")
+SEMA_DIAGNOSTIC(ImportDuplicatedNamespace,       "previous import share the same name")
+SEMA_DIAGNOSTIC(ModuleNameDoesNotExists,         "no module named '%0' has been imported")
 
 #undef DIAGNOSTIC_HINT
 #undef SEMA_DIAGNOSTIC

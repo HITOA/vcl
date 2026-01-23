@@ -18,8 +18,11 @@ inline llvm::orc::ThreadSafeModule MakeModule(llvm::StringRef path) {
     cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
+    cc.CreateAttributeTable();
+    cc.CreateDirectiveRegistry();
     cc.CreateSourceManager();
     cc.CreateTarget();
+    cc.CreateTypeCache();
     cc.CreateLLVMContext();
 
     VCL::Source* source = cc.GetSourceManager().LoadFromDisk(path);

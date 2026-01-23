@@ -5,12 +5,15 @@
 #include <VCL/AST/ExprEvaluator.hpp>
 #include <VCL/AST/TypePrinter.hpp>
 #include <VCL/Sema/Template.hpp>
+#include <VCL/Frontend/ModuleCache.hpp>
 
 #include <llvm/ADT/SmallPtrSet.h>
 
 
-VCL::Sema::Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable) 
-        : astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable } {
+VCL::Sema::Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
+        DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules) 
+        : astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable }, 
+            directiveRegistry{ directiveRegistry }, exportedSymbols{ exportedSymbols }, importedModules{ importedModules } {
     translationUnitScope = sm.EmplaceScopeFront(astContext.GetTranslationUnitDecl());
     AddBuiltinIntrinsicTemplateDecl();
 }
@@ -99,49 +102,131 @@ bool VCL::Sema::AddDeclToScopeAndContext(Decl* decl) {
     return true;
 }
 
-VCL::NamedDecl* VCL::Sema::LookupNamedDecl(IdentifierInfo* identifier, int depth) {
+bool VCL::Sema::ExportSymbol(Decl* decl, SourceRange range) {
+    if (!decl->IsNamedDecl() && !decl->IsTemplateDecl()) {
+        diagnosticReporter.Error(Diagnostic::CannotExportUnnamedDecl)
+            .AddHint(DiagnosticHint{ range })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return false;
+    }
+    IdentifierInfo* identifierInfo = nullptr;
+
+    if (decl->IsNamedDecl())
+        identifierInfo = ((NamedDecl*)decl)->GetIdentifierInfo();
+    else
+        identifierInfo = ((TemplateDecl*)decl)->GetTemplatedNamedDecl()->GetIdentifierInfo();
+
+    if (Decl* exportedDecl = exportedSymbols.Get(identifierInfo); exportedDecl != nullptr) {
+        diagnosticReporter.Error(Diagnostic::AlreadyExported, identifierInfo->GetName().str())
+            .AddHint(DiagnosticHint{ range })
+            .AddHint(DiagnosticHint{ exportedDecl->GetSourceRange(), DiagnosticHint::Declared })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+    }
+    return exportedSymbols.Add(identifierInfo, decl);
+}
+
+bool VCL::Sema::ImportModule(Module* module, IdentifierInfo* identifierInfo) {
+    if (importedModules.Get(identifierInfo)) {
+        if (module == importedModules.Get(identifierInfo))
+            return true;
+        diagnosticReporter.Error(Diagnostic::ImportDuplicatedNamespace)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return false;
+    }
+
+    importedModules.Add(identifierInfo, module);
+
+    return true;
+}
+
+VCL::NamedDecl* VCL::Sema::LookupNamedDecl(SymbolRef symbolRef, int depth) {
     Scope* currentScope = sm.GetScopeFront();
 
-    int currentDepth = 0;
-    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
-        for (Decl* decl : *currentScope) {
-            if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
-                TemplateDecl* templateDecl = (TemplateDecl*)decl;
-                if (templateDecl->GetTemplatedNamedDecl() == nullptr)
-                    continue;
-                if (identifier == templateDecl->GetTemplatedNamedDecl()->GetIdentifierInfo())
-                    return templateDecl->GetTemplatedNamedDecl();
-            } else {
-                if (!decl->IsNamedDecl())
-                    continue;
-                NamedDecl* namedDecl = (NamedDecl*)decl;
-                if (identifier == namedDecl->GetIdentifierInfo())
-                    return namedDecl;
+    if (symbolRef.IsLocal()) {
+        int currentDepth = 0;
+        while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
+            for (Decl* decl : *currentScope) {
+                if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
+                    TemplateDecl* templateDecl = (TemplateDecl*)decl;
+                    if (templateDecl->GetTemplatedNamedDecl() == nullptr)
+                        continue;
+                    if (symbolRef.GetSymbolName() == templateDecl->GetTemplatedNamedDecl()->GetIdentifierInfo())
+                        return templateDecl->GetTemplatedNamedDecl();
+                } else {
+                    if (!decl->IsNamedDecl())
+                        continue;
+                    NamedDecl* namedDecl = (NamedDecl*)decl;
+                    if (symbolRef.GetSymbolName() == namedDecl->GetIdentifierInfo())
+                        return namedDecl;
+                }
             }
+            currentScope = currentScope->GetParentScope();
+            ++currentDepth;
         }
-        currentScope = currentScope->GetParentScope();
-        ++currentDepth;
+    } else {
+        if (!importedModules.Get(symbolRef.GetModuleName())) {
+            diagnosticReporter.Error(Diagnostic::ModuleNameDoesNotExists, symbolRef.GetModuleName()->GetName().str())
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+        Module* module = importedModules.Get(symbolRef.GetModuleName());
+        Decl* decl = module->GetCompilerInstance()->GetExportSymbolTable().Get(symbolRef.GetSymbolName());
+        if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
+            TemplateDecl* templateDecl = (TemplateDecl*)decl;
+            if (templateDecl->GetTemplatedNamedDecl() == nullptr)
+                return nullptr;
+            if (symbolRef.GetSymbolName() == templateDecl->GetTemplatedNamedDecl()->GetIdentifierInfo())
+                return templateDecl->GetTemplatedNamedDecl();
+        } else {
+            if (!decl->IsNamedDecl())
+                return nullptr;
+            NamedDecl* namedDecl = (NamedDecl*)decl;
+            if (symbolRef.GetSymbolName() == namedDecl->GetIdentifierInfo())
+                return namedDecl;
+        }
     }
     
     return nullptr;
 }
 
-VCL::TemplateDecl* VCL::Sema::LookupTemplateDecl(IdentifierInfo* identifier, int depth) {
+VCL::TemplateDecl* VCL::Sema::LookupTemplateDecl(SymbolRef symbolRef, int depth) {
     Scope* currentScope = sm.GetScopeFront();
 
-    int currentDepth = 0;
-    while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
-        for (Decl* decl : *currentScope) {
-            if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
-                TemplateDecl* templateDecl = (TemplateDecl*)decl;
-                if (templateDecl->GetTemplatedNamedDecl() == nullptr)
-                    continue;
-                if (identifier == templateDecl->GetTemplatedNamedDecl()->GetIdentifierInfo())
-                    return templateDecl;
+    if (symbolRef.IsLocal()) {
+        int currentDepth = 0;
+        while (currentScope != nullptr && (currentDepth < depth || depth == -1)) {
+            for (Decl* decl : *currentScope) {
+                if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
+                    TemplateDecl* templateDecl = (TemplateDecl*)decl;
+                    if (templateDecl->GetTemplatedNamedDecl() == nullptr)
+                        continue;
+                    if (symbolRef.GetSymbolName() == templateDecl->GetTemplatedNamedDecl()->GetIdentifierInfo())
+                        return templateDecl;
+                }
             }
+            currentScope = currentScope->GetParentScope();
+            ++currentDepth;
         }
-        currentScope = currentScope->GetParentScope();
-        ++currentDepth;
+    } else {
+        if (!importedModules.Get(symbolRef.GetModuleName())) {
+            diagnosticReporter.Error(Diagnostic::ModuleNameDoesNotExists, symbolRef.GetModuleName()->GetName().str())
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+        Module* module = importedModules.Get(symbolRef.GetModuleName());
+        Decl* decl = module->GetCompilerInstance()->GetExportSymbolTable().Get(symbolRef.GetSymbolName());
+        if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
+            TemplateDecl* templateDecl = (TemplateDecl*)decl;
+            if (templateDecl->GetTemplatedNamedDecl() == nullptr)
+                return nullptr;
+            if (symbolRef.GetSymbolName() == templateDecl->GetTemplatedNamedDecl()->GetIdentifierInfo())
+                return templateDecl;
+        }
     }
     
     return nullptr;
@@ -149,6 +234,28 @@ VCL::TemplateDecl* VCL::Sema::LookupTemplateDecl(IdentifierInfo* identifier, int
 
 VCL::CompoundStmt* VCL::Sema::ActOnCompoundStmt(llvm::ArrayRef<Stmt*> stmts, SourceRange range) {
     return CompoundStmt::Create(astContext, stmts, range);
+}
+
+VCL::DirectiveDecl* VCL::Sema::ActOnDirectiveDecl(IdentifierInfo* identifierInfo, llvm::ArrayRef<ConstantValue*> args, SourceRange range) {
+    DirectiveHandler* handler = directiveRegistry.GetDirectiveHandler(identifierInfo);
+    if (!handler) {
+        diagnosticReporter.Error(Diagnostic::DirectiveDoesNotExist, identifierInfo->GetName().str())
+            .AddHint(DiagnosticHint{ range })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+
+    DirectiveDecl* decl = DirectiveDecl::Create(astContext, identifierInfo, args, range);
+    if (!handler->OnSema(*this, decl)) {
+        diagnosticReporter.Error(Diagnostic::DirectiveSemaError)
+            .AddHint(DiagnosticHint{ range })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+
+    return decl;
 }
 
 VCL::DeclStmt* VCL::Sema::ActOnDeclStmt(Decl* decl, SourceRange range) {
@@ -163,7 +270,7 @@ VCL::TemplateDecl* VCL::Sema::ActOnTemplateDecl(TemplateParameterList* parameter
 }
 
 VCL::RecordDecl* VCL::Sema::ActOnRecordDecl(IdentifierInfo* identifier, SourceRange range) {
-    NamedDecl* decl = LookupNamedDecl(identifier);
+    NamedDecl* decl = LookupNamedDecl(SymbolRef{ identifier });
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
         diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
@@ -181,7 +288,7 @@ VCL::RecordDecl* VCL::Sema::ActOnRecordDecl(IdentifierInfo* identifier, SourceRa
 }
 
 VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identifier, SourceRange range) {
-    NamedDecl* decl = LookupNamedDecl(identifier, 1);
+    NamedDecl* decl = LookupNamedDecl(SymbolRef{ identifier }, 1);
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
         diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
@@ -205,7 +312,7 @@ VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identif
 }
 
 VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType returnType, SourceRange range) {
-    NamedDecl* lookupDecl = LookupNamedDecl(decl->GetIdentifierInfo(), 1);
+    NamedDecl* lookupDecl = LookupNamedDecl(SymbolRef{ decl->GetIdentifierInfo() }, 1);
     if (lookupDecl) {
         SourceRange redeclRange = lookupDecl->GetSourceRange();
         diagnosticReporter.Error(Diagnostic::Redeclaration, lookupDecl->GetIdentifierInfo()->GetName().str())
@@ -243,7 +350,7 @@ VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType ret
 }
 
 VCL::ParamDecl* VCL::Sema::ActOnParamDecl(Decl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range) {
-    NamedDecl* decl = LookupNamedDecl(identifier, 1);
+    NamedDecl* decl = LookupNamedDecl(SymbolRef{ identifier }, 1);
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
         diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
@@ -405,7 +512,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
             .Report();
         return nullptr;
     }
-    NamedDecl* decl = LookupNamedDecl(identifier, 1);
+    NamedDecl* decl = LookupNamedDecl(SymbolRef{ identifier }, 1);
     if (decl) {
         SourceRange redeclRange = decl->GetSourceRange();
         diagnosticReporter.Error(Diagnostic::Redeclaration, identifier->GetName().str())
@@ -481,26 +588,25 @@ VCL::QualType VCL::Sema::ActOnQualType(Type* type, Qualifier qualifiers, SourceR
 }
 
 #define ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list) if (list != nullptr) { \
-                diagnosticReporter.Error(Diagnostic::BuiltinTypeIsNotTemplated, identifier->GetName().str()) \
+                diagnosticReporter.Error(Diagnostic::BuiltinTypeIsNotTemplated, symbolRef.GetSymbolName()->GetName().str()) \
                     .AddHint(DiagnosticHint{ range })\
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)\
                     .Report(); \
                 return nullptr; }
 
-VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList* list, SourceRange range) {
-    if (!identifier->IsKeyword()) {
-        NamedDecl* decl = LookupNamedDecl(identifier);
-        
+VCL::Type* VCL::Sema::ActOnType(SymbolRef symbolRef, TemplateArgumentList* list, SourceRange range) {
+    if (!symbolRef.GetSymbolName()->IsKeyword()) {
+        NamedDecl* decl = LookupNamedDecl(symbolRef);
         if (decl == nullptr) {
-            diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+            diagnosticReporter.Error(Diagnostic::IdentifierUndefined, symbolRef.GetSymbolName()->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;
         }
-        TemplateDecl* templateDecl = LookupTemplateDecl(identifier);
+        TemplateDecl* templateDecl = LookupTemplateDecl(symbolRef);
         if (list && !templateDecl) {
-            diagnosticReporter.Error(Diagnostic::DoesNotTakeTemplateArgList, identifier->GetName().str())
+            diagnosticReporter.Error(Diagnostic::DoesNotTakeTemplateArgList, symbolRef.GetSymbolName()->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -508,7 +614,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
             return nullptr;
         }
         if (!list && templateDecl) {
-            diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, identifier->GetName().str())
+            diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, symbolRef.GetSymbolName()->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -516,7 +622,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
             return nullptr;
         }
         if (!list && !decl->IsTypeDecl()) {
-            diagnosticReporter.Error(Diagnostic::NotTypeDecl, identifier->GetName().str())
+            diagnosticReporter.Error(Diagnostic::NotTypeDecl, symbolRef.GetSymbolName()->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -530,7 +636,7 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
             return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType(templateDecl, list);
     }
 
-    switch (identifier->GetTokenKind()) {
+    switch (symbolRef.GetSymbolName()->GetTokenKind()) {
         case TokenKind::Keyword_void:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
             return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Void);
@@ -568,16 +674,16 @@ VCL::Type* VCL::Sema::ActOnType(IdentifierInfo* identifier, TemplateArgumentList
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
             return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Float64);
         default:
-            TemplateDecl* decl = LookupTemplateDecl(identifier);
+            TemplateDecl* decl = LookupTemplateDecl(symbolRef);
             if (decl == nullptr) {
-                diagnosticReporter.Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
+                diagnosticReporter.Error(Diagnostic::ReservedIdentifier, symbolRef.GetSymbolName()->GetName().str())
                     .AddHint(DiagnosticHint{ range })
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .Report();
                 return nullptr;
             }
             if (!list) {
-                diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, identifier->GetName().str())
+                diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, symbolRef.GetSymbolName()->GetName().str())
                     .AddHint(DiagnosticHint{ range })
                     .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -600,6 +706,7 @@ VCL::TemplateParameterList* VCL::Sema::ActOnTemplateParameterList(llvm::ArrayRef
                     break;
                 }
             }
+            assert(previous != nullptr);
             diagnosticReporter.Error(Diagnostic::TemplateRedeclared, param->GetIdentifierInfo()->GetName().str())
                 .AddHint(DiagnosticHint{ param->GetSourceRange() })
                 .AddHint(DiagnosticHint{ previous->GetSourceRange(), DiagnosticHint::PreviouslyDeclared })
@@ -1134,7 +1241,6 @@ std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(E
 }
 
 VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) {
-    
     if (expr->GetExprClass() == Expr::AggregateExprClass) {
         AggregateExpr* aggregateExpr = (AggregateExpr*)expr;
         aggregateExpr->SetResultType(toType);
@@ -1270,10 +1376,10 @@ VCL::Expr* VCL::Sema::ActOnNumericConstant(Token* value) {
     }
 }
 
-VCL::Expr* VCL::Sema::ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRange range) {
-    NamedDecl* decl = LookupNamedDecl(identifier);
+VCL::Expr* VCL::Sema::ActOnIdentifierExpr(SymbolRef symbolRef, SourceRange range) {
+    NamedDecl* decl = LookupNamedDecl(symbolRef);
     if (decl == nullptr || !decl->IsValueDecl()) {
-        diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+        diagnosticReporter.Error(Diagnostic::IdentifierUndefined, symbolRef.GetSymbolName()->GetName().str())
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();
@@ -1284,16 +1390,16 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRang
     return expr;
 }
 
-VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
+VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
     FunctionDecl* decl = nullptr;
-    if (TemplateDecl* templateDecl = LookupTemplateDecl(identifier)) {
+    if (TemplateDecl* templateDecl = LookupTemplateDecl(symbolRef)) {
         FunctionDecl* templatedFunctionDecl = (FunctionDecl*)templateDecl->GetTemplatedNamedDecl();
 
         TemplateParameterList* parameters = templateDecl->GetTemplateParametersList();
         templateArgs = DeduceTemplateArgumentFromCall(templatedFunctionDecl, args, templateArgs, parameters);
 
         if (templateArgs->IsDependent())
-            return DependentCallExpr::Create(astContext, identifier, args, templateArgs, range);
+            return DependentCallExpr::Create(astContext, symbolRef, args, templateArgs, range);
 
         for (auto it = templateDecl->Begin(); it != templateDecl->End(); ++it) {
             if (it->GetDeclClass() != Decl::TemplateSpecializationDeclClass)
@@ -1316,18 +1422,18 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<E
             TemplateSpecializationDecl* specializationDecl = TemplateSpecializationDecl::Create(astContext, templateArgs, decl);
             templateDecl->InsertBack(specializationDecl);
         }
-    } else if (NamedDecl* namedDecl = LookupNamedDecl(identifier)) {
+    } else if (NamedDecl* namedDecl = LookupNamedDecl(symbolRef)) {
         if (namedDecl->GetDeclClass() == Decl::FunctionDeclClass) {
             decl = (FunctionDecl*)namedDecl;
         } else {
-            diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+            diagnosticReporter.Error(Diagnostic::IdentifierUndefined, symbolRef.GetSymbolName()->GetName().str())
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ range })
                 .Report();
             return nullptr;
         }
     } else {
-        diagnosticReporter.Error(Diagnostic::IdentifierUndefined, identifier->GetName().str())
+        diagnosticReporter.Error(Diagnostic::IdentifierUndefined, symbolRef.GetSymbolName()->GetName().str())
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .AddHint(DiagnosticHint{ range })
             .Report();

@@ -1,6 +1,7 @@
 #include <VCL/CodeGen/CodeGenFunction.hpp>
 
 #include <VCL/CodeGen/CodeGenModule.hpp>
+#include <VCL/CodeGen/Mangler.hpp>
 
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
@@ -8,11 +9,18 @@ VCL::CodeGenFunction::CodeGenFunction(CodeGenModule& cgm) : cgm{ cgm }, builder{
     
 }
 
-llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl) {
+llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported) {
     llvm::FunctionType* functionType = cgm.GetCGT().ConvertFunctionType(QualType{ decl->GetType() });
-    function = llvm::Function::Create(
-        functionType, llvm::GlobalValue::ExternalLinkage, decl->GetIdentifierInfo()->GetName(), cgm.GetLLVMModule());
-    
+
+    ASTContext& context = imported ? cgm.GetImportedDeclModule(decl)->GetCompilerInstance()->GetASTContext() : cgm.GetASTContext();
+    std::string functionName = Mangler::MangleFunctionDecl(context, decl);
+
+    //function = llvm::Function::Create(
+    //    functionType, llvm::GlobalValue::LinkOnceODRLinkage, functionName, cgm.GetLLVMModule());
+
+    function = llvm::cast<llvm::Function>(cgm.GetLLVMModule().getOrInsertFunction(functionName, functionType).getCallee());
+    function->setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+
     int i = 0;
     for (auto it = decl->Begin(); it != decl->End(); ++it) {
         if (it->GetDeclClass() == Decl::ParamDeclClass) {
@@ -22,7 +30,7 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl) {
         }
     }
 
-    if (decl->GetBody() == nullptr)
+    if (decl->GetBody() == nullptr || (imported && !decl->HasFunctionFlag(FunctionDecl::IsTemplateSpecialization)))
         return function;
 
     llvm::BasicBlock* bb = llvm::BasicBlock::Create(cgm.GetLLVMContext(), "entry", function);
@@ -46,7 +54,7 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl) {
 
     if (!GenerateStmt(decl->GetBody()))
         return nullptr;
-
+    
     bool isFunctionVoid = false;
     Type* returnType = decl->GetType()->GetReturnType().GetType();
     if (returnType->GetTypeClass() == Type::BuiltinTypeClass)

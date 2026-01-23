@@ -3,4 +3,5 @@
 #include <VCL/AST/Decl.hpp>
 
 
-VCL::ASTContext::ASTContext() : nodeAllocator{}, typeCache{}, root{ AllocateNode<TranslationUnitDecl>() } {}
+VCL::ASTContext::ASTContext(TypeCache& typecache) 
+        : nodeAllocator{}, typeCache{ typecache }, root{ AllocateNode<TranslationUnitDecl>() } {}

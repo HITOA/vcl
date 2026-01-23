@@ -14,8 +14,12 @@ namespace VCL {
     class DiagnosticConsumer;
     class SourceManager;
     class IdentifierTable;
+    class AttributeTable;
+    class DirectiveRegistry;
     class Target;
+    class TypeCache;
     class CompilerInstance;
+    class ModuleCache;
 
     class CompilerContext {
     public:
@@ -33,23 +37,39 @@ namespace VCL {
         DiagnosticsEngine& GetDiagnosticsEngine();
         DiagnosticReporter& GetDiagnosticReporter();
         bool HasDiagnosticEngine();
-        bool CreateDiagnosticEngine();
+        void CreateDiagnosticEngine();
         
         SourceManager& GetSourceManager();
         bool HasSourceManager();
-        bool CreateSourceManager();
+        void CreateSourceManager();
 
         IdentifierTable& GetIdentifierTable();
         bool HasIdentifierTable();
-        bool CreateIdentifierTable();
+        void CreateIdentifierTable();
+
+        AttributeTable& GetAttributeTable();
+        bool HasAttributeTable();
+        void CreateAttributeTable();
+
+        DirectiveRegistry& GetDirectiveRegistry();
+        bool HasDirectiveRegistry();
+        void CreateDirectiveRegistry();
 
         Target& GetTarget();
         bool HasTarget();
-        bool CreateTarget();
+        void CreateTarget();
+
+        TypeCache& GetTypeCache();
+        bool HasTypeCache();
+        void CreateTypeCache();
+
+        ModuleCache& GetModuleCache();
+        bool HasModuleCache();
+        void CreateModuleCache();
 
         llvm::orc::ThreadSafeContext& GetLLVMContext();
         bool HasLLVMContext();
-        bool CreateLLVMContext();
+        void CreateLLVMContext();
 
         std::shared_ptr<CompilerInstance> CreateInstance();
     
@@ -59,7 +79,11 @@ namespace VCL {
         llvm::IntrusiveRefCntPtr<DiagnosticReporter> diagnosticReporter;
         llvm::IntrusiveRefCntPtr<SourceManager> sourceManager;
         llvm::IntrusiveRefCntPtr<IdentifierTable> identifierTable;
+        llvm::IntrusiveRefCntPtr<AttributeTable> attributeTable;
+        llvm::IntrusiveRefCntPtr<DirectiveRegistry> directiveRegistry;
         llvm::IntrusiveRefCntPtr<Target> target;
+        llvm::IntrusiveRefCntPtr<TypeCache> typeCache;
+        llvm::IntrusiveRefCntPtr<ModuleCache> moduleCache;
         llvm::orc::ThreadSafeContext llvmContext;
     };
 

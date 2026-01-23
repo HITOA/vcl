@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdint>
+#include <cmath>
 
 
 namespace VCL {

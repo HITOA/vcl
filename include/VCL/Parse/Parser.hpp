@@ -1,5 +1,6 @@
 #pragma once
 
+#include <VCL/Core/Attribute.hpp>
 #include <VCL/Lex/TokenStream.hpp>
 #include <VCL/AST/ASTContext.hpp>
 #include <VCL/AST/Decl.hpp>
@@ -7,6 +8,7 @@
 #include <VCL/AST/Expr.hpp>
 #include <VCL/AST/Template.hpp>
 #include <VCL/AST/DeclTemplate.hpp>
+#include <VCL/AST/SymbolRef.hpp>
 
 #include <optional>
 
@@ -23,7 +25,7 @@ namespace VCL {
 
     public:
         Parser() = delete;
-        Parser(TokenStream& stream, Sema& sema);
+        Parser(TokenStream& stream, Sema& sema, AttributeTable& attributeTable);
         Parser(const Parser& other) = delete;
         Parser(Parser&& other) = delete;
         ~Parser() = default;
@@ -41,6 +43,15 @@ namespace VCL {
 
         Decl* ParseTopLevelDecl();
         Decl* ParseRecordLevelDecl();
+
+        SymbolRef ParseSymbolRef();
+
+        AttributeInstance* ParseAttributeList();
+        AttributeInstance* ParseAttribute();
+
+        DirectiveDecl* ParseDirective();
+
+        ConstantValue* ParseConstantValue();
 
         Stmt* ParseStmt(bool parseCompound = true);
         CompoundStmt* ParseCompoundStmt();
@@ -146,6 +157,7 @@ namespace VCL {
     private:
         TokenStream& stream;
         Sema& sema;
+        AttributeTable& attributeTable;
         ParserFlag flags = ParserFlag::None;
     };
 

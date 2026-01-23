@@ -1,5 +1,6 @@
 #pragma once
 
+#include <VCL/Core/Directive.hpp>
 #include <VCL/Lex/Token.hpp>
 #include <VCL/AST/ASTContext.hpp>
 #include <VCL/AST/Type.hpp>
@@ -9,15 +10,19 @@
 #include <VCL/AST/Expr.hpp>
 #include <VCL/AST/Operator.hpp>
 #include <VCL/AST/Template.hpp>
+#include <VCL/AST/SymbolRef.hpp>
 #include <VCL/Sema/Scope.hpp>
 #include <VCL/Sema/ScopeManager.hpp>
+#include <VCL/Sema/SymbolTable.hpp>
+#include <VCL/Sema/ModuleTable.hpp>
 
-#include <stack>
+#include <llvm/ADT/SmallSet.h>
 
 
 namespace VCL {
     class DiagnosticReporter;
     class IdentifierTable;
+    class Module;
 
     /**
      * This is the semantic analyzer. It is called by the parser to 
@@ -26,7 +31,8 @@ namespace VCL {
     class Sema {
     public:
         Sema() = delete;
-        Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable);
+        Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
+                DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules);
         Sema(const Sema& other) = delete;
         Sema(Sema&& other) = delete;
         ~Sema() = default;
@@ -38,6 +44,8 @@ namespace VCL {
         inline ASTContext& GetASTContext() { return astContext; }
         inline DiagnosticReporter& GetDiagnosticReporter() { return diagnosticReporter; }
         inline IdentifierTable& GetIdentifierTable() { return identifierTable; }
+        inline SymbolTable& GetExportedSymbols() { return exportedSymbols; }
+        inline ModuleTable& GetImportedModules() { return importedModules; }
 
         void AddBuiltinIntrinsicTemplateDecl();
 
@@ -47,10 +55,15 @@ namespace VCL {
         bool AddDeclToContext(Decl* decl);
         bool AddDeclToScopeAndContext(Decl* decl);
 
-        NamedDecl* LookupNamedDecl(IdentifierInfo* identifier, int depth = -1);
-        TemplateDecl* LookupTemplateDecl(IdentifierInfo* identifier, int depth = -1);
+        bool ExportSymbol(Decl* decl, SourceRange range);
+        bool ImportModule(Module* module, IdentifierInfo* identifierInfo);
+
+        NamedDecl* LookupNamedDecl(SymbolRef symbolRef, int depth = -1);
+        TemplateDecl* LookupTemplateDecl(SymbolRef symbolRef, int depth = -1);
 
         CompoundStmt* ActOnCompoundStmt(llvm::ArrayRef<Stmt*> stmts, SourceRange range);
+
+        DirectiveDecl* ActOnDirectiveDecl(IdentifierInfo* identifierInfo, llvm::ArrayRef<ConstantValue*> args, SourceRange range);
 
         DeclStmt* ActOnDeclStmt(Decl* decl, SourceRange range);
 
@@ -77,7 +90,7 @@ namespace VCL {
         VarDecl* ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range);
         
         QualType ActOnQualType(Type* type, Qualifier qualifiers, SourceRange range);
-        Type* ActOnType(IdentifierInfo* identifier, TemplateArgumentList* list, SourceRange range);
+        Type* ActOnType(SymbolRef symbolRef, TemplateArgumentList* list, SourceRange range);
         
         TemplateParameterList* ActOnTemplateParameterList(llvm::ArrayRef<NamedDecl*> params, SourceRange range);
         TemplateArgumentList* ActOnTemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range);
@@ -97,10 +110,10 @@ namespace VCL {
         std::pair<Expr*, Expr*> ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs);
         Expr* ActOnCast(Expr* expr, QualType toType, SourceRange range);
         Expr* ActOnSplat(Expr* expr, SourceRange range);
-
+        
         Expr* ActOnNumericConstant(Token* value);
-        Expr* ActOnIdentifierExpr(IdentifierInfo* identifier, SourceRange range);
-        Expr* ActOnCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range);
+        Expr* ActOnIdentifierExpr(SymbolRef symbolRef, SourceRange range);
+        Expr* ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range);
 
         Expr* ActOnAggregateExpr(llvm::ArrayRef<Expr*> elems, SourceRange range);
         bool ActOnAggregateExpr(AggregateExpr* aggregate);
@@ -122,6 +135,9 @@ namespace VCL {
         ASTContext& astContext;
         DiagnosticReporter& diagnosticReporter;
         IdentifierTable& identifierTable;
+        DirectiveRegistry& directiveRegistry;
+        SymbolTable& exportedSymbols;
+        ModuleTable& importedModules;
         ScopeManager sm{};
         Scope* translationUnitScope;
     };

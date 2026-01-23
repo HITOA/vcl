@@ -16,7 +16,8 @@ namespace VCL {
      */
     class ASTContext : public llvm::RefCountedBase<ASTContext> {
     public:
-        ASTContext();
+        ASTContext() = delete;
+        ASTContext(TypeCache& typecache);
         ASTContext(const ASTContext& other) = delete;
         ASTContext(ASTContext&& other) = delete;
         ~ASTContext() = default;
@@ -39,11 +40,11 @@ namespace VCL {
         inline TranslationUnitDecl* GetTranslationUnitDecl() { return root; }
         
     private:
-        llvm::BumpPtrAllocator nodeAllocator{};
-        TypeCache typeCache{};
+        llvm::BumpPtrAllocator nodeAllocator;
+        TypeCache& typeCache;
 
         // Root translation unit decl of this AST
-        TranslationUnitDecl* root = nullptr;
+        TranslationUnitDecl* root;
     };
 
 }

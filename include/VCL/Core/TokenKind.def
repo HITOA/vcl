@@ -56,13 +56,13 @@ PUNCTUATOR(PlusPlus,                "++")
 PUNCTUATOR(MinusMinus,              "--")
 PUNCTUATOR(GreaterGreater,          ">>")
 PUNCTUATOR(LesserLesser,            "<<")
+PUNCTUATOR(ColonColon,              "::")
 PUNCTUATOR(GreaterGreaterEqual,     ">>=")
 PUNCTUATOR(LesserLesserEqual,       "<<=")
 
 KEYWORD(return)
 KEYWORD(if)
 KEYWORD(else)
-KEYWORD(do)
 KEYWORD(while)
 KEYWORD(for)
 KEYWORD(break)
@@ -70,6 +70,7 @@ KEYWORD(continue)
 KEYWORD(struct)
 KEYWORD(template)
 KEYWORD(typename)
+KEYWORD(export)
 
 // Type Qualifiers
 

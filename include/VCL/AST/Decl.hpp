@@ -5,6 +5,7 @@
 #include <VCL/AST/Type.hpp>
 #include <VCL/AST/DeclContext.hpp>
 #include <VCL/AST/ASTContext.hpp>
+#include <VCL/AST/AttributeInstance.hpp>
 
 #include <string>
 
@@ -23,6 +24,7 @@ namespace VCL {
             ParamDeclClass,
             FunctionDeclClass,
             IntrinsicDeclClass,
+            DirectiveDeclClass,
 
             TemplateTypeParamDeclClass,
             NonTypeTemplateParamDeclClass,
@@ -38,7 +40,7 @@ namespace VCL {
     
     public:
         Decl() = delete;
-        Decl(DeclClass declClass) : declClass{ declClass }, range{}, next{ nullptr } {}
+        Decl(DeclClass declClass) : declClass{ declClass }, range{}, next{ nullptr }, attribute{ nullptr } {}
         Decl(const Decl& other) = delete;
         Decl(Decl&& other) = delete;
         ~Decl() = default;
@@ -52,6 +54,18 @@ namespace VCL {
 
         inline Decl* GetNext() const { return next; }
         inline void SetNext(Decl* next) { this->next = next; }
+
+        inline AttributeInstance* GetAttribute() const { return attribute; }
+        inline void PushAttribute(AttributeInstance* attribute) {
+            if (!this->attribute) {
+                this->attribute = attribute;
+                return;
+            }
+            AttributeInstance* currentBack = this->attribute;
+            while (currentBack->GetNextAttribute() != nullptr)
+                currentBack = currentBack->GetNextAttribute();
+            currentBack->SetNextAttribute(attribute);
+        }
 
         inline bool IsNamedDecl() const { return bitfield.isNamedDecl; }
         inline void SetNamedDecl(bool isNamedDecl) { bitfield.isNamedDecl = isNamedDecl; }
@@ -68,6 +82,7 @@ namespace VCL {
         DeclClass declClass;
         SourceRange range;
         Decl* next;
+        AttributeInstance* attribute;
 
         struct DeclBitfield {
             unsigned isNamedDecl : 1 = 0;
@@ -233,6 +248,12 @@ namespace VCL {
     };
 
     class FunctionDecl : public NamedDecl, public DeclContext {
+    public: 
+        enum FunctionFlags : uint32_t {
+            None = 0,
+            IsTemplateSpecialization = 1
+        };
+
     public:
         FunctionDecl(FunctionType* type, IdentifierInfo* identifier) : type{ type },
             NamedDecl{ identifier, Decl::FunctionDeclClass }, DeclContext{ DeclContext::FunctionDeclContextClass } {
@@ -246,14 +267,45 @@ namespace VCL {
         inline void SetBody(Stmt* body) { this->body = body; }
         inline Stmt* GetBody() const { return body; }
 
-        static inline FunctionDecl* Create(ASTContext& astContext, IdentifierInfo* identifier) {
-            FunctionDecl* instance = astContext.AllocateNode<FunctionDecl>(nullptr, identifier);
+        inline bool HasFunctionFlag(FunctionFlags flag) { return flags & flag; }
+        inline void SetFunctionFlag(FunctionFlags flag) { flags = (FunctionFlags)(flags | flag); }
+
+        static inline FunctionDecl* Create(ASTContext& context, IdentifierInfo* identifier) {
+            FunctionDecl* instance = context.AllocateNode<FunctionDecl>(nullptr, identifier);
             return instance;
         }
 
     private:
         FunctionType* type;
         Stmt* body;
+
+        FunctionFlags flags = None;
+    };
+
+    class DirectiveDecl final : public Decl, private llvm::TrailingObjects<DirectiveDecl, ConstantValue*> {
+        friend TrailingObjects;
+
+    public:
+        DirectiveDecl(IdentifierInfo* identifierInfo, llvm::ArrayRef<ConstantValue*> args)
+                : identifierInfo{ identifierInfo }, argsCount{ args.size() }, Decl{ Decl::DirectiveDeclClass } {
+            std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects());
+        }
+        ~DirectiveDecl() = default;
+
+        inline IdentifierInfo* GetIdentifierInfo() { return identifierInfo; }
+        inline llvm::ArrayRef<ConstantValue*> GetArgs() { return { getTrailingObjects(), argsCount }; }
+
+        static inline DirectiveDecl* Create(ASTContext& context, IdentifierInfo* identifier, llvm::ArrayRef<ConstantValue*> args, SourceRange range) {
+            size_t size = totalSizeToAlloc<ConstantValue*>(args.size());
+            void* ptr = context.Allocate(sizeof(DirectiveDecl) + size);
+            DirectiveDecl* instance = new (ptr) DirectiveDecl{ identifier, args };
+            instance->SetSourceRange(range);
+            return instance;
+        } 
+
+    private:
+        IdentifierInfo* identifierInfo;
+        size_t argsCount;
     };
 
 }

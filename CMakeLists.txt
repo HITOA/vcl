@@ -9,6 +9,9 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+
 find_package(LLVM REQUIRED CONFIG)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
@@ -16,6 +19,9 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
 file(GLOB_RECURSE vcl_source_files "src/*/*.*")
 add_library(vcl STATIC ${vcl_source_files})
+if(ipo_supported)
+    set_property(TARGET vcl PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
 
 target_include_directories(vcl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

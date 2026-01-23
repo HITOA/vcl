@@ -105,7 +105,10 @@ TEST_CASE("Template Structs", "[Template][Struct]") {
     cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
+    cc.CreateAttributeTable();
+    cc.CreateDirectiveRegistry();
     cc.CreateSourceManager();
+    cc.CreateTypeCache();
     cc.CreateTarget();
     cc.CreateLLVMContext();
 
@@ -298,6 +301,9 @@ void CheckForError(const char* src) {
     cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
+    cc.CreateAttributeTable();
+    cc.CreateDirectiveRegistry();
+    cc.CreateTypeCache();
     cc.CreateSourceManager();
 
     VCL::Source* source = cc.GetSourceManager().LoadFromMemory(src);

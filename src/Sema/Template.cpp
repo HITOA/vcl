@@ -267,6 +267,8 @@ VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(T
 
     sema.PopDeclContextScope(newFunctionDecl);
 
+    newFunctionDecl->SetFunctionFlag(FunctionDecl::IsTemplateSpecialization);
+
     return newFunctionDecl;
 }
 
@@ -407,6 +409,55 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformReturnStmt(ReturnStmt* stmt) {
     return sema.ActOnReturnStmt(expr, stmt->GetSourceRange());
 }
 
+VCL::Stmt* VCL::TemplateInstantiator::TransformIfStmt(IfStmt* stmt) {
+    Expr* condition = TransformExpr(stmt->GetCondition());
+    Stmt* thenStmt = TransformStmt(stmt->GetThenStmt());
+    Stmt* elseStmt = nullptr;
+    if (stmt->GetElseStmt()) {
+        elseStmt = TransformStmt(stmt->GetElseStmt());
+        if (!elseStmt)
+            return nullptr;
+    }
+    if (!condition || !thenStmt)
+        return nullptr;
+    return sema.ActOnIfStmt(condition, thenStmt, elseStmt, stmt->GetSourceRange());
+}
+
+VCL::Stmt* VCL::TemplateInstantiator::TransformWhileStmt(WhileStmt* stmt) {
+    Expr* condition = TransformExpr(stmt->GetCondition());
+    Stmt* thenStmt = TransformStmt(stmt->GetThenStmt());
+    if (!condition || !thenStmt)
+        return nullptr;
+    return sema.ActOnWhileStmt(condition, thenStmt, stmt->GetSourceRange());
+}
+
+VCL::Stmt* VCL::TemplateInstantiator::TransformForStmt(ForStmt* stmt) {
+    Stmt* startStmt = nullptr;
+    Expr* condition = nullptr;
+    Expr* loopExpr = nullptr;
+    if (stmt->GetStartStmt()) {
+        startStmt = TransformStmt(stmt->GetStartStmt());
+        if (!startStmt)
+            return nullptr;
+    }
+    if (stmt->GetCondition()) {
+        condition = TransformExpr(stmt->GetCondition());
+        if (!condition)
+            return nullptr;
+    }
+    if (stmt->GetLoopExpr()) {
+        loopExpr = TransformExpr(stmt->GetLoopExpr());
+        if (!loopExpr)
+            return nullptr;
+    }
+    Stmt* thenStmt = TransformStmt(stmt->GetThenStmt());
+
+    if (!thenStmt)
+        return nullptr;
+
+    return sema.ActOnForStmt(startStmt, condition, loopExpr, thenStmt, stmt->GetSourceRange());
+}
+
 VCL::Decl* VCL::TemplateInstantiator::TransformFieldDecl(FieldDecl* decl) {
     QualType type = TransformType(decl->GetType());
     return FieldDecl::Create(sema.GetASTContext(), decl->GetIdentifierInfo(), type, decl->GetSourceRange());
@@ -511,7 +562,7 @@ VCL::Expr* VCL::TemplateInstantiator::TransformDependentCallExpr(DependentCallEx
     if (!templateArgs)
         return nullptr;
 
-    return sema.ActOnCallExpr(expr->GetIdentifierInfo(), args, templateArgs, expr->GetSourceRange());
+    return sema.ActOnCallExpr(expr->GetSymbolRef(), args, templateArgs, expr->GetSourceRange());
 }
 
 VCL::Expr* VCL::TemplateInstantiator::TransformFieldAccessExpr(FieldAccessExpr* expr) {

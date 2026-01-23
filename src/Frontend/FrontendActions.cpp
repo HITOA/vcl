@@ -11,15 +11,22 @@
 
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 
+#include <assert.h>
 
 bool VCL::ParseSyntaxOnlyAction::Execute() {
-    if (!instance->HasSource())
-        return false;
-    if (instance->HasASTContext())
-        return false;
+    assert(instance->HasSource() && "missing source");
+    assert(instance->GetCompilerContext().HasDiagnosticEngine() && "missing diagnostic engine");
+    assert(instance->GetCompilerContext().HasIdentifierTable() && "missing identifier table");
+    assert(instance->GetCompilerContext().HasAttributeTable() && "missing attribute table");
+    assert(instance->GetCompilerContext().HasDirectiveRegistry() && "missing directive registry");
 
-    if (!instance->CreateASTContext())
-        return false;
+    assert(!instance->HasASTContext() && "ast context already present");
+    assert(!instance->HasExportSymbolTable() && "exported symbol table already present");
+    assert(!instance->HasImportModuleTable() && "imported module table already present");
+
+    instance->CreateASTContext();
+    instance->CreateExportSymbolTable();
+    instance->CreateImportModuleTable();
 
     Lexer lexer{ instance->GetSource()->GetBufferRef(), 
         instance->GetCompilerContext().GetDiagnosticReporter(), 
@@ -27,20 +34,31 @@ bool VCL::ParseSyntaxOnlyAction::Execute() {
     TokenStream stream{ lexer };
     Sema sema{ instance->GetASTContext(),
         instance->GetCompilerContext().GetDiagnosticReporter(),
-        instance->GetCompilerContext().GetIdentifierTable() };
-    Parser parser{ stream, sema };
+        instance->GetCompilerContext().GetIdentifierTable(),
+        instance->GetCompilerContext().GetDirectiveRegistry(),
+        instance->GetExportSymbolTable(),
+        instance->GetImportModuleTable() };
+    Parser parser{ stream, sema, instance->GetCompilerContext().GetAttributeTable() };
     
     return parser.Parse();
 }
 
 bool VCL::EmitLLVMAction::Execute() {
-    if (!instance->HasSource())
-        return false;
-    if (instance->HasASTContext())
-        return false;
+    assert(instance->HasSource() && "missing source");
+    assert(instance->GetCompilerContext().HasDiagnosticEngine() && "missing diagnostic engine");
+    assert(instance->GetCompilerContext().HasIdentifierTable() && "missing identifier table");
+    assert(instance->GetCompilerContext().HasAttributeTable() && "missing attribute table");
+    assert(instance->GetCompilerContext().HasDirectiveRegistry() && "missing directive registry");
+    assert(instance->GetCompilerContext().HasLLVMContext() && "missing LLVM Context");
+    assert(instance->GetCompilerContext().HasTarget() && "missing target");
 
-    if (!instance->CreateASTContext())
-        return false;
+    assert(!instance->HasASTContext() && "ast context already present");
+    assert(!instance->HasExportSymbolTable() && "exported symbol table already present");
+    assert(!instance->HasImportModuleTable() && "imported module table already present");
+
+    instance->CreateASTContext();
+    instance->CreateExportSymbolTable();
+    instance->CreateImportModuleTable();
 
     Lexer lexer{ instance->GetSource()->GetBufferRef(), 
         instance->GetCompilerContext().GetDiagnosticReporter(), 
@@ -48,8 +66,11 @@ bool VCL::EmitLLVMAction::Execute() {
     TokenStream stream{ lexer };
     Sema sema{ instance->GetASTContext(),
         instance->GetCompilerContext().GetDiagnosticReporter(),
-        instance->GetCompilerContext().GetIdentifierTable() };
-    Parser parser{ stream, sema };
+        instance->GetCompilerContext().GetIdentifierTable(),
+        instance->GetCompilerContext().GetDirectiveRegistry(),
+        instance->GetExportSymbolTable(),
+        instance->GetImportModuleTable() };
+    Parser parser{ stream, sema, instance->GetCompilerContext().GetAttributeTable() };
     
     if (!parser.Parse())
         return false;
@@ -61,10 +82,15 @@ bool VCL::EmitLLVMAction::Execute() {
         instance->GetCompilerContext().GetLLVMContext() };
 
     return module.withModuleDo([this](llvm::Module& module){
-        CodeGenModule cgm{ module, 
+        CodeGenModule cgm{
+            module, 
             instance->GetASTContext(), 
             instance->GetCompilerContext().GetDiagnosticReporter(),
-            instance->GetCompilerContext().GetTarget() };
-        return cgm.Emit();
+            instance->GetCompilerContext().GetTarget(),
+            instance->GetImportModuleTable() };
+        bool r = cgm.Emit();
+        if (!r)
+            return false;
+        return cgm.LinkNow();
     });
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <VCL/Core/Identifier.hpp>
 #include <VCL/AST/Type.hpp>
 
 #include <cstdint>
@@ -12,6 +13,8 @@ namespace VCL {
     public:
         enum ConstantValueClass {
             ConstantScalarClass,
+            ConstantStringClass,
+            ConstantIdentifierClass,
             ConstantAggregateClass,
             ConstantNullClass
         };
@@ -125,6 +128,28 @@ namespace VCL {
     private:
         uint8_t data[8]{};
         BuiltinType::Kind kind = BuiltinType::Void;
+    };
+
+    class ConstantString : public ConstantValue {
+    public:
+        ConstantString(llvm::StringRef str) : str{ str.str() }, ConstantValue{ ConstantValue::ConstantStringClass } {}
+        ~ConstantString() = default;
+
+        inline std::string GetString() const { return str; }
+        
+    private:
+        std::string str{};
+    };
+    
+    class ConstantIdentifier : public ConstantValue {
+    public:
+        ConstantIdentifier(IdentifierInfo* identifierInfo) : identifierInfo{ identifierInfo }, ConstantValue{ ConstantValue::ConstantIdentifierClass } {}
+        ~ConstantIdentifier() = default;
+        
+        inline IdentifierInfo* GetIdentifierInfo() const { return identifierInfo; }
+
+    private:
+        IdentifierInfo* identifierInfo;
     };
 
     class ConstantAggregate : public ConstantValue {

@@ -6,6 +6,7 @@
 #include <VCL/AST/ConstantValue.hpp>
 #include <VCL/AST/Operator.hpp>
 #include <VCL/AST/ASTContext.hpp>
+#include <VCL/AST/SymbolRef.hpp>
 
 
 namespace VCL {
@@ -266,28 +267,28 @@ namespace VCL {
         friend TrailingObjects;
 
     public:
-        DependentCallExpr(IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs)
-                : identifier{ identifier }, templateArgs{ templateArgs }, argsCount{ args.size() }, Expr{ Expr::DependentCallExprClass } {
+        DependentCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs)
+                : symbolRef{ symbolRef }, templateArgs{ templateArgs }, argsCount{ args.size() }, Expr{ Expr::DependentCallExprClass } {
             std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects());
         }
         ~DependentCallExpr() = default;
 
-        inline IdentifierInfo* GetIdentifierInfo() { return identifier; }
+        inline SymbolRef GetSymbolRef() { return symbolRef; }
         inline llvm::ArrayRef<Expr*> GetArgs() { return { getTrailingObjects(), argsCount }; }
         inline TemplateArgumentList* GetTemplateArgs() { return templateArgs; }
 
         static inline DependentCallExpr* Create(
-                ASTContext& context, IdentifierInfo* identifier, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
+                ASTContext& context, SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
             size_t size = totalSizeToAlloc<Expr*>(args.size());
             void* ptr = context.Allocate(sizeof(DependentCallExpr) + size);
-            DependentCallExpr* instance = new (ptr) DependentCallExpr{ identifier, args, templateArgs };
+            DependentCallExpr* instance = new (ptr) DependentCallExpr{ symbolRef, args, templateArgs };
             instance->SetResultType(context.GetTypeCache().GetOrCreateDependentType());
             instance->SetSourceRange(range);
             return instance;
         }
 
     private:
-        IdentifierInfo* identifier;
+        SymbolRef symbolRef;
         TemplateArgumentList* templateArgs;
         size_t argsCount;
     };

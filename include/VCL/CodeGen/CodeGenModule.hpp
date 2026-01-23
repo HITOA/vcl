@@ -7,6 +7,7 @@
 #include <VCL/AST/Decl.hpp>
 #include <VCL/AST/Expr.hpp>
 #include <VCL/AST/ConstantValue.hpp>
+#include <VCL/Sema/ModuleTable.hpp>
 #include <VCL/CodeGen/CodeGenTypes.hpp>
 #include <VCL/CodeGen/CodeGenFunction.hpp>
 
@@ -21,14 +22,15 @@ namespace VCL {
     class CodeGenModule {
     public:
         CodeGenModule() = delete;
-        CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target);
+        CodeGenModule(llvm::Module& module, ASTContext& ast, 
+            DiagnosticReporter& diagnosticReporter, Target& target, ModuleTable& importedModules);
         CodeGenModule(const CodeGenModule& other) = delete;
         CodeGenModule(CodeGenModule&& other) = default;
         ~CodeGenModule() = default;
 
         CodeGenModule& operator=(const CodeGenModule& other) = delete;
         CodeGenModule& operator=(CodeGenModule&& other) = default;
-
+        
         inline ASTContext& GetASTContext() { return astContext; }
         inline DiagnosticReporter& GetDiagnosticReporter() { return diagnosticReporter; }
         inline llvm::LLVMContext& GetLLVMContext() { return module.getContext(); }
@@ -36,11 +38,17 @@ namespace VCL {
         inline Target& GetTarget() { return target; }
         inline CodeGenTypes& GetCGT() { return cgt; }
 
+        bool LinkNow();
+
         bool Emit();
         bool EmitTopLevelDecl(Decl* decl);
-        bool EmitGlobalVarDecl(VarDecl* decl);
-        bool EmitFunctionDecl(FunctionDecl* decl);
+        bool EmitGlobalVarDecl(VarDecl* decl, bool imported = false);
+        bool EmitFunctionDecl(FunctionDecl* decl, bool imported = false);
         bool EmitTemplateDecl(TemplateDecl* decl);
+
+        bool IsDeclImported(Decl* decl);
+        Module* GetImportedDeclModule(Decl* decl);
+        bool EmitImportedDecl(Decl* decl);
 
         llvm::GlobalValue* GetGlobalDeclValue(Decl* decl);
 
@@ -56,6 +64,7 @@ namespace VCL {
         ASTContext& astContext;
         DiagnosticReporter& diagnosticReporter;
         Target& target;
+        ModuleTable& importedModules;
 
         llvm::DenseMap<Decl*, llvm::GlobalValue*> globals;
         

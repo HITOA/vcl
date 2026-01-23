@@ -1,6 +1,10 @@
 #pragma once
 
 #include <llvm/ADT/IntrusiveRefCntPtr.h>
+#include <llvm/ADT/StringRef.h>
+
+#include <string>
+#include <optional>
 
 
 namespace VCL {
@@ -8,6 +12,8 @@ namespace VCL {
     class Source;
     class ASTContext;
     class FrontendAction;
+    class SymbolTable;
+    class ModuleTable;
 
     class CompilerInstance {
     public:
@@ -24,7 +30,15 @@ namespace VCL {
 
         ASTContext& GetASTContext();
         bool HasASTContext();
-        bool CreateASTContext();
+        void CreateASTContext();
+
+        SymbolTable& GetExportSymbolTable();
+        bool HasExportSymbolTable();
+        void CreateExportSymbolTable();
+
+        ModuleTable& GetImportModuleTable();
+        bool HasImportModuleTable();
+        void CreateImportModuleTable();
 
         bool BeginSource(Source* source);
         bool EndSource();
@@ -33,10 +47,14 @@ namespace VCL {
         
         bool ExecuteAction(FrontendAction& action);
 
+        std::optional<std::string> GetMangledSymbolName(llvm::StringRef name);
+
     private:
         CompilerContext& compilerCtx;
         Source* source;
         llvm::IntrusiveRefCntPtr<ASTContext> astCtx;
+        llvm::IntrusiveRefCntPtr<SymbolTable> exportedSymbols;
+        llvm::IntrusiveRefCntPtr<ModuleTable> importedModules;
     };
 
 }

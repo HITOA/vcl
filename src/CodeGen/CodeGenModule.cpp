@@ -3,12 +3,36 @@
 #include <VCL/AST/Expr.hpp>
 #include <VCL/AST/Decl.hpp>
 #include <VCL/AST/DeclTemplate.hpp>
+#include <VCL/CodeGen/Mangler.hpp>
+
+#include <llvm/Linker/Linker.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 
 
-VCL::CodeGenModule::CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target)
-    : module{ module }, astContext{ ast }, diagnosticReporter{ diagnosticReporter }, target{ target }, cgt{ *this } {
+VCL::CodeGenModule::CodeGenModule(llvm::Module& module, ASTContext& ast, 
+        DiagnosticReporter& diagnosticReporter, Target& target, ModuleTable& importedModules)
+    : module{ module }, astContext{ ast }, diagnosticReporter{ diagnosticReporter }, 
+        target{ target }, cgt{ *this }, importedModules{ importedModules } {
     module.setDataLayout(target.GetTargetMachine()->createDataLayout());
     module.setTargetTriple(target.GetTargetMachine()->getTargetTriple());
+}
+
+bool VCL::CodeGenModule::LinkNow() {
+    llvm::Linker linker{ module };
+
+    for (auto module : importedModules) {
+        std::unique_ptr<llvm::Module> clonedModule = module.second->GetModule().withModuleDo([this](llvm::Module& module){
+            return llvm::CloneModule(module);
+        });
+        if (linker.linkInModule(std::move(clonedModule))) {
+            diagnosticReporter.Error(Diagnostic::InternalError)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool VCL::CodeGenModule::Emit() {
@@ -29,7 +53,7 @@ bool VCL::CodeGenModule::EmitTopLevelDecl(Decl* decl) {
     }
 }
 
-bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl) {
+bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl, bool imported) {
     llvm::Type* type = cgt.ConvertType(decl->GetValueType());
     if (!type)
         return false;
@@ -54,10 +78,6 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl) {
             initializerValue = llvm::ConstantDataVector::getSplat(GetTarget().GetVectorWidthInElement(), initializerValue);
     }
 
-    llvm::Constant* entry = GetLLVMModule().getOrInsertGlobal(decl->GetIdentifierInfo()->GetName(), type);
-
-    llvm::GlobalVariable* gv = (llvm::GlobalVariable*)entry;
-    
     llvm::GlobalVariable::LinkageTypes linkageType = llvm::GlobalVariable::LinkageTypes::CommonLinkage;
     bool isConstant = false;
 
@@ -65,8 +85,18 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl) {
         isConstant = true;
     if (decl->HasInAttribute() || decl->HasOutAttribute())
         linkageType = llvm::GlobalVariable::LinkageTypes::ExternalLinkage;
+    else if (imported)
+        linkageType = llvm::GlobalVariable::LinkageTypes::LinkOnceODRLinkage;
 
-    if (!decl->HasInAttribute())
+    std::string globalName = decl->GetIdentifierInfo()->GetName().str();
+    if (linkageType != llvm::GlobalVariable::LinkageTypes::ExternalLinkage)
+        globalName = Mangler::MangleVarDecl(astContext, decl);
+    
+    llvm::Constant* entry = GetLLVMModule().getOrInsertGlobal(globalName, type);
+
+    llvm::GlobalVariable* gv = (llvm::GlobalVariable*)entry;
+
+    if (!decl->HasInAttribute() && !imported)
         gv->setInitializer(initializerValue);
     
     gv->setConstant(isConstant);
@@ -78,14 +108,13 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl) {
 
     return true;
 }
-
-bool VCL::CodeGenModule::EmitFunctionDecl(FunctionDecl* decl) {
+bool VCL::CodeGenModule::EmitFunctionDecl(FunctionDecl* decl, bool imported) {
     CodeGenFunction cgf{ *this };
-    llvm::Function* function = cgf.Generate(decl);
+    llvm::Function* function = cgf.Generate(decl, imported);
     if (function == nullptr)
         return false;
-    globals.insert(std::make_pair(decl, function));
-    return true;
+    auto insertResult = globals.insert(std::make_pair(decl, function));
+    return insertResult.second;
 }
 
 bool VCL::CodeGenModule::EmitTemplateDecl(TemplateDecl* decl) {
@@ -105,8 +134,54 @@ bool VCL::CodeGenModule::EmitTemplateDecl(TemplateDecl* decl) {
     return true;
 }
 
+bool VCL::CodeGenModule::IsDeclImported(Decl* decl) {
+    return GetImportedDeclModule(decl) != nullptr;
+}
+
+VCL::Module* VCL::CodeGenModule::GetImportedDeclModule(Decl* decl) {
+    if (!decl->IsNamedDecl())
+        return nullptr;
+
+    for (auto& module : importedModules) {
+        for (auto& importedDeclPair : module.second->GetCompilerInstance()->GetExportSymbolTable()) {
+            Decl* importedDecl = importedDeclPair.second;
+            if (importedDecl == decl)
+                return module.second;
+            if (importedDecl->IsTemplateDecl()) {
+                TemplateDecl* templateDecl = (TemplateDecl*)importedDecl;
+                for (auto it = templateDecl->Begin(); it != templateDecl->End(); ++it) {
+                    if (it->GetDeclClass() != Decl::TemplateSpecializationDeclClass)
+                        continue;
+
+                    TemplateSpecializationDecl* specializationDecl = (TemplateSpecializationDecl*)it.Get();
+                    NamedDecl* specializedDecl = specializationDecl->GetNamedDecl();
+                    if (decl == specializedDecl)
+                        return module.second;
+                }
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+bool VCL::CodeGenModule::EmitImportedDecl(Decl* decl) {
+    switch (decl->GetDeclClass()) {
+        case Decl::VarDeclClass: return EmitGlobalVarDecl((VarDecl*)decl, true);
+        case Decl::FunctionDeclClass: return EmitFunctionDecl((FunctionDecl*)decl, true);
+        default: return false;
+    }
+}
+
 llvm::GlobalValue* VCL::CodeGenModule::GetGlobalDeclValue(Decl* decl) {
     if (globals.count(decl))
         return globals.at(decl);
+
+    if (IsDeclImported(decl)) {
+        if (!EmitImportedDecl(decl))
+            return nullptr;
+        return globals.at(decl);
+    }
+
     return nullptr;
 }

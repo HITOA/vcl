@@ -761,7 +761,10 @@ TEST_CASE("Vec Binary Expressions", "[Frontend]") {
     cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
+    cc.CreateAttributeTable();
+    cc.CreateDirectiveRegistry();
     cc.CreateSourceManager();
+    cc.CreateTypeCache();
     cc.CreateTarget();
     cc.CreateLLVMContext();
 

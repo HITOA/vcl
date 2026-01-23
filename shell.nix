@@ -7,6 +7,8 @@ pkgs.mkShell {
     gcc
     gdb
     pkg-config
+    perf
+    cppcheck
 
     libllvm
     catch2_3
