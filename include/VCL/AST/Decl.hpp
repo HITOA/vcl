@@ -1,5 +1,6 @@
 #pragma once
 
+#include <VCL/Core/Attribute.hpp>
 #include <VCL/Core/SourceLocation.hpp>
 #include <VCL/Core/Identifier.hpp>
 #include <VCL/AST/Type.hpp>
@@ -23,7 +24,7 @@ namespace VCL {
             VarDeclClass,
             ParamDeclClass,
             FunctionDeclClass,
-            IntrinsicDeclClass,
+            IntrinsicTypeDeclClass,
             DirectiveDeclClass,
 
             TemplateTypeParamDeclClass,
@@ -65,6 +66,17 @@ namespace VCL {
             while (currentBack->GetNextAttribute() != nullptr)
                 currentBack = currentBack->GetNextAttribute();
             currentBack->SetNextAttribute(attribute);
+        }
+        inline AttributeInstance* HasAttribute(AttributeDefinition* definition) {
+            if (!attribute)
+                return nullptr;
+            AttributeInstance* currentAttribute = attribute;
+            while (currentAttribute != nullptr) {
+                if (currentAttribute->GetDefinition() == definition)
+                    return currentAttribute;
+                currentAttribute = currentAttribute->GetNextAttribute();
+            }
+            return nullptr;
         }
 
         inline bool IsNamedDecl() const { return bitfield.isNamedDecl; }
@@ -147,13 +159,13 @@ namespace VCL {
         QualType valueType;
     };
 
-    class IntrinsicDecl : public NamedDecl {
+    class IntrinsicTypeDecl : public NamedDecl {
     public:
-        IntrinsicDecl(IdentifierInfo* identifier) : NamedDecl{ identifier, Decl::IntrinsicDeclClass } {}
-        ~IntrinsicDecl() = default;
+        IntrinsicTypeDecl(IdentifierInfo* identifier) : NamedDecl{ identifier, Decl::IntrinsicTypeDeclClass } {}
+        ~IntrinsicTypeDecl() = default;
 
-        inline static IntrinsicDecl* Create(ASTContext& astContext, IdentifierInfo* identifier) {
-            return astContext.AllocateNode<IntrinsicDecl>(identifier);
+        inline static IntrinsicTypeDecl* Create(ASTContext& astContext, IdentifierInfo* identifier) {
+            return astContext.AllocateNode<IntrinsicTypeDecl>(identifier);
         }
     };
 
@@ -251,7 +263,29 @@ namespace VCL {
     public: 
         enum FunctionFlags : uint32_t {
             None = 0,
-            IsTemplateSpecialization = 1
+            IsTemplateSpecialization = 1,
+            IsIntrinsic = 2
+        };
+
+        enum IntrinsicID : uint32_t {
+            NotIntrinsic = 0,
+            // Unary Math Intinsic
+            Sin, Cos, Tan, Sinh, Cosh, Tanh,
+            ASin, ACos, ATan, ATan2,
+            Sqrt, Log, Log2, Log10,
+            Exp, Exp2,
+            Floor, Ceil, Round, Abs,
+            // Unary Vec Intrinsic
+            Unpack, Pack, Reverse,
+            // Unary Array Intrinsic
+            Length,
+            // Binary Math Intrinsic
+            Pow, Min, Max,
+            FMod,
+            // Ternary Math Intrinsic
+            Fma,
+            // Other Intrinsic
+            Select
         };
 
     public:
@@ -267,11 +301,21 @@ namespace VCL {
         inline void SetBody(Stmt* body) { this->body = body; }
         inline Stmt* GetBody() const { return body; }
 
-        inline bool HasFunctionFlag(FunctionFlags flag) { return flags & flag; }
+        inline bool HasFunctionFlag(FunctionFlags flag) const { return flags & flag; }
         inline void SetFunctionFlag(FunctionFlags flag) { flags = (FunctionFlags)(flags | flag); }
+
+        inline IntrinsicID GetIntrinsicID() const { return intrinsicID; }
+        inline void SetIntrinsicID(IntrinsicID intrinsicID) { this->intrinsicID = intrinsicID; }
 
         static inline FunctionDecl* Create(ASTContext& context, IdentifierInfo* identifier) {
             FunctionDecl* instance = context.AllocateNode<FunctionDecl>(nullptr, identifier);
+            return instance;
+        }
+
+        static inline FunctionDecl* Create(ASTContext& context, IdentifierInfo* identifier, IntrinsicID intrinsicID) {
+            FunctionDecl* instance = Create(context, identifier);
+            instance->SetIntrinsicID(intrinsicID);
+            instance->SetFunctionFlag(IsIntrinsic);
             return instance;
         }
 
@@ -280,6 +324,7 @@ namespace VCL {
         Stmt* body;
 
         FunctionFlags flags = None;
+        IntrinsicID intrinsicID = IntrinsicID::NotIntrinsic;
     };
 
     class DirectiveDecl final : public Decl, private llvm::TrailingObjects<DirectiveDecl, ConstantValue*> {

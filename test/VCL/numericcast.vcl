@@ -81,6 +81,7 @@ out int16 o_uts_u16_i16;    // UnsignedToSigned: uint16 -> int16
 out int32 o_uts_u32_i32;    // UnsignedToSigned: uint32 -> int32
 out int64 o_uts_u64_i64;    // UnsignedToSigned: uint64 -> int64
 
+[EntryPoint]
 void Main() {
     // Floating point extension and truncation
     o_fce_f32 = (float64)if32;     // FloatingCastExt

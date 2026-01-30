@@ -41,6 +41,7 @@ Vec<T> SplatValue(T value) {
     return (Vec<T>)value;
 }
 
+[EntryPoint]
 void Main() {
     // Deduction from float32
     o_deduced1 = Echo(a);

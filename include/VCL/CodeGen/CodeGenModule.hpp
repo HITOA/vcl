@@ -22,8 +22,8 @@ namespace VCL {
     class CodeGenModule {
     public:
         CodeGenModule() = delete;
-        CodeGenModule(llvm::Module& module, ASTContext& ast, 
-            DiagnosticReporter& diagnosticReporter, Target& target, ModuleTable& importedModules);
+        CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target, 
+            ModuleTable& importedModules, AttributeTable& attributeTable, IdentifierTable& identifierTable);
         CodeGenModule(const CodeGenModule& other) = delete;
         CodeGenModule(CodeGenModule&& other) = default;
         ~CodeGenModule() = default;
@@ -37,6 +37,8 @@ namespace VCL {
         inline llvm::Module& GetLLVMModule() { return module; }
         inline Target& GetTarget() { return target; }
         inline CodeGenTypes& GetCGT() { return cgt; }
+        inline AttributeTable& GetAttributeTable() { return attributeTable; }
+        inline IdentifierTable& GetIdentifierTable() { return identifierTable; }
 
         bool LinkNow();
 
@@ -65,6 +67,8 @@ namespace VCL {
         DiagnosticReporter& diagnosticReporter;
         Target& target;
         ModuleTable& importedModules;
+        AttributeTable& attributeTable;
+        IdentifierTable& identifierTable;
 
         llvm::DenseMap<Decl*, llvm::GlobalValue*> globals;
         

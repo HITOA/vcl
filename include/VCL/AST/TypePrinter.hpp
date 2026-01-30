@@ -17,6 +17,7 @@ namespace VCL {
         static std::string PrintBuiltinType(BuiltinType* type);
         static std::string PrintReferenceType(ReferenceType* type);
         static std::string PrintVectorType(VectorType* type);
+        static std::string PrintLanesType(LanesType* type);
         static std::string PrintArrayType(ArrayType* type);
         static std::string PrintSpanType(SpanType* type);
         static std::string PrintRecordType(RecordType* type);

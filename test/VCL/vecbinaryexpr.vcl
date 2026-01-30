@@ -91,6 +91,7 @@ out Vec<bool> o_vb_lor;
 out Vec<bool> o_vb_equal;
 out Vec<bool> o_vb_not_equal;
 
+[EntryPoint]
 void Main() {
     // Float32 vector arithmetic
     o_vf32_add = vf32a + vf32b;

@@ -58,6 +58,7 @@ T Identity(T value) {
     return value;
 }
 
+[EntryPoint]
 void Main() {
     // Test template argument deduction
     o_add = Add(a, b);

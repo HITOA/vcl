@@ -650,6 +650,8 @@ VCL::ForStmt* VCL::Parser::ParseForStmt() {
     if (token->kind != TokenKind::Semicolon) {
         if (TryParseQualType()) {
             VarDecl* decl = ParseVarDecl();
+            if (!decl)
+                return nullptr;
             startStmt = sema.ActOnDeclStmt(decl, decl->GetSourceRange());
             if (!startStmt)
                 return nullptr;

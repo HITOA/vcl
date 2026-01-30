@@ -30,6 +30,8 @@ namespace VCL {
         ReferenceType* GetOrCreateReferenceType(QualType type);
         /** Get a VectorType of the given type. if it does not exists, create it and return it instead. */
         VectorType* GetOrCreateVectorType(QualType ofType);
+        /** Get a LanesType of the given type. if it does not exists, create it and return it instead. */
+        LanesType* GetOrCreateLanesType(QualType ofType);
         /** Get a ArrayType of the given type and size. if it does not exists, create it and return it instead. */
         ArrayType* GetOrCreateArrayType(QualType ofType, uint64_t ofSize);
         /** Get a SpanType of the given type. if it does not exists, create it and return it instead. */
@@ -50,6 +52,7 @@ namespace VCL {
         llvm::FoldingSet<BuiltinType> builtinTypeCache{};
         llvm::FoldingSet<ReferenceType> referenceTypeCache{};
         llvm::FoldingSet<VectorType> vectorTypeCache{};
+        llvm::FoldingSet<LanesType> lanesTypeCache{};
         llvm::FoldingSet<ArrayType> arrayTypeCache{};
         llvm::FoldingSet<SpanType> spanTypeCache{};
         llvm::FoldingSet<RecordType> recordTypeCache{};

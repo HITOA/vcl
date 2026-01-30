@@ -16,6 +16,8 @@ std::string VCL::TypePrinter::Print(QualType type) {
             return qualifiers + PrintReferenceType((ReferenceType*)type.GetType());
         case Type::VectorTypeClass:
             return qualifiers + PrintVectorType((VectorType*)type.GetType());
+        case Type::LanesTypeClass:
+            return qualifiers + PrintLanesType((LanesType*)type.GetType());
         case Type::ArrayTypeClass:
             return qualifiers + PrintArrayType((ArrayType*)type.GetType());
         case Type::SpanTypeClass:
@@ -65,6 +67,10 @@ std::string VCL::TypePrinter::PrintReferenceType(ReferenceType* type) {
 
 std::string VCL::TypePrinter::PrintVectorType(VectorType* type) {
     return "Vec<" + Print(type->GetElementType()) + ">";
+}
+
+std::string VCL::TypePrinter::PrintLanesType(LanesType* type) {
+    return "Lanes<" + Print(type->GetElementType()) + ">";
 }
 
 std::string VCL::TypePrinter::PrintArrayType(ArrayType* type) {

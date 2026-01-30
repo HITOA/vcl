@@ -18,6 +18,8 @@
 
 #include <llvm/ADT/SmallSet.h>
 
+#include <variant>
+
 
 namespace VCL {
     class DiagnosticReporter;
@@ -46,8 +48,13 @@ namespace VCL {
         inline IdentifierTable& GetIdentifierTable() { return identifierTable; }
         inline SymbolTable& GetExportedSymbols() { return exportedSymbols; }
         inline ModuleTable& GetImportedModules() { return importedModules; }
-
-        void AddBuiltinIntrinsicTemplateDecl();
+        
+        TemplateSpecializationType* CreateVectorTemplateSpecializationType(Type* ofType);
+        TemplateSpecializationType* CreateLanesTemplateSpecializationType(Type* ofType);
+        void AddIntrinsicTypes();
+        void AddIntrinsicMathFunction(FunctionDecl::IntrinsicID intrinsicID, llvm::StringRef name, uint32_t argCount);
+        void AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm::StringRef name);
+        void AddIntrinsicTemplateDecl();
 
         bool PushDeclContextScope(DeclContext* context, bool loopScope = false);
         bool PopDeclContextScope(DeclContext* context);
@@ -57,6 +64,8 @@ namespace VCL {
 
         bool ExportSymbol(Decl* decl, SourceRange range);
         bool ImportModule(Module* module, IdentifierInfo* identifierInfo);
+
+        bool ValidateIntrinsicFunctionDeclSpecialization(FunctionDecl* decl);
 
         NamedDecl* LookupNamedDecl(SymbolRef symbolRef, int depth = -1);
         TemplateDecl* LookupTemplateDecl(SymbolRef symbolRef, int depth = -1);
@@ -122,11 +131,12 @@ namespace VCL {
         bool IsWithinALoop();
 
         bool TypePreferByReference(Type* type);
-        Type* GetInstantiatedType(Type* type);
         bool CheckTypeCastability(Type* type);
         BuiltinType::Kind GetScalarKindFromBuiltinOrVectorType(Type* type);
         bool IsCurrentScopeGlobal();
-
+        
+        std::variant<Type*, ConstantScalar> RecursivelyDeduceTemplateArgument(NamedDecl* parameter, 
+            TemplateSpecializationType* a, TemplateSpecializationType* b);
         TemplateArgumentList* DeduceTemplateArgumentFromCall(
             FunctionDecl* functionDecl, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, TemplateParameterList* parameters);
         bool MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateArgumentList* args2);

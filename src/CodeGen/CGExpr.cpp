@@ -297,6 +297,9 @@ llvm::Value* VCL::CodeGenFunction::DispatchBinaryArithmeticOp(Expr* lhs, Expr* r
 }
 
 llvm::Value* VCL::CodeGenFunction::GenerateCallExpr(CallExpr* expr) {
+    if (expr->GetFunctionDecl()->HasFunctionFlag(FunctionDecl::IsIntrinsic))
+        return GenerateIntrinsicCallExpr(expr);
+
     llvm::Value* value = GetDeclValue(expr->GetFunctionDecl());
     if (!value) {
         cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
@@ -313,6 +316,85 @@ llvm::Value* VCL::CodeGenFunction::GenerateCallExpr(CallExpr* expr) {
     }
 
     return builder.CreateCall(llvm::cast<llvm::Function>(value), argsValue);
+}
+
+llvm::Value* VCL::CodeGenFunction::GenerateIntrinsicCallExpr(CallExpr* expr) {
+    llvm::SmallVector<llvm::Value*> argsValue{};
+    for (auto arg : expr->GetArgs()) {
+        llvm::Value* argValue = GenerateExpr(arg);
+        if (!argValue)
+            return nullptr;
+        argsValue.push_back(argValue);
+    }
+
+    switch (expr->GetFunctionDecl()->GetIntrinsicID()) {
+        // Unary Math
+        case FunctionDecl::IntrinsicID::Sin: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::sin, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Cos: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::cos, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Tan: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::tan, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Sinh: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::sinh, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Cosh: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::cosh, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Tanh: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::tanh, argsValue[0]);
+        case FunctionDecl::IntrinsicID::ASin: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::asin, argsValue[0]);
+        case FunctionDecl::IntrinsicID::ACos: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::acos, argsValue[0]);
+        case FunctionDecl::IntrinsicID::ATan: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::atan, argsValue[0]);
+        case FunctionDecl::IntrinsicID::ATan2: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::atan2, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Sqrt: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::sqrt, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Log: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::log, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Log2: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::log2, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Log10: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::log10, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Exp: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::exp, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Exp2: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::exp2, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Floor: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::floor, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Ceil: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::ceil, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Round: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::round, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Abs: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::abs, argsValue[0]);
+        // Binary Math
+        case FunctionDecl::IntrinsicID::Pow: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::pow, argsValue[0], argsValue[1]);
+        case FunctionDecl::IntrinsicID::Min: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::minimum, argsValue[0], argsValue[1]);
+        case FunctionDecl::IntrinsicID::Max: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::maximum, argsValue[0], argsValue[1]);
+        case FunctionDecl::IntrinsicID::FMod: return builder.CreateFRem(argsValue[0], argsValue[1]);
+        // Ternary Math
+        case FunctionDecl::IntrinsicID::Fma: return builder.CreateFMA(argsValue[0], argsValue[1], argsValue[2]);
+        // Unpack & Pack
+        case FunctionDecl::IntrinsicID::Unpack:
+        case FunctionDecl::IntrinsicID::Pack: {
+            llvm::Type* argType = cgm.GetCGT().ConvertType(expr->GetFunctionDecl()->GetType()->GetParamsType()[0]);
+            llvm::Type* returnType = cgm.GetCGT().ConvertType(expr->GetFunctionDecl()->GetType()->GetReturnType());
+            llvm::AllocaInst* tmp = GenerateAllocaInst(argType, "tmp");
+            llvm::Align align{ (uint64_t)cgm.GetTarget().GetVectorWidthInByte() };
+            tmp->setAlignment(align);
+            builder.CreateAlignedStore(argsValue[0], tmp, align);
+            return builder.CreateAlignedLoad(returnType, tmp, align);
+        }
+        // Length
+        case FunctionDecl::IntrinsicID::Length: {
+            Type* type = Type::GetCanonicalType(expr->GetFunctionDecl()->GetType()->GetParamsType()[0].GetType());
+            
+            if (type->GetTypeClass() == Type::VectorTypeClass || type->GetTypeClass() == Type::LanesTypeClass) {
+                return llvm::ConstantInt::get(cgm.GetLLVMContext(), llvm::APInt{ 64, cgm.GetTarget().GetVectorWidthInElement() });
+            } else if (type->GetTypeClass() == Type::ArrayTypeClass) {
+                uint64_t size = ((ArrayType*)type)->GetElementCount();
+                return llvm::ConstantInt::get(cgm.GetLLVMContext(), llvm::APInt{ 64, size });
+            } else if (type->GetTypeClass() == Type::SpanTypeClass) {
+                llvm::StructType* spanType = cgm.GetCGT().ConvertSpanType(type);
+                llvm::Value* v = builder.CreateLoad(spanType->getStructElementType(1), builder.CreateStructGEP(spanType, argsValue[0], 1));
+                return v;
+            } else {
+                cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .Report();
+                return nullptr;
+            }
+        }
+        // Select
+        case FunctionDecl::IntrinsicID::Select: return builder.CreateSelect(argsValue[0], argsValue[1], argsValue[2]);
+        default: 
+            cgm.GetDiagnosticReporter().Error(Diagnostic::MissingImplementation)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+    }
 }
 
 llvm::Value* VCL::CodeGenFunction::GenerateFieldAccessExpr(FieldAccessExpr* expr) {

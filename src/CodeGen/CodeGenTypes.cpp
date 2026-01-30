@@ -15,6 +15,7 @@ llvm::Type* VCL::CodeGenTypes::ConvertType(QualType type) {
             return nullptr;
         case Type::BuiltinTypeClass: return ConvertBuiltinType(type);
         case Type::VectorTypeClass: return ConvertVectorType(type);
+        case Type::LanesTypeClass: return ConvertLanesType(type);
         case Type::ArrayTypeClass: return ConvertArrayType(type);
         case Type::SpanTypeClass: return ConvertSpanType(type);
         case Type::RecordTypeClass: return ConvertRecordDeclType(type);
@@ -86,6 +87,16 @@ llvm::VectorType* VCL::CodeGenTypes::ConvertVectorType(QualType type) {
     if (!ofType)
         return nullptr;
     llvm::VectorType* resultType = llvm::FixedVectorType::get(ofType, cgm.GetTarget().GetVectorWidthInElement());
+    types.insert(std::make_pair(type.GetType(), resultType));
+    return resultType;
+}
+
+llvm::ArrayType* VCL::CodeGenTypes::ConvertLanesType(QualType type) {
+    LanesType* lanesType = (LanesType*)type.GetType();
+    llvm::Type* ofType = ConvertType(lanesType->GetElementType());
+    if (!ofType)
+        return nullptr;
+    llvm::ArrayType* resultType = llvm::ArrayType::get(ofType, cgm.GetTarget().GetVectorWidthInElement());
     types.insert(std::make_pair(type.GetType(), resultType));
     return resultType;
 }

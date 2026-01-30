@@ -73,6 +73,7 @@ T ChainedCall(T value) {
     return Helper<T>(Helper<T>(value));
 }
 
+[EntryPoint]
 void Main() {
     // Test dependent field access
     Container<float32> cont = { a, b };

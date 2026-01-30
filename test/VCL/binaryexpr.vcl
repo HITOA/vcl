@@ -95,6 +95,7 @@ out uint32 o_ubxor_assign;   // Unsigned bitwise XOR assignment
 out uint32 o_ulshift_assign; // Unsigned left shift assignment
 out uint32 o_urshift_assign; // Unsigned right shift assignment
 
+[EntryPoint]
 void Main() {
     // Basic arithmetic operations
     o_add = a + b;

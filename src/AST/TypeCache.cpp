@@ -27,6 +27,10 @@ VCL::VectorType* VCL::TypeCache::GetOrCreateVectorType(QualType ofType) {
     return GetOrCreateInFoldingSet(typeAllocator, vectorTypeCache, ofType);
 }
 
+VCL::LanesType* VCL::TypeCache::GetOrCreateLanesType(QualType ofType) {
+    return GetOrCreateInFoldingSet(typeAllocator, lanesTypeCache, ofType);
+}
+
 VCL::ArrayType* VCL::TypeCache::GetOrCreateArrayType(QualType ofType, uint64_t ofSize) {
     return GetOrCreateInFoldingSet(typeAllocator, arrayTypeCache, ofType, ofSize);
 }

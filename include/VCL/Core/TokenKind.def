@@ -84,7 +84,7 @@ KEYWORD(const)
 KEYWORD(Vec)
 KEYWORD(Array)
 KEYWORD(Span)
-KEYWORD(Delegate)
+KEYWORD(Lanes)
 
 KEYWORD(float32)
 KEYWORD(float64)

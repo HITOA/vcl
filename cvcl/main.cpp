@@ -52,15 +52,26 @@ bool GetOptions(int argc, const char** argv, Options& options) {
             "\n-i, --input <filename>: input source file for pre compilation." 
             "\n-e, --entry-point <name>: name of the program entry point (default is \"Main\")."
             "\n--dump-ir <dir>: dump input file(s) module(s) readable ir into this directory."
-            "\n--dump-obj <file>: dump object to disk."
+            /*"\n--dump-obj <file>: dump object to disk."
             "\n--no-optimization: disable any optimization on the ir." 
-            "\n-g: generate debug information." << std::endl;
+            "\n-g: generate debug information." */<< std::endl;
             return false;
         }
 
-        if (strcmp(argv[idx], "-g") == 0) {
+        /*if (strcmp(argv[idx], "-g") == 0) {
             ++idx;
             options.generateDebugInformation = true;
+            continue;
+        }*/
+
+        if (strcmp(argv[idx], "-e") == 0 || strcmp(argv[idx], "--entry-point") == 0) {
+            ++idx;
+            if (idx >= argc) {
+                std::cout << "Missing name for -e." << std::endl;
+                return false;
+            }
+            options.entryPoint = argv[idx];
+            ++idx;
             continue;
         }
 
@@ -87,7 +98,7 @@ bool GetOptions(int argc, const char** argv, Options& options) {
         }
 
 
-        if (strcmp(argv[idx], "--dump-obj") == 0) {
+        /*if (strcmp(argv[idx], "--dump-obj") == 0) {
             ++idx;
             if (idx >= argc) {
                 std::cout << "Missing filename for --dump-obj." << std::endl;
@@ -98,22 +109,11 @@ bool GetOptions(int argc, const char** argv, Options& options) {
             continue;
         }
 
-        if (strcmp(argv[idx], "-e") == 0 || strcmp(argv[idx], "--entry-point") == 0) {
-            ++idx;
-            if (idx >= argc) {
-                std::cout << "Missing name for -e." << std::endl;
-                return false;
-            }
-            options.entryPoint = argv[idx];
-            ++idx;
-            continue;
-        }
-
         if (strcmp(argv[idx], "--no-optimization") == 0) {
             options.optimize = false;
             ++idx;
             continue;
-        }
+        }*/
 
         std::cout << "Wrong argument \"" << argv[idx] << "\". This argument does not exist." << std::endl;
         return false;
@@ -148,7 +148,9 @@ int main(int argc, const char* argv[]) {
     cc.CreateModuleCache();
     cc.CreateLLVMContext();
 
-    cc.GetDirectiveRegistry().CreateDirectiveHandler<VCL::ImportDirective>(cc.GetIdentifierTable().Get("import"), cc, "../../vcl");
+    std::filesystem::path path{ options.inputFilename };
+
+    cc.GetDirectiveRegistry().CreateDirectiveHandler<VCL::ImportDirective>(cc.GetIdentifierTable().Get("import"), cc, path.parent_path());
 
     cc.GetAttributeTable().AddDefinition(cc.GetIdentifierTable().Get("Input"), 1, 1);
     cc.GetAttributeTable().AddDefinition(cc.GetIdentifierTable().Get("Serialize"), 0, 0);
@@ -166,12 +168,6 @@ int main(int argc, const char* argv[]) {
         return -1;
 
     std::string entryPointName = options.entryPoint;
-    if (auto r = instance->GetMangledSymbolName(entryPointName); r.has_value()) {
-        entryPointName = r.value();
-    } else {
-        std::cout << "entrypoint \'" << entryPointName << "\' was not found" << std::endl;
-        return -1;
-    }
 
     if (!options.dumpIrFilename.empty()) {
         std::ofstream irOutFile{ options.dumpIrFilename, std::ios::binary | std::ios::trunc };
@@ -184,12 +180,6 @@ int main(int argc, const char* argv[]) {
     }
     
     if (!session.SubmitModule(act.MoveModule())) {
-        std::cout << llvm::toString(session.ConsumeLastError()) << std::endl;
-        return -1;
-    }
-
-    void* entryPoint = session.Lookup(entryPointName);
-    if (!entryPoint) {
         std::cout << llvm::toString(session.ConsumeLastError()) << std::endl;
         return -1;
     }

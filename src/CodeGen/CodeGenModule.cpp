@@ -9,10 +9,10 @@
 #include <llvm/Transforms/Utils/Cloning.h>
 
 
-VCL::CodeGenModule::CodeGenModule(llvm::Module& module, ASTContext& ast, 
-        DiagnosticReporter& diagnosticReporter, Target& target, ModuleTable& importedModules)
+VCL::CodeGenModule::CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target, 
+        ModuleTable& importedModules, AttributeTable& attributeTable, IdentifierTable& identifierTable)
     : module{ module }, astContext{ ast }, diagnosticReporter{ diagnosticReporter }, 
-        target{ target }, cgt{ *this }, importedModules{ importedModules } {
+        target{ target }, cgt{ *this }, importedModules{ importedModules }, attributeTable{ attributeTable }, identifierTable{ identifierTable } {
     module.setDataLayout(target.GetTargetMachine()->createDataLayout());
     module.setTargetTriple(target.GetTargetMachine()->getTargetTriple());
 }
@@ -89,8 +89,14 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl, bool imported) {
         linkageType = llvm::GlobalVariable::LinkageTypes::LinkOnceODRLinkage;
 
     std::string globalName = decl->GetIdentifierInfo()->GetName().str();
-    if (linkageType != llvm::GlobalVariable::LinkageTypes::ExternalLinkage)
-        globalName = Mangler::MangleVarDecl(astContext, decl);
+    if (linkageType != llvm::GlobalVariable::LinkageTypes::ExternalLinkage) {
+        if (imported) {
+            Module* module = GetImportedDeclModule(decl);
+            globalName = Mangler::MangleVarDecl(module->GetCompilerInstance()->GetASTContext(), decl);
+        } else {
+            globalName = Mangler::MangleVarDecl(astContext, decl);
+        }
+    }
     
     llvm::Constant* entry = GetLLVMModule().getOrInsertGlobal(globalName, type);
 
@@ -108,6 +114,7 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl, bool imported) {
 
     return true;
 }
+
 bool VCL::CodeGenModule::EmitFunctionDecl(FunctionDecl* decl, bool imported) {
     CodeGenFunction cgf{ *this };
     llvm::Function* function = cgf.Generate(decl, imported);
@@ -126,6 +133,8 @@ bool VCL::CodeGenModule::EmitTemplateDecl(TemplateDecl* decl) {
         NamedDecl* specializedDecl = specializationDecl->GetNamedDecl();
         switch (specializedDecl->GetDeclClass()) {
             case Decl::FunctionDeclClass: {
+                if (((FunctionDecl*)specializedDecl)->HasFunctionFlag(FunctionDecl::IsIntrinsic))
+                    return true;
                 if (!EmitFunctionDecl((FunctionDecl*)specializedDecl))
                     return false;
             }

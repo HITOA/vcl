@@ -35,6 +35,7 @@ out int32 o_flags;           // Complex struct field access
 out float32 o_modified_x;    // After field modification
 out float32 o_modified_y;    // After field modification
 
+[EntryPoint]
 void Main() {
     // Create and initialize structures
     Point p;

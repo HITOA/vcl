@@ -24,6 +24,7 @@ namespace VCL {
             BuiltinTypeClass,
             ReferenceTypeClass,
             VectorTypeClass,
+            LanesTypeClass,
             ArrayTypeClass,
             SpanTypeClass,
             RecordTypeClass,
@@ -179,6 +180,25 @@ namespace VCL {
     private:
         QualType ofType;
     };
+
+    class LanesType : public Type, public llvm::FoldingSetNode {
+    public:
+        LanesType(QualType ofType) : ofType{ ofType }, Type{ Type::LanesTypeClass } {
+            SetDependent(ofType.GetType()->IsDependent());
+        }
+        ~LanesType() = default;
+        
+        inline QualType GetElementType() const { return ofType; }
+        
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, ofType);}
+        inline static void Profile(llvm::FoldingSetNodeID& id, QualType ofType) {
+            id.AddPointer(ofType.GetAsOpaquePtr());
+        }
+
+    private:
+        QualType ofType;
+    };
+
 
     /**
      * Represent any kind of VCL Array Type like 'Array<float32, 32>'

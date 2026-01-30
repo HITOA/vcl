@@ -8,6 +8,7 @@ out Vec<int32> o_splat_i32;      // Int32 splat
 out Vec<float32> o_splat_literal; // Literal splat
 out Vec<float32> o_splat_expr;   // Expression splat
 
+[EntryPoint]
 void Main() {
     // Test basic splat operations
     o_splat_f32 = scalar_f32;      // Implicit splat

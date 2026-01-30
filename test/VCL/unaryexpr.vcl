@@ -19,6 +19,7 @@ out int32 o_prefix_dec_result;   // Value after prefix decrement
 out int32 o_postfix_inc_result;  // Value after postfix increment
 out int32 o_postfix_dec_result;  // Value after postfix decrement
 
+[EntryPoint]
 void Main() {
     // Prefix increment: increments value and returns new value
     int32 temp1 = ia;

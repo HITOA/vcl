@@ -58,6 +58,8 @@ namespace VCL {
             return (AttributeDefinition*)attributeDefinition;
         }
 
+        void AddDefaults(IdentifierTable& table);
+
     private:
         llvm::BumpPtrAllocator attributeDefinitionAllocator{};
         llvm::DenseMap<IdentifierInfo*, AttributeDefinition*> attributes{};

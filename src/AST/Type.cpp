@@ -56,6 +56,9 @@ bool VCL::Type::IsTypeIntegral(Type* type) {
 }
 
 VCL::Type* VCL::Type::GetCanonicalType(Type* type) {
+    if (!type)
+        return type;
+    
     switch (type->GetTypeClass()) {
         case Type::ReferenceTypeClass:
             return GetCanonicalType(((ReferenceType*)type)->GetType().GetType());

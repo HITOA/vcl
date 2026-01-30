@@ -56,6 +56,7 @@ T GetBufferElement(Buffer<T, Size> buf, uint64 index) {
     return buf.data[index];
 }
 
+[EntryPoint]
 void Main() {
     // Test basic template struct
     Pair<float32> p1 = { a, b };

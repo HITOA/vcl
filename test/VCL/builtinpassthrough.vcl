@@ -22,6 +22,7 @@ out uint32 ou32;
 out uint64 ou64;
 out bool ob;
 
+[EntryPoint]
 void Main() {
     of32 = if32;
     of64 = if64;

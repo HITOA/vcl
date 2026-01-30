@@ -28,6 +28,11 @@ bool VCL::CodeGenFunction::GenerateVarDecl(VarDecl* decl) {
     } else {
         builder.CreateStore(llvm::Constant::getNullValue(type), alloca);
     }
+
+    if (Type::GetCanonicalType(decl->GetValueType().GetType())->GetTypeClass() == Type::LanesTypeClass) {
+        llvm::Align align{ (uint64_t)cgm.GetTarget().GetVectorWidthInByte() };
+        alloca->setAlignment(align);
+    }
     
     locals.insert(std::make_pair(decl, alloca));
     return true;

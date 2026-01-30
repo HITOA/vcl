@@ -44,6 +44,7 @@ SEMA_DIAGNOSTIC(ReservedIdentifier,              "'%0' is a reserved identifier"
 SEMA_DIAGNOSTIC(TooManyTemplateArgument,         "too many template arguments")
 SEMA_DIAGNOSTIC(NotEnoughTemplateArgument,       "not enough template arguments")
 SEMA_DIAGNOSTIC(MissingTemplateArgument,         "missing template argument for '%0'")
+SEMA_DIAGNOSTIC(CannotDeduceTemplateArgument,    "could not deduce template argument for '%0'")
 SEMA_DIAGNOSTIC(TemplateArgumentWrongType,       "wrong type of template argument")
 SEMA_DIAGNOSTIC(BuiltinTypeIsNotTemplated,       "builtin type '%0' is not templated")
 SEMA_DIAGNOSTIC(IdentifierUndefined,             "identifier '%0' is undefined")
@@ -90,6 +91,8 @@ SEMA_DIAGNOSTIC(DirectiveError,                  "directive error: `%0`")
 SEMA_DIAGNOSTIC(ImportRedeclaration,             "imported symbol '%0' redeclaration")
 SEMA_DIAGNOSTIC(ImportDuplicatedNamespace,       "previous import share the same name")
 SEMA_DIAGNOSTIC(ModuleNameDoesNotExists,         "no module named '%0' has been imported")
+SEMA_DIAGNOSTIC(MathIntrinsicBadSpecialization,  "math intrinsic '%0' cannot take argument(s) of type '%1'")
+SEMA_DIAGNOSTIC(LengthIntrinsicBadSpecialization,"length intrinsic cannot take argument of type '%0'")
 
 #undef DIAGNOSTIC_HINT
 #undef SEMA_DIAGNOSTIC

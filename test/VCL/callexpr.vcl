@@ -37,6 +37,7 @@ float32 ComplexCalc(float32 x, float32 y) {
     return Add(sum, product);
 }
 
+[EntryPoint]
 void Main() {
     // Test simple function calls
     o_add_func = Add(a, b);

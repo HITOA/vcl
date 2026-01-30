@@ -58,6 +58,7 @@ bool VCL::ImportDirective::OnSema(Sema& sema, DirectiveDecl* decl) {
     bool r = true;
     if (!m) {
         EmitLLVMAction act{};
+        act.SetRunOptimization(false);
         std::shared_ptr<CompilerInstance> ci = compilerContext.CreateInstance();
         ci->BeginSource(source);
         r = ci->ExecuteAction(act);

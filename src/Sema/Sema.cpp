@@ -15,17 +15,28 @@ VCL::Sema::Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, 
         : astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable }, 
             directiveRegistry{ directiveRegistry }, exportedSymbols{ exportedSymbols }, importedModules{ importedModules } {
     translationUnitScope = sm.EmplaceScopeFront(astContext.GetTranslationUnitDecl());
-    AddBuiltinIntrinsicTemplateDecl();
+    AddIntrinsicTemplateDecl();
 }
 
-void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
+VCL::TemplateSpecializationType* VCL::Sema::CreateVectorTemplateSpecializationType(Type* ofType) {
+    TemplateArgumentList* argList = TemplateArgumentList::Create(astContext, { TemplateArgument{ ofType } }, SourceRange{});
+    TemplateDecl* decl = LookupTemplateDecl(SymbolRef{ identifierTable.GetKeyword(TokenKind::Keyword_Vec) });
+    return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType(decl, argList);
+}
 
+VCL::TemplateSpecializationType* VCL::Sema::CreateLanesTemplateSpecializationType(Type* ofType) {
+    TemplateArgumentList* argList = TemplateArgumentList::Create(astContext, { TemplateArgument{ ofType } }, SourceRange{});
+    TemplateDecl* decl = LookupTemplateDecl(SymbolRef{ identifierTable.GetKeyword(TokenKind::Keyword_Lanes) });
+    return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType(decl, argList);
+}
+
+void VCL::Sema::AddIntrinsicTypes() {
     IdentifierInfo* ofTypeIdentifier = identifierTable.Get("T");
     IdentifierInfo* ofSizeIdentifier = identifierTable.Get("Size");
     BuiltinType* ofSizeType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
 
     // Vec
-    IntrinsicDecl* vecDecl = IntrinsicDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Vec));
+    IntrinsicTypeDecl* vecDecl = IntrinsicTypeDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Vec));
     NamedDecl* vecOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
     TemplateParameterList* vecParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
     TemplateDecl* templatedVecDecl = TemplateDecl::Create(astContext, vecParamList, SourceRange{});
@@ -33,8 +44,17 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
     if (!AddDeclToScopeAndContext(templatedVecDecl))
         return;
 
+    // Vec
+    IntrinsicTypeDecl* lanesDecl = IntrinsicTypeDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Lanes));
+    NamedDecl* lanesOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
+    TemplateParameterList* lanesParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &lanesOfType, 1 }, SourceRange{});
+    TemplateDecl* templatedLanesDecl = TemplateDecl::Create(astContext, lanesParamList, SourceRange{});
+    templatedLanesDecl->SetTemplatedNamedDecl(lanesDecl);
+    if (!AddDeclToScopeAndContext(templatedLanesDecl))
+        return;
+
     // Array
-    IntrinsicDecl* arrayDecl = IntrinsicDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Array));
+    IntrinsicTypeDecl* arrayDecl = IntrinsicTypeDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Array));
     NamedDecl* arrayOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
     NamedDecl* arrayOfSize = NonTypeTemplateParamDecl::Create(astContext, ofSizeType, ofSizeIdentifier, SourceRange{});
     llvm::SmallVector<NamedDecl*> arrayParams{ arrayOfType, arrayOfSize };
@@ -45,14 +65,163 @@ void VCL::Sema::AddBuiltinIntrinsicTemplateDecl() {
         return;
 
     // Span
-    IntrinsicDecl* spanDecl = IntrinsicDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Span));
+    IntrinsicTypeDecl* spanDecl = IntrinsicTypeDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Span));
     NamedDecl* spanOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
     TemplateParameterList* spanParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &spanOfType, 1 }, SourceRange{});
     TemplateDecl* templatedSpanDecl = TemplateDecl::Create(astContext, spanParamList, SourceRange{});
     templatedSpanDecl->SetTemplatedNamedDecl(spanDecl);
     if (!AddDeclToScopeAndContext(templatedSpanDecl))
         return;
+}
 
+void VCL::Sema::AddIntrinsicMathFunction(FunctionDecl::IntrinsicID intrinsicID, llvm::StringRef name, uint32_t argCount) {
+    IdentifierInfo* nameIdentifier = identifierTable.Get(name);
+    IdentifierInfo* ofTypeIdentifier = identifierTable.Get("T");
+
+    NamedDecl* ofType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
+    TemplateTypeParamType* ofTypeType = astContext.GetTypeCache().GetOrCreateTemplateTypeParamType((TemplateTypeParamDecl*)ofType);
+    TemplateParameterList* templateParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &ofType, 1 }, SourceRange{});
+
+    FunctionDecl* functionDecl = FunctionDecl::Create(astContext, nameIdentifier, intrinsicID);
+
+    llvm::SmallVector<QualType> paramsType{};
+    for (int i = 0; i < argCount; ++i) {
+        paramsType.push_back(ofTypeType);
+        std::string paramName = "Arg_" + std::to_string(i);
+        IdentifierInfo* paramIdentifier = identifierTable.Get(paramName);
+        ParamDecl* paramDecl = ParamDecl::Create(astContext, ofTypeType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+        functionDecl->InsertBack(paramDecl);
+    }
+
+    FunctionType* type = astContext.GetTypeCache().GetOrCreateFunctionType(ofTypeType, paramsType);
+    functionDecl->SetType(type);
+
+    TemplateDecl* templateDecl = TemplateDecl::Create(astContext, templateParamList, SourceRange{});
+    templateDecl->InsertBack(functionDecl);
+    templateDecl->SetTemplatedNamedDecl(functionDecl);
+
+    if (!AddDeclToScopeAndContext(templateDecl))
+        diagnosticReporter.Error(Diagnostic::MissingImplementation)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+}
+
+void VCL::Sema::AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm::StringRef name) {
+    IdentifierInfo* nameIdentifier = identifierTable.Get(name);
+    IdentifierInfo* ofTypeIdentifier = identifierTable.Get("T");
+
+    NamedDecl* ofType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
+    TemplateTypeParamType* ofTypeType = astContext.GetTypeCache().GetOrCreateTemplateTypeParamType((TemplateTypeParamDecl*)ofType);
+    TemplateParameterList* templateParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &ofType, 1 }, SourceRange{});
+
+    FunctionDecl* functionDecl = FunctionDecl::Create(astContext, nameIdentifier, intrinsicID);
+
+    Type* returnType = ofTypeType;
+    llvm::SmallVector<QualType> paramsType{};
+
+    switch (intrinsicID) {
+        case FunctionDecl::IntrinsicID::Unpack: {
+            returnType = CreateLanesTemplateSpecializationType(ofTypeType);
+            Type* argType = CreateVectorTemplateSpecializationType(ofTypeType);
+            paramsType.push_back(argType);
+            IdentifierInfo* paramIdentifier = identifierTable.Get("Arg_0");
+            ParamDecl* paramDecl = ParamDecl::Create(astContext, argType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            functionDecl->InsertBack(paramDecl);
+            break;
+        }
+        case FunctionDecl::IntrinsicID::Pack: {
+            returnType = CreateVectorTemplateSpecializationType(ofTypeType);
+            Type* argType = CreateLanesTemplateSpecializationType(ofTypeType);
+            paramsType.push_back(argType);
+            IdentifierInfo* paramIdentifier = identifierTable.Get("Arg_0");
+            ParamDecl* paramDecl = ParamDecl::Create(astContext, argType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            functionDecl->InsertBack(paramDecl);
+            break;
+        }
+        case FunctionDecl::IntrinsicID::Length: {
+            returnType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
+            paramsType.push_back(ofTypeType);
+            IdentifierInfo* paramIdentifier = identifierTable.Get("Arg_0");
+            ParamDecl* paramDecl = ParamDecl::Create(astContext, ofTypeType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            functionDecl->InsertBack(paramDecl);
+            break;
+        }
+        case FunctionDecl::IntrinsicID::Select: {
+            returnType = CreateVectorTemplateSpecializationType(ofTypeType);
+            Type* param0Type = astContext.GetTypeCache().GetOrCreateVectorType(astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool));
+            Type* param1Type = CreateVectorTemplateSpecializationType(ofTypeType);
+            Type* param2Type = CreateVectorTemplateSpecializationType(ofTypeType);
+            paramsType.push_back(param0Type);
+            paramsType.push_back(param1Type);
+            paramsType.push_back(param2Type);
+            IdentifierInfo* param0Identifier = identifierTable.Get("Arg_0");
+            IdentifierInfo* param1Identifier = identifierTable.Get("Arg_1");
+            IdentifierInfo* param2Identifier = identifierTable.Get("Arg_2");
+            ParamDecl* param0Decl = ParamDecl::Create(astContext, param0Type, param0Identifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            ParamDecl* param1Decl = ParamDecl::Create(astContext, param1Type, param1Identifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            ParamDecl* param2Decl = ParamDecl::Create(astContext, param2Type, param2Identifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            functionDecl->InsertBack(param0Decl);
+            functionDecl->InsertBack(param1Decl);
+            functionDecl->InsertBack(param2Decl);
+            break;
+        }
+        default:
+            diagnosticReporter.Error(Diagnostic::MissingImplementation)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return;
+    }
+
+    FunctionType* type = astContext.GetTypeCache().GetOrCreateFunctionType(returnType, paramsType);
+    functionDecl->SetType(type);
+
+    TemplateDecl* templateDecl = TemplateDecl::Create(astContext, templateParamList, SourceRange{});
+    templateDecl->InsertBack(functionDecl);
+    templateDecl->SetTemplatedNamedDecl(functionDecl);
+
+    if (!AddDeclToScopeAndContext(templateDecl))
+        diagnosticReporter.Error(Diagnostic::MissingImplementation)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+}
+
+void VCL::Sema::AddIntrinsicTemplateDecl() {
+    AddIntrinsicTypes();
+
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Sin, "sin", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Cos, "cos", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Tan, "tan", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Sinh, "sinh", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Cosh, "cosh", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Tanh, "tanh", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::ASin, "asin", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::ACos, "acos", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::ATan, "atan", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::ATan2, "atan2", 1);
+
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Sqrt, "sqrt", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Log, "log", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Log2, "log2", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Log10, "log10", 1);
+
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Exp, "exp", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Exp2, "exp2", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Floor, "floor", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Ceil, "ceil", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Round, "round", 1);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Abs, "abs", 1);
+    
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Pow, "pow", 2);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Min, "min", 2);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Max, "max", 2);
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::FMod, "fmod", 2);
+
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Fma, "fma", 3);
+
+    AddIntrinsicFunction(FunctionDecl::IntrinsicID::Unpack, "unpack");
+    AddIntrinsicFunction(FunctionDecl::IntrinsicID::Pack, "pack");
+    AddIntrinsicFunction(FunctionDecl::IntrinsicID::Length, "length");
+    AddIntrinsicFunction(FunctionDecl::IntrinsicID::Select, "select");
 }
 
 bool VCL::Sema::PushDeclContextScope(DeclContext* context, bool loopScope) {
@@ -142,6 +311,97 @@ bool VCL::Sema::ImportModule(Module* module, IdentifierInfo* identifierInfo) {
     return true;
 }
 
+bool VCL::Sema::ValidateIntrinsicFunctionDeclSpecialization(FunctionDecl* decl) {
+    FunctionType* functionType = decl->GetType();
+
+    switch (decl->GetIntrinsicID()) {
+        // Math Intrinsic (one type either float or vector of float)
+        case FunctionDecl::IntrinsicID::Sin:
+        case FunctionDecl::IntrinsicID::Cos:
+        case FunctionDecl::IntrinsicID::Tan:
+        case FunctionDecl::IntrinsicID::Sinh:
+        case FunctionDecl::IntrinsicID::Cosh:
+        case FunctionDecl::IntrinsicID::Tanh:
+        case FunctionDecl::IntrinsicID::ASin:
+        case FunctionDecl::IntrinsicID::ACos:
+        case FunctionDecl::IntrinsicID::ATan:
+        case FunctionDecl::IntrinsicID::ATan2:
+        case FunctionDecl::IntrinsicID::Sqrt:
+        case FunctionDecl::IntrinsicID::Log:
+        case FunctionDecl::IntrinsicID::Log2:
+        case FunctionDecl::IntrinsicID::Log10:
+        case FunctionDecl::IntrinsicID::Exp:
+        case FunctionDecl::IntrinsicID::Exp2:
+        case FunctionDecl::IntrinsicID::Floor:
+        case FunctionDecl::IntrinsicID::Ceil:
+        case FunctionDecl::IntrinsicID::Round:
+        case FunctionDecl::IntrinsicID::FMod:
+        case FunctionDecl::IntrinsicID::Pow: {
+            Type* type = functionType->GetReturnType().GetType();
+            type = Type::GetCanonicalType(type);
+            if (type->GetTypeClass() == Type::VectorTypeClass) {
+                type = ((VectorType*)type)->GetElementType().GetType();
+            }
+
+            if (type->GetTypeClass() == Type::BuiltinTypeClass) {
+                BuiltinType* builtinType = (BuiltinType*)type;
+                BuiltinType::Kind kind = builtinType->GetKind();
+                if (kind == BuiltinType::Float32 || kind == BuiltinType::Float64)
+                    return true;
+            }
+            
+            diagnosticReporter.Error(Diagnostic::MathIntrinsicBadSpecialization, decl->GetIdentifierInfo()->GetName().str(), TypePrinter::Print(type))
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return false;
+        }
+        // Math Intrinsic (one type either scalar or vector of scalar)
+        case FunctionDecl::IntrinsicID::Min:
+        case FunctionDecl::IntrinsicID::Max:
+        case FunctionDecl::IntrinsicID::Fma:
+        case FunctionDecl::IntrinsicID::Abs: {
+            Type* type = functionType->GetReturnType().GetType();
+            type = Type::GetCanonicalType(type);
+            if (type->GetTypeClass() == Type::VectorTypeClass)
+                type = ((VectorType*)type)->GetElementType().GetType();
+
+            if (type->GetTypeClass() == Type::BuiltinTypeClass) {
+                BuiltinType* builtinType = (BuiltinType*)type;
+                BuiltinType::Kind kind = builtinType->GetKind();
+                if (kind != BuiltinType::Void || kind != BuiltinType::Bool)
+                    return true;
+            }
+            
+            diagnosticReporter.Error(Diagnostic::MathIntrinsicBadSpecialization, decl->GetIdentifierInfo()->GetName().str(), TypePrinter::Print(type))
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return false;
+        }
+        case FunctionDecl::IntrinsicID::Unpack:
+        case FunctionDecl::IntrinsicID::Pack:
+            return true;
+        case FunctionDecl::IntrinsicID::Length: {
+            Type* type = Type::GetCanonicalType(functionType->GetParamsType()[0].GetType());
+            Type::TypeClass typeClass = type->GetTypeClass();
+            if (typeClass != Type::VectorTypeClass && typeClass != Type::LanesTypeClass && 
+                    typeClass != Type::ArrayTypeClass && typeClass != Type::SpanTypeClass) {
+                diagnosticReporter.Error(Diagnostic::LengthIntrinsicBadSpecialization, TypePrinter::Print(type))
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .Report();
+                return false;
+            }
+            return true;
+        }
+        case FunctionDecl::IntrinsicID::Select:
+            return true;
+        default:
+            diagnosticReporter.Error(Diagnostic::MissingImplementation)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return false;
+    }
+}
+
 VCL::NamedDecl* VCL::Sema::LookupNamedDecl(SymbolRef symbolRef, int depth) {
     Scope* currentScope = sm.GetScopeFront();
 
@@ -167,14 +427,16 @@ VCL::NamedDecl* VCL::Sema::LookupNamedDecl(SymbolRef symbolRef, int depth) {
             ++currentDepth;
         }
     } else {
-        if (!importedModules.Get(symbolRef.GetModuleName())) {
+        Module* module = importedModules.Get(symbolRef.GetModuleName());
+        if (module == nullptr) {
             diagnosticReporter.Error(Diagnostic::ModuleNameDoesNotExists, symbolRef.GetModuleName()->GetName().str())
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .Report();
             return nullptr;
         }
-        Module* module = importedModules.Get(symbolRef.GetModuleName());
         Decl* decl = module->GetCompilerInstance()->GetExportSymbolTable().Get(symbolRef.GetSymbolName());
+        if (!decl)
+            return nullptr;
         if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
             TemplateDecl* templateDecl = (TemplateDecl*)decl;
             if (templateDecl->GetTemplatedNamedDecl() == nullptr)
@@ -340,6 +602,10 @@ VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType ret
         if (!instantiator.MakeTypeComplete(decl->GetType()->GetReturnType().GetType()))
             return nullptr;
     }
+
+    if (decl->HasFunctionFlag(FunctionDecl::IsIntrinsic))
+        if (!ValidateIntrinsicFunctionDeclSpecialization(decl))
+            return nullptr;
 
     if (sm.GetScopeFront()->GetDeclContext() != decl) {
         if (!AddDeclToScopeAndContext(decl))
@@ -529,7 +795,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return nullptr;
-    } 
+    }
 
     if (IsCurrentScopeGlobal() && initializer) {
         if (varAttrBitfield.hasInAttribute) {
@@ -573,6 +839,8 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
             initializer->SetConstantValue(value);
         } else if (initializer) {
             initializer = ActOnCast(ActOnLoad(initializer), type, initializer->GetSourceRange());
+            if (!initializer)
+                return nullptr;
         }
     }
 
@@ -1122,6 +1390,10 @@ VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange ra
 
     Type* exprTrueType = Type::GetCanonicalType(expr->GetResultType().GetType());
     switch (exprTrueType->GetTypeClass()) {
+        case Type::LanesTypeClass: {
+            QualType resultType = ((LanesType*)exprTrueType)->GetElementType();
+            return SubscriptExpr::Create(astContext, expr, index, resultType, range);
+        }
         case Type::ArrayTypeClass: {
             QualType resultType = ((ArrayType*)exprTrueType)->GetElementType();
             return SubscriptExpr::Create(astContext, expr, index, resultType, range);
@@ -1250,12 +1522,19 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
     if (expr->GetResultType().GetType()->IsDependent() || toType.GetType()->IsDependent())
         return expr;
 
-    Type* srcType = GetInstantiatedType(expr->GetResultType().GetType());
-    Type* dstType = GetInstantiatedType(toType.GetType());
+    if (toType.GetType()->GetTypeClass() == Type::TemplateSpecializationTypeClass) {
+        TemplateInstantiator instantiator{ *this };
+        if (!instantiator.MakeTypeComplete(toType.GetType()))
+            return nullptr;
+    }
+
+    Type* srcType = Type::GetCanonicalType(expr->GetResultType().GetType());
+    Type* dstType = Type::GetCanonicalType(toType.GetType());
 
     if (!srcType || !dstType) {
         diagnosticReporter.Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .Report();
         return nullptr;
     }
@@ -1397,6 +1676,8 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
 
         TemplateParameterList* parameters = templateDecl->GetTemplateParametersList();
         templateArgs = DeduceTemplateArgumentFromCall(templatedFunctionDecl, args, templateArgs, parameters);
+        if (!templateArgs)
+            return nullptr;
 
         if (templateArgs->IsDependent())
             return DependentCallExpr::Create(astContext, symbolRef, args, templateArgs, range);
@@ -1601,16 +1882,10 @@ bool VCL::Sema::IsWithinALoop() {
 }
 
 bool VCL::Sema::TypePreferByReference(Type* type) {
-    type = GetInstantiatedType(type);
+    type = Type::GetCanonicalType(type);
     if (type->GetTypeClass() == Type::BuiltinTypeClass || type->GetTypeClass() == Type::VectorTypeClass)
         return false;
     return true;
-}
-
-VCL::Type* VCL::Sema::GetInstantiatedType(Type* type) {
-    if (type->GetTypeClass() != Type::TemplateSpecializationTypeClass)
-        return type;
-    return ((TemplateSpecializationType*)type)->GetInstantiatedType();
 }
 
 bool VCL::Sema::CheckTypeCastability(Type* type) {
@@ -1638,6 +1913,48 @@ bool VCL::Sema::IsCurrentScopeGlobal() {
     return frontDeclContext->GetDeclContextClass() == DeclContext::TranslationUnitDeclContextClass;
 }
 
+std::variant<VCL::Type*, VCL::ConstantScalar> VCL::Sema::RecursivelyDeduceTemplateArgument(NamedDecl* parameter, TemplateSpecializationType* a, TemplateSpecializationType* b) {
+    TemplateSpecializationType* aSpe = (TemplateSpecializationType*)a;
+    TemplateSpecializationType* bSpe = (TemplateSpecializationType*)b;
+    if (aSpe->GetTemplateDecl() != bSpe->GetTemplateDecl())
+        return { nullptr };
+
+    for (int i = 0; i < aSpe->GetTemplateArgumentList()->GetCount(); ++i) {
+        TemplateArgument aTemplateArg = aSpe->GetTemplateArgumentList()->GetArgs()[i];
+        TemplateArgument bTemplateArg = bSpe->GetTemplateArgumentList()->GetArgs()[i];
+
+        if (aTemplateArg.GetKind() != TemplateArgument::Type)
+            break;
+            
+        Type* aTemplateArgType = aTemplateArg.GetType().GetType();
+        if (aTemplateArgType->GetTypeClass() == Type::TemplateTypeParamTypeClass) {
+            TemplateTypeParamType* aTemplateParamType = (TemplateTypeParamType*)aTemplateArgType;
+            if (aTemplateParamType->GetTemplateTypeParamDecl() == parameter)
+                return bTemplateArg.GetType().GetType();
+        }
+
+        if (aTemplateArgType->GetTypeClass() == Type::TemplateSpecializationTypeClass) {
+            if (bTemplateArg.GetKind() != TemplateArgument::Type)
+                continue;
+            Type* bTemplateArgType = bTemplateArg.GetType().GetType();
+            if (aTemplateArgType->GetTypeClass() != bTemplateArgType->GetTypeClass())
+                continue;
+            std::variant<Type*, ConstantScalar> r = RecursivelyDeduceTemplateArgument(parameter, 
+                (TemplateSpecializationType*)aTemplateArgType, (TemplateSpecializationType*)bTemplateArgType);
+            if (std::holds_alternative<Type*>(r)) {
+                Type* resultType = std::get<Type*>(r);
+                if (!resultType)
+                    continue;
+                return resultType;
+            } else {
+                return r;
+            }
+        }
+    }
+
+    return { nullptr };
+}
+
 VCL::TemplateArgumentList* VCL::Sema::DeduceTemplateArgumentFromCall(
         FunctionDecl* functionDecl, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, TemplateParameterList* parameters) {
     llvm::ArrayRef<NamedDecl*> paramArray = parameters->GetParams();
@@ -1653,20 +1970,46 @@ VCL::TemplateArgumentList* VCL::Sema::DeduceTemplateArgumentFromCall(
 
         bool deduced = false;
 
-        for (size_t j = 0; j < functionType->GetParamsType().size(); ++i) {
-            QualType paramType = functionType->GetParamsType()[j];
-            if (paramType.GetType()->GetTypeClass() != Type::TemplateTypeParamTypeClass)
+        for (size_t j = 0; j < functionType->GetParamsType().size(); ++j) {
+            Type* paramType = functionType->GetParamsType()[j].GetType();
+            Type* argType = args[j]->GetResultType().GetType();
+
+            if (paramType->GetTypeClass() != Type::TemplateTypeParamTypeClass && 
+                    paramType->GetTypeClass() == Type::TemplateSpecializationTypeClass) {
+                if (paramType->GetTypeClass() != argType->GetTypeClass())
+                    continue;
+
+                TemplateSpecializationType* paramTypeSpe = (TemplateSpecializationType*)paramType;
+                TemplateSpecializationType* argTypeSpe = (TemplateSpecializationType*)argType;
+                
+                std::variant<Type*, ConstantScalar> r = RecursivelyDeduceTemplateArgument(paramArray[i], paramTypeSpe, argTypeSpe);
+                if (std::holds_alternative<Type*>(r)) {
+                    Type* resultType = std::get<Type*>(r);
+                    if (!resultType)
+                        continue;
+                    newTemplateArgs.push_back(TemplateArgument{ std::get<Type*>(r) });
+                    deduced = true;
+                    break;
+                } else {
+                    newTemplateArgs.push_back(TemplateArgument{ std::get<ConstantScalar>(r) });
+                    deduced = true;
+                    break;
+                }
+            }
+
+            if (paramType->GetTypeClass() != Type::TemplateTypeParamTypeClass)
                 continue;
-            TemplateTypeParamType* templateParamType = (TemplateTypeParamType*)paramType.GetType();
+
+            TemplateTypeParamType* templateParamType = (TemplateTypeParamType*)paramType;
             if (templateParamType->GetTemplateTypeParamDecl() == paramArray[i]) {
-                newTemplateArgs.push_back(TemplateArgument{ args[j]->GetResultType() });
+                newTemplateArgs.push_back(TemplateArgument{ argType });
                 deduced = true;
                 break;
             }
         }
 
         if (!deduced) {
-            diagnosticReporter.Error(Diagnostic::MissingTemplateArgument, functionDecl->GetIdentifierInfo()->GetName().str())
+            diagnosticReporter.Error(Diagnostic::CannotDeduceTemplateArgument, functionDecl->GetIdentifierInfo()->GetName().str())
                 .AddHint(DiagnosticHint{ functionDecl->GetSourceRange() })
                 .AddHint(DiagnosticHint{ paramArray[i]->GetSourceRange(), DiagnosticHint::Declared })
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)

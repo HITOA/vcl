@@ -25,6 +25,7 @@ namespace VCL {
 
         llvm::Type* ConvertBuiltinType(QualType type);
         llvm::VectorType* ConvertVectorType(QualType type);
+        llvm::ArrayType* ConvertLanesType(QualType type);
         llvm::ArrayType* ConvertArrayType(QualType type);
         llvm::StructType* ConvertSpanType(QualType type);
         llvm::StructType* ConvertRecordDeclType(QualType type);

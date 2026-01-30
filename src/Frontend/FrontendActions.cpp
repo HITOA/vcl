@@ -8,6 +8,7 @@
 #include <VCL/Sema/Sema.hpp>
 #include <VCL/Parse/Parser.hpp>
 #include <VCL/CodeGen/CodeGenModule.hpp>
+#include <VCL/CodeGen/Optimizer.hpp>
 
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 
@@ -87,10 +88,16 @@ bool VCL::EmitLLVMAction::Execute() {
             instance->GetASTContext(), 
             instance->GetCompilerContext().GetDiagnosticReporter(),
             instance->GetCompilerContext().GetTarget(),
-            instance->GetImportModuleTable() };
-        bool r = cgm.Emit();
-        if (!r)
+            instance->GetImportModuleTable(),
+            instance->GetCompilerContext().GetAttributeTable(),
+            instance->GetCompilerContext().GetIdentifierTable() };
+        if (!cgm.Emit())
             return false;
-        return cgm.LinkNow();
+        if (runOptimization) {
+            Optimizer optimizer{};
+            return optimizer.Optimize(cgm);
+        } else {
+            return true;
+        }
     });
 }

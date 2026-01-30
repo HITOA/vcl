@@ -12,14 +12,24 @@ VCL::CodeGenFunction::CodeGenFunction(CodeGenModule& cgm) : cgm{ cgm }, builder{
 llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported) {
     llvm::FunctionType* functionType = cgm.GetCGT().ConvertFunctionType(QualType{ decl->GetType() });
 
-    ASTContext& context = imported ? cgm.GetImportedDeclModule(decl)->GetCompilerInstance()->GetASTContext() : cgm.GetASTContext();
-    std::string functionName = Mangler::MangleFunctionDecl(context, decl);
+    AttributeDefinition* entryPointAD = cgm.GetAttributeTable().GetDefinition(
+        cgm.GetIdentifierTable().Get("EntryPoint"));
+    AttributeDefinition* noMangleAD = cgm.GetAttributeTable().GetDefinition(
+        cgm.GetIdentifierTable().Get("NoMangle"));
 
-    //function = llvm::Function::Create(
-    //    functionType, llvm::GlobalValue::LinkOnceODRLinkage, functionName, cgm.GetLLVMModule());
+    ASTContext& context = imported ? cgm.GetImportedDeclModule(decl)->GetCompilerInstance()->GetASTContext() : cgm.GetASTContext();
+    std::string functionName = decl->GetIdentifierInfo()->GetName().str();
+
+    if (!decl->HasAttribute(noMangleAD) && !decl->HasAttribute(entryPointAD))
+        functionName = Mangler::MangleFunctionDecl(context, decl);
 
     function = llvm::cast<llvm::Function>(cgm.GetLLVMModule().getOrInsertFunction(functionName, functionType).getCallee());
     function->setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+
+    if (decl->HasAttribute(entryPointAD)) {
+        function->setLinkage(llvm::GlobalValue::ExternalLinkage);
+        function->setDSOLocal(true);
+    }
 
     int i = 0;
     for (auto it = decl->Begin(); it != decl->End(); ++it) {

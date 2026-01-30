@@ -78,7 +78,9 @@ bool VCL::CompilerContext::HasAttributeTable() {
 }
 
 void VCL::CompilerContext::CreateAttributeTable() {
+    assert(HasIdentifierTable() && "missing identifier table");
     attributeTable = llvm::makeIntrusiveRefCnt<AttributeTable>();
+    attributeTable->AddDefaults(GetIdentifierTable());
 }
 
 VCL::DirectiveRegistry& VCL::CompilerContext::GetDirectiveRegistry() {

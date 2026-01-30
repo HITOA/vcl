@@ -62,6 +62,7 @@ namespace VCL {
         llvm::Value* GenerateBinaryExpr(BinaryExpr* expr);
         llvm::Value* GenerateUnaryExpr(UnaryExpr* expr);
         llvm::Value* GenerateCallExpr(CallExpr* expr);
+        llvm::Value* GenerateIntrinsicCallExpr(CallExpr* expr);
         llvm::Value* GenerateFieldAccessExpr(FieldAccessExpr* expr);
         llvm::Value* GenerateSubscriptExpr(SubscriptExpr* expr);
         llvm::Value* GenerateAggregateExpr(AggregateExpr* expr);

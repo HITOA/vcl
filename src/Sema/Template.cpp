@@ -3,6 +3,7 @@
 #include <VCL/Core/Diagnostic.hpp>
 #include <VCL/AST/ExprEvaluator.hpp>
 #include <VCL/Sema/Sema.hpp>
+#include <VCL/AST/TypePrinter.hpp>
 
 bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
     switch (type->GetTypeClass()) {
@@ -22,8 +23,8 @@ bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSp
         return false;
     Type* t = nullptr;
     switch (type->GetTemplateDecl()->GetTemplatedNamedDecl()->GetDeclClass()) {
-        case Decl::IntrinsicDeclClass:
-            t = InstantiateTemplatedIntrinsicDecl(type->GetTemplateDecl());
+        case Decl::IntrinsicTypeDeclClass:
+            t = InstantiateTemplatedIntrinsicTypeDecl(type->GetTemplateDecl());
             break;
         case Decl::RecordDeclClass:
             t = InstantiateTemplatedRecordDecl(type->GetTemplateDecl());
@@ -148,8 +149,8 @@ bool VCL::TemplateInstantiator::EvaluateTemplateArgumentsExpr(TemplateArgumentLi
     return true;
 }
 
-VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedIntrinsicDecl(TemplateDecl* decl) {
-    IntrinsicDecl* intrinsicDecl = (IntrinsicDecl*)decl->GetTemplatedNamedDecl();
+VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedIntrinsicTypeDecl(TemplateDecl* decl) {
+    IntrinsicTypeDecl* intrinsicDecl = (IntrinsicTypeDecl*)decl->GetTemplatedNamedDecl();
     IdentifierInfo* identifier = intrinsicDecl->GetIdentifierInfo();
     switch (identifier->GetTokenKind()) {
         case TokenKind::Keyword_Vec: {
@@ -179,6 +180,34 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedIntrinsicDecl(Template
                     return nullptr;
             }
             return sema.GetASTContext().GetTypeCache().GetOrCreateVectorType(ofType);
+        }
+        case TokenKind::Keyword_Lanes: {
+            TemplateArgument* arg0 = Lookup(decl->GetTemplateParametersList()->GetParams()[0]);
+            QualType ofType = arg0->GetType();
+            if (ofType.GetType()->GetTypeClass() != Type::BuiltinTypeClass) {
+                sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ arg0->GetSourceRange() })
+                    .AddHint(DiagnosticHint{ decl->GetTemplateParametersList()->GetSourceRange(), DiagnosticHint::Declared })
+                    .Report();
+                return nullptr;
+            }
+            BuiltinType* type = (BuiltinType*)ofType.GetType();
+            switch (type->GetKind()) {
+                case BuiltinType::Bool:
+                case BuiltinType::Float32:
+                case BuiltinType::Float64:
+                case BuiltinType::Int32:
+                    break;
+                default:
+                    sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
+                        .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                        .AddHint(DiagnosticHint{ arg0->GetSourceRange() })
+                        .AddHint(DiagnosticHint{ decl->GetTemplateParametersList()->GetSourceRange(), DiagnosticHint::Declared })
+                        .Report();
+                    return nullptr;
+            }
+            return sema.GetASTContext().GetTypeCache().GetOrCreateLanesType(ofType);
         }
         case TokenKind::Keyword_Array: {
             TemplateArgument* arg0 = Lookup(decl->GetTemplateParametersList()->GetParams()[0]);
@@ -227,12 +256,19 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedRecordDecl(TemplateDec
 
 VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(TemplateDecl* decl) {
     FunctionDecl* functionDecl = (FunctionDecl*)decl->GetTemplatedNamedDecl();
+
     FunctionDecl* newFunctionDecl = FunctionDecl::Create(sema.GetASTContext(), functionDecl->GetIdentifierInfo());
     
     if (!newFunctionDecl)
         return nullptr;
 
+    if (functionDecl->HasFunctionFlag(FunctionDecl::IsIntrinsic)) {
+        newFunctionDecl->SetIntrinsicID(functionDecl->GetIntrinsicID());
+        newFunctionDecl->SetFunctionFlag(FunctionDecl::IsIntrinsic);
+    }
+    
     QualType returnType = TransformType(functionDecl->GetType()->GetReturnType());
+
     if (!returnType.GetAsOpaquePtr())
         return nullptr;
  
@@ -251,19 +287,22 @@ VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(T
         }
     }
 
-    newFunctionDecl = sema.ActOnFunctionDecl(newFunctionDecl, returnType, functionDecl->GetSourceRange());
-    if (!newFunctionDecl) {
+    if (FunctionDecl* r = sema.ActOnFunctionDecl(newFunctionDecl, returnType, functionDecl->GetSourceRange()); r != nullptr) {
+        newFunctionDecl = r;
+    } else {
         sema.PopDeclContextScope(newFunctionDecl);
         return nullptr;
     }
 
-    Stmt* body = TransformStmt(functionDecl->GetBody());
-    if (!body) {
-        sema.PopDeclContextScope(newFunctionDecl);
-        return nullptr;
-    }
+    if (!functionDecl->HasFunctionFlag(FunctionDecl::IsIntrinsic)) {
+        Stmt* body = TransformStmt(functionDecl->GetBody());
+        if (!body) {
+            sema.PopDeclContextScope(newFunctionDecl);
+            return nullptr;
+        }
 
-    newFunctionDecl->SetBody(body);
+        newFunctionDecl->SetBody(body);
+    }
 
     sema.PopDeclContextScope(newFunctionDecl);
 

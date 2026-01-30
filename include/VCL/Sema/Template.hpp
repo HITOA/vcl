@@ -27,7 +27,7 @@ namespace VCL {
         bool CheckTemplateArgumentsParametersMatch(TemplateArgumentList* args, TemplateParameterList* params);
         bool EvaluateTemplateArgumentsExpr(TemplateArgumentList* args);
 
-        Type* InstantiateTemplatedIntrinsicDecl(TemplateDecl* decl);
+        Type* InstantiateTemplatedIntrinsicTypeDecl(TemplateDecl* decl);
         Type* InstantiateTemplatedRecordDecl(TemplateDecl* decl);
         FunctionDecl* InstantiateTemplatedFunctionDecl(TemplateDecl* decl);
 

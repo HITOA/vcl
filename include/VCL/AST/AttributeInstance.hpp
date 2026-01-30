@@ -17,7 +17,7 @@ namespace VCL {
     public:
         AttributeInstance() = delete;
         AttributeInstance(AttributeDefinition* definition, llvm::ArrayRef<ConstantValue*> args, SourceRange range)
-            : definition{ definition }, argsCount{ args.size() }, range{ range } {
+            : definition{ definition }, argsCount{ args.size() }, range{ range }, next{ nullptr } {
             std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects());
         }
         AttributeInstance(const AttributeInstance& other) = delete;

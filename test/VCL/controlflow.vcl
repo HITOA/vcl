@@ -30,6 +30,7 @@ out int32 o_for_break;           // For with break
 out int32 o_for_continue;        // For with continue (sum of odd numbers)
 out int32 o_for_nested;          // Nested for loops
 
+[EntryPoint]
 void Main() {
     // ========================================================================
     // If Statement Tests
