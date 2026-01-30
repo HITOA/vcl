@@ -6,4 +6,4 @@ The architecture and overall design of this compiler are heavily inspired by [Cl
 
 ## License
 
-VCL is released under the MIT License. See [LICENSE](LICENSE) for details.
+VCL is released under the GPL v3 License. See [LICENSE](LICENSE) for details.
