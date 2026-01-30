@@ -1,3 +1,0 @@
-/**
-*   VCL Test code empty
-*/

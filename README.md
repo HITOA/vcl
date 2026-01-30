@@ -1,20 +1,8 @@
 # VCL - Vector Computation Language
 
-**VCL** (Vector Computation Language) is a high-performance domain-specific language designed for digital signal processing (DSP) and vectorized computations. VCL is JIT-compiled using LLVM, automatically selecting the most efficient SIMD instruction set (SSE/AVX/AVX-512) available on the target platform. With VCL, you write code that naturally leverages SIMD operations to deliver real-time performance in audio processing, filtering, and other compute-intensive tasks.
+## Acknowledgements
 
-## Key Features
-
-- **SIMD-First Design:**  
-  VCL introduces explicit vector types (e.g., `vfloat`) so that operations are automatically vectorized for parallel processing.
-
-- **Easy I/O Integration:**  
-  Use the `in` and `out` keywords to declare global input and output variables that interface directly with external systems (like audio hosts).
-
-- **Custom Attributes:**  
-  Annotate code with metadata using custom attributes (e.g., `[Name="Input Audio"]`) fetchable from the c++ library.
-
-- **Seamless C++ Integration:**  
-  The VCL C++ library allows you to compile and execute VCL code at runtime, binding global variables and invoking the entry point with minimal overhead.
+The architecture and overall design of this compiler are heavily inspired by [Clang](https://github.com/llvm/llvm-project/tree/main/clang). As a self-taught developer experimenting with compiler design, I used Clang as a guide to understand best practices after building an initial prototype. The Clang source code is exceptionally well-documented and easy to follow — many thanks to the Clang team for making such a valuable resource available!
 
 ## License
 
