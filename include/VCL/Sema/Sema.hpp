@@ -15,6 +15,7 @@
 #include <VCL/Sema/ScopeManager.hpp>
 #include <VCL/Sema/SymbolTable.hpp>
 #include <VCL/Sema/ModuleTable.hpp>
+#include <VCL/Sema/DefineTable.hpp>
 
 #include <llvm/ADT/SmallSet.h>
 
@@ -34,7 +35,7 @@ namespace VCL {
     public:
         Sema() = delete;
         Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
-                DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules);
+                DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules, DefineTable& defineTable);
         Sema(const Sema& other) = delete;
         Sema(Sema&& other) = delete;
         ~Sema() = default;
@@ -48,6 +49,7 @@ namespace VCL {
         inline IdentifierTable& GetIdentifierTable() { return identifierTable; }
         inline SymbolTable& GetExportedSymbols() { return exportedSymbols; }
         inline ModuleTable& GetImportedModules() { return importedModules; }
+        inline DefineTable& GetDefineTable() { return definedValues; }
         
         TemplateSpecializationType* CreateVectorTemplateSpecializationType(Type* ofType);
         TemplateSpecializationType* CreateLanesTemplateSpecializationType(Type* ofType);
@@ -148,6 +150,7 @@ namespace VCL {
         DirectiveRegistry& directiveRegistry;
         SymbolTable& exportedSymbols;
         ModuleTable& importedModules;
+        DefineTable& definedValues;
         ScopeManager sm{};
         Scope* translationUnitScope;
     };

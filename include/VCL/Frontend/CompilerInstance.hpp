@@ -14,6 +14,7 @@ namespace VCL {
     class FrontendAction;
     class SymbolTable;
     class ModuleTable;
+    class DefineTable;
 
     class CompilerInstance {
     public:
@@ -40,6 +41,10 @@ namespace VCL {
         bool HasImportModuleTable();
         void CreateImportModuleTable();
 
+        DefineTable& GetDefineTable();
+        bool HasDefineTable();
+        void CreateDefineTable();
+
         bool BeginSource(Source* source);
         bool EndSource();
         bool HasSource();
@@ -55,6 +60,7 @@ namespace VCL {
         llvm::IntrusiveRefCntPtr<ASTContext> astCtx;
         llvm::IntrusiveRefCntPtr<SymbolTable> exportedSymbols;
         llvm::IntrusiveRefCntPtr<ModuleTable> importedModules;
+        llvm::IntrusiveRefCntPtr<DefineTable> definedValues;
     };
 
 }

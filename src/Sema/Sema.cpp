@@ -11,9 +11,9 @@
 
 
 VCL::Sema::Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
-        DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules) 
+        DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules, DefineTable& definedValues) 
         : astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable }, 
-            directiveRegistry{ directiveRegistry }, exportedSymbols{ exportedSymbols }, importedModules{ importedModules } {
+            directiveRegistry{ directiveRegistry }, exportedSymbols{ exportedSymbols }, importedModules{ importedModules }, definedValues{ definedValues } {
     translationUnitScope = sm.EmplaceScopeFront(astContext.GetTranslationUnitDecl());
     AddIntrinsicTemplateDecl();
 }

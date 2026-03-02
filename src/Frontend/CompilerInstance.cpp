@@ -5,6 +5,7 @@
 #include <VCL/Frontend/FrontendAction.hpp>
 #include <VCL/Sema/SymbolTable.hpp>
 #include <VCL/Sema/ModuleTable.hpp>
+#include <VCL/Sema/DefineTable.hpp>
 #include <VCL/CodeGen/Mangler.hpp>
 
 #include <assert.h>
@@ -58,6 +59,18 @@ bool VCL::CompilerInstance::HasImportModuleTable() {
 
 void VCL::CompilerInstance::CreateImportModuleTable() {
     importedModules = llvm::makeIntrusiveRefCnt<ModuleTable>();
+}
+
+VCL::DefineTable& VCL::CompilerInstance::GetDefineTable() {
+    return *definedValues;
+}
+
+bool VCL::CompilerInstance::HasDefineTable() {
+    return definedValues != nullptr;
+}
+
+void VCL::CompilerInstance::CreateDefineTable() {
+    definedValues = llvm::makeIntrusiveRefCnt<DefineTable>();
 }
 
 bool VCL::CompilerInstance::BeginSource(Source* source) {

@@ -28,6 +28,7 @@ bool VCL::ParseSyntaxOnlyAction::Execute() {
     instance->CreateASTContext();
     instance->CreateExportSymbolTable();
     instance->CreateImportModuleTable();
+    instance->CreateDefineTable();
 
     Lexer lexer{ instance->GetSource()->GetBufferRef(), 
         instance->GetCompilerContext().GetDiagnosticReporter(), 
@@ -38,7 +39,8 @@ bool VCL::ParseSyntaxOnlyAction::Execute() {
         instance->GetCompilerContext().GetIdentifierTable(),
         instance->GetCompilerContext().GetDirectiveRegistry(),
         instance->GetExportSymbolTable(),
-        instance->GetImportModuleTable() };
+        instance->GetImportModuleTable(),
+        instance->GetDefineTable() };
     Parser parser{ stream, sema, instance->GetCompilerContext().GetAttributeTable() };
     
     return parser.Parse();
@@ -60,6 +62,7 @@ bool VCL::EmitLLVMAction::Execute() {
     instance->CreateASTContext();
     instance->CreateExportSymbolTable();
     instance->CreateImportModuleTable();
+    instance->CreateDefineTable();
 
     Lexer lexer{ instance->GetSource()->GetBufferRef(), 
         instance->GetCompilerContext().GetDiagnosticReporter(), 
@@ -70,7 +73,8 @@ bool VCL::EmitLLVMAction::Execute() {
         instance->GetCompilerContext().GetIdentifierTable(),
         instance->GetCompilerContext().GetDirectiveRegistry(),
         instance->GetExportSymbolTable(),
-        instance->GetImportModuleTable() };
+        instance->GetImportModuleTable(),
+        instance->GetDefineTable() };
     Parser parser{ stream, sema, instance->GetCompilerContext().GetAttributeTable() };
     
     if (!parser.Parse())
