@@ -78,7 +78,7 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl, bool imported) {
             initializerValue = llvm::ConstantDataVector::getSplat(GetTarget().GetVectorWidthInElement(), initializerValue);
     }
 
-    llvm::GlobalVariable::LinkageTypes linkageType = llvm::GlobalVariable::LinkageTypes::CommonLinkage;
+    llvm::GlobalVariable::LinkageTypes linkageType = llvm::GlobalVariable::LinkageTypes::InternalLinkage;
     bool isConstant = false;
 
     if ((!decl->HasOutAttribute() && decl->HasInAttribute()) || decl->GetValueType().HasQualifier(Qualifier::Const))
@@ -86,7 +86,7 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl, bool imported) {
     if (decl->HasInAttribute() || decl->HasOutAttribute())
         linkageType = llvm::GlobalVariable::LinkageTypes::ExternalLinkage;
     else if (imported)
-        linkageType = llvm::GlobalVariable::LinkageTypes::LinkOnceODRLinkage;
+        linkageType = llvm::GlobalVariable::LinkageTypes::LinkOnceAnyLinkage;
 
     std::string globalName = decl->GetIdentifierInfo()->GetName().str();
     if (linkageType != llvm::GlobalVariable::LinkageTypes::ExternalLinkage) {

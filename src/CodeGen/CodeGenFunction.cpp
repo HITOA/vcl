@@ -24,11 +24,13 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
         functionName = Mangler::MangleFunctionDecl(context, decl);
 
     function = llvm::cast<llvm::Function>(cgm.GetLLVMModule().getOrInsertFunction(functionName, functionType).getCallee());
-    function->setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+    function->setLinkage(llvm::GlobalValue::InternalLinkage);
 
     if (decl->HasAttribute(entryPointAD)) {
         function->setLinkage(llvm::GlobalValue::ExternalLinkage);
         function->setDSOLocal(true);
+    } else if (imported) {
+        function->setLinkage(llvm::GlobalValue::LinkOnceAnyLinkage);
     }
 
     int i = 0;

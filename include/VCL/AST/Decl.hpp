@@ -341,7 +341,7 @@ namespace VCL {
         inline llvm::ArrayRef<ConstantValue*> GetArgs() { return { getTrailingObjects(), argsCount }; }
 
         static inline DirectiveDecl* Create(ASTContext& context, IdentifierInfo* identifier, llvm::ArrayRef<ConstantValue*> args, SourceRange range) {
-            size_t size = totalSizeToAlloc<ConstantValue*>(args.size());
+            size_t size = additionalSizeToAlloc<ConstantValue*>(args.size());
             void* ptr = context.Allocate(sizeof(DirectiveDecl) + size);
             DirectiveDecl* instance = new (ptr) DirectiveDecl{ identifier, args };
             instance->SetSourceRange(range);

@@ -86,7 +86,7 @@ namespace VCL {
         }
 
         static inline TemplateArgumentList* Create(ASTContext& context, llvm::ArrayRef<TemplateArgument> args, SourceRange range) {
-            size_t size = totalSizeToAlloc<TemplateArgument>(args.size());
+            size_t size = additionalSizeToAlloc<TemplateArgument>(args.size());
             void* ptr = context.Allocate(sizeof(TemplateArgumentList) + size);
             return new(ptr) TemplateArgumentList{ args, range };
         }

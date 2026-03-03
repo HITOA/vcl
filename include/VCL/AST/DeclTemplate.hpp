@@ -58,7 +58,7 @@ namespace VCL {
         inline SourceRange GetSourceRange() const { return range; }
 
         static inline TemplateParameterList* Create(ASTContext& context, llvm::ArrayRef<NamedDecl*> params, SourceRange range) {
-            size_t size = totalSizeToAlloc<NamedDecl*>(params.size());
+            size_t size = additionalSizeToAlloc<NamedDecl*>(params.size());
             void* ptr = context.Allocate(sizeof(TemplateParameterList) + size);
             return new(ptr) TemplateParameterList{ params, range };
         }

@@ -250,7 +250,7 @@ namespace VCL {
         inline llvm::ArrayRef<Expr*> GetArgs() { return { getTrailingObjects(), argsCount }; }
 
         static inline CallExpr* Create(ASTContext& context, FunctionDecl* decl, llvm::ArrayRef<Expr*> args, QualType returnType, SourceRange range) {
-            size_t size = totalSizeToAlloc<Expr*>(args.size());
+            size_t size = additionalSizeToAlloc<Expr*>(args.size());
             void* ptr = context.Allocate(sizeof(CallExpr) + size);
             CallExpr* instance = new (ptr) CallExpr{ decl, args };
             instance->SetResultType(returnType);
@@ -279,7 +279,7 @@ namespace VCL {
 
         static inline DependentCallExpr* Create(
                 ASTContext& context, SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
-            size_t size = totalSizeToAlloc<Expr*>(args.size());
+            size_t size = additionalSizeToAlloc<Expr*>(args.size());
             void* ptr = context.Allocate(sizeof(DependentCallExpr) + size);
             DependentCallExpr* instance = new (ptr) DependentCallExpr{ symbolRef, args, templateArgs };
             instance->SetResultType(context.GetTypeCache().GetOrCreateDependentType());

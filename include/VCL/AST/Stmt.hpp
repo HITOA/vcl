@@ -75,7 +75,7 @@ namespace VCL {
         inline llvm::ArrayRef<Stmt*> GetStmts() { return { getTrailingObjects(), stmtCount }; }
 
         static inline CompoundStmt* Create(ASTContext& context, llvm::ArrayRef<Stmt*> stmts, SourceRange range) {
-            size_t size = totalSizeToAlloc<Stmt*>(stmts.size());
+            size_t size = additionalSizeToAlloc<Stmt*>(stmts.size());
             void* ptr = context.Allocate(sizeof(CompoundStmt) + size);
             CompoundStmt* stmt = new(ptr) CompoundStmt{ stmts };
             stmt->SetSourceRange(range);

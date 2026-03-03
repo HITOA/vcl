@@ -46,7 +46,7 @@ namespace VCL {
         }
 
         inline static AttributeInstance* Create(ASTContext& context, AttributeDefinition* definition, llvm::ArrayRef<ConstantValue*> args, SourceRange range) {
-            size_t size = totalSizeToAlloc<ConstantValue*>(args.size());
+            size_t size = additionalSizeToAlloc<ConstantValue*>(args.size());
             void* ptr = context.Allocate(sizeof(AttributeInstance) + size);
             return new(ptr) AttributeInstance{ definition, args, range };
         }
