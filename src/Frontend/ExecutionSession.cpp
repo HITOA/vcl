@@ -36,8 +36,15 @@ VCL::ExecutionSession::ExecutionSession() : lastError{ llvm::Error::success() } 
     gdbListener = llvm::JITEventListener::createGDBRegistrationListener();
 }
 
+VCL::ExecutionSession::ExecutionSession(ExecutionSession&& other) : session{ std::move(other.session) }, layout{ std::move(other.layout) },
+        mangle{ std::move(other.mangle) }, linkingLayer{ std::move(other.linkingLayer) }, compileLayer{ std::move(other.compileLayer) }, main{ other.main },
+        gdbListener{ other.gdbListener }, lastError{ std::move(other.lastError) } {
+    other.session = nullptr;
+}
+
 VCL::ExecutionSession::~ExecutionSession() {
-    llvm::cantFail(session->endSession());
+    if (session != nullptr)
+        llvm::cantFail(session->endSession());
 }
 
 bool VCL::ExecutionSession::SubmitModule(llvm::orc::ThreadSafeModule&& module) {

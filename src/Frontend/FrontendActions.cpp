@@ -34,7 +34,9 @@ bool VCL::ParseSyntaxOnlyAction::Execute() {
         instance->GetCompilerContext().GetDiagnosticReporter(), 
         instance->GetCompilerContext().GetIdentifierTable() };
     TokenStream stream{ lexer };
-    Sema sema{ instance->GetASTContext(),
+    Sema sema{ 
+        instance->GetCompilerContext(),
+        instance->GetASTContext(),
         instance->GetCompilerContext().GetDiagnosticReporter(),
         instance->GetCompilerContext().GetIdentifierTable(),
         instance->GetCompilerContext().GetDirectiveRegistry(),
@@ -68,7 +70,9 @@ bool VCL::EmitLLVMAction::Execute() {
         instance->GetCompilerContext().GetDiagnosticReporter(), 
         instance->GetCompilerContext().GetIdentifierTable() };
     TokenStream stream{ lexer };
-    Sema sema{ instance->GetASTContext(),
+    Sema sema{ 
+        instance->GetCompilerContext(),
+        instance->GetASTContext(),
         instance->GetCompilerContext().GetDiagnosticReporter(),
         instance->GetCompilerContext().GetIdentifierTable(),
         instance->GetCompilerContext().GetDirectiveRegistry(),

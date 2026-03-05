@@ -42,6 +42,11 @@ void VCL::CompilerContext::CreateDiagnosticEngine() {
     diagnosticReporter = llvm::makeIntrusiveRefCnt<DiagnosticReporter>(*diagnosticsEngine);
 }
 
+void VCL::CompilerContext::CopyDiagnosticEngine(CompilerContext& other) {
+    diagnosticsEngine = other.diagnosticsEngine;
+    diagnosticReporter = other.diagnosticReporter;
+}
+
 VCL::SourceManager& VCL::CompilerContext::GetSourceManager() {
     return *sourceManager;
 }
@@ -56,6 +61,10 @@ void VCL::CompilerContext::CreateSourceManager() {
     invocation->GetDiagnosticOptions().GetDiagnosticConsumer()->SetSourceManager(sourceManager.get());
 }
 
+void VCL::CompilerContext::CopySourceManager(CompilerContext& other) {
+    sourceManager = other.sourceManager;
+}
+
 VCL::IdentifierTable& VCL::CompilerContext::GetIdentifierTable() {
     return *identifierTable;
 }
@@ -67,6 +76,10 @@ bool VCL::CompilerContext::HasIdentifierTable() {
 void VCL::CompilerContext::CreateIdentifierTable() {
     identifierTable = llvm::makeIntrusiveRefCnt<IdentifierTable>();
     identifierTable->AddKeywords();
+}
+
+void VCL::CompilerContext::CopyIdentifierTable(CompilerContext& other) {
+    identifierTable = other.identifierTable;
 }
 
 VCL::AttributeTable& VCL::CompilerContext::GetAttributeTable() {
@@ -83,6 +96,10 @@ void VCL::CompilerContext::CreateAttributeTable() {
     attributeTable->AddDefaults(GetIdentifierTable());
 }
 
+void VCL::CompilerContext::CopyAttributeTable(CompilerContext& other) {
+    attributeTable = other.attributeTable;
+}
+
 VCL::DirectiveRegistry& VCL::CompilerContext::GetDirectiveRegistry() {
     return *directiveRegistry;
 }
@@ -93,6 +110,10 @@ bool VCL::CompilerContext::HasDirectiveRegistry() {
 
 void VCL::CompilerContext::CreateDirectiveRegistry() {
     directiveRegistry = llvm::makeIntrusiveRefCnt<DirectiveRegistry>();
+}
+
+void VCL::CompilerContext::CopyDirectiveRegistry(CompilerContext& other) {
+    directiveRegistry = other.directiveRegistry;
 }
 
 VCL::Target& VCL::CompilerContext::GetTarget() {
@@ -107,6 +128,10 @@ void VCL::CompilerContext::CreateTarget() {
     target = llvm::makeIntrusiveRefCnt<Target>(invocation->GetTargetOptions());
 }
 
+void VCL::CompilerContext::CopyTarget(CompilerContext& other) {
+    target = other.target;
+}
+
 VCL::TypeCache& VCL::CompilerContext::GetTypeCache() {
     return *typeCache;
 }
@@ -119,6 +144,10 @@ void VCL::CompilerContext::CreateTypeCache() {
     typeCache = llvm::makeIntrusiveRefCnt<TypeCache>();
 }
 
+void VCL::CompilerContext::CopyTypeCache(CompilerContext& other) {
+    typeCache = other.typeCache;
+}
+
 VCL::ModuleCache& VCL::CompilerContext::GetModuleCache() {
     return *moduleCache;
 }
@@ -129,6 +158,10 @@ bool VCL::CompilerContext::HasModuleCache() {
 
 void VCL::CompilerContext::CreateModuleCache() {
     moduleCache = llvm::makeIntrusiveRefCnt<ModuleCache>();
+}
+
+void VCL::CompilerContext::CopyModuleCache(CompilerContext& other) {
+    moduleCache = other.moduleCache;
 }
 
 llvm::orc::ThreadSafeContext& VCL::CompilerContext::GetLLVMContext() {

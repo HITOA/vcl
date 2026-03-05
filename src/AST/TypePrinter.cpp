@@ -4,7 +4,6 @@
 #include <VCL/AST/DeclTemplate.hpp>
 #include <VCL/AST/Template.hpp>
 
-
 std::string VCL::TypePrinter::Print(QualType type) {
     if (type.GetAsOpaquePtr() == 0)
         return "nullptr";
@@ -30,6 +29,8 @@ std::string VCL::TypePrinter::Print(QualType type) {
             return qualifiers + PrintTemplateTypeParamType((TemplateTypeParamType*)type.GetType());
         case Type::TemplateSpecializationTypeClass:
             return qualifiers + PrintTemplateSpecializationType((TemplateSpecializationType*)type.GetType());
+        case Type::DependentTypeClass:
+            return qualifiers + PrintDependentType((DependentType*)type.GetType());
         default:
             return "invalid";
     }
@@ -149,4 +150,8 @@ std::string VCL::TypePrinter::PrintTemplateSpecializationType(TemplateSpecializa
     }
     result += ">";
     return result;
+}
+
+std::string VCL::TypePrinter::PrintDependentType(DependentType* type) {
+    return "DependentType";
 }

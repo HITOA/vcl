@@ -4,6 +4,8 @@
 
 
 bool VCL::DiagnosticsEngine::Diagnose(Diagnostic&& diagnostic) {
+    if (options.HasIgnoreMissingDirective() && diagnostic.GetMessage() == Diagnostic::DiagnosticMsg::DirectiveDoesNotExist)
+        return false;
     diagnostic.SetSeverity(BumpSeverityLevelIfNeeded(diagnostic.GetSeverity()));
     bool isError = diagnostic.GetSeverity() == Diagnostic::SeverityLevel::Error;
     if (options.GetDiagnosticConsumer())

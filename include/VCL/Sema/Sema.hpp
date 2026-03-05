@@ -23,6 +23,7 @@
 
 
 namespace VCL {
+    class CompilerContext;
     class DiagnosticReporter;
     class IdentifierTable;
     class Module;
@@ -34,7 +35,7 @@ namespace VCL {
     class Sema {
     public:
         Sema() = delete;
-        Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
+        Sema(CompilerContext& cc, ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
                 DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules, DefineTable& defineTable);
         Sema(const Sema& other) = delete;
         Sema(Sema&& other) = delete;
@@ -44,6 +45,7 @@ namespace VCL {
         Sema& operator=(Sema&& other) = delete;
 
     public:
+        inline CompilerContext& GetCompilerContext() { return cc; }
         inline ASTContext& GetASTContext() { return astContext; }
         inline DiagnosticReporter& GetDiagnosticReporter() { return diagnosticReporter; }
         inline IdentifierTable& GetIdentifierTable() { return identifierTable; }
@@ -112,7 +114,7 @@ namespace VCL {
         Expr* ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op);
         Expr* ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange range);
         bool IsExprAssignable(Expr* expr);
-
+        
         Expr* ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, SourceRange range);
         Expr* ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange range);
 
@@ -144,6 +146,7 @@ namespace VCL {
         bool MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateArgumentList* args2);
 
     private:
+        CompilerContext& cc;
         ASTContext& astContext;
         DiagnosticReporter& diagnosticReporter;
         IdentifierTable& identifierTable;

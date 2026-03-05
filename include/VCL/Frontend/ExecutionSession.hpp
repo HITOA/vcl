@@ -27,7 +27,7 @@ namespace VCL {
     public:
         ExecutionSession();
         ExecutionSession(const ExecutionSession& other) = delete;
-        ExecutionSession(ExecutionSession&& other) = default;
+        ExecutionSession(ExecutionSession&& other);
         ~ExecutionSession();
 
         ExecutionSession& operator=(const ExecutionSession& other) = delete;

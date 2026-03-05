@@ -6,13 +6,14 @@
 #include <VCL/AST/TypePrinter.hpp>
 #include <VCL/Sema/Template.hpp>
 #include <VCL/Frontend/ModuleCache.hpp>
+#include <VCL/Frontend/CompilerContext.hpp>
 
 #include <llvm/ADT/SmallPtrSet.h>
 
 
-VCL::Sema::Sema(ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
+VCL::Sema::Sema(CompilerContext& cc, ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
         DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules, DefineTable& definedValues) 
-        : astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable }, 
+        : cc{ cc }, astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable }, 
             directiveRegistry{ directiveRegistry }, exportedSymbols{ exportedSymbols }, importedModules{ importedModules }, definedValues{ definedValues } {
     translationUnitScope = sm.EmplaceScopeFront(astContext.GetTranslationUnitDecl());
     AddIntrinsicTemplateDecl();
@@ -501,11 +502,13 @@ VCL::CompoundStmt* VCL::Sema::ActOnCompoundStmt(llvm::ArrayRef<Stmt*> stmts, Sou
 VCL::DirectiveDecl* VCL::Sema::ActOnDirectiveDecl(IdentifierInfo* identifierInfo, llvm::ArrayRef<ConstantValue*> args, SourceRange range) {
     DirectiveHandler* handler = directiveRegistry.GetDirectiveHandler(identifierInfo);
     if (!handler) {
-        diagnosticReporter.Error(Diagnostic::DirectiveDoesNotExist, identifierInfo->GetName().str())
+        bool r = diagnosticReporter.Error(Diagnostic::DirectiveDoesNotExist, identifierInfo->GetName().str())
             .AddHint(DiagnosticHint{ range })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
-        return nullptr;
+        if (r)
+            return nullptr;
+        return DirectiveDecl::Create(astContext, identifierInfo, args, range);
     }
 
     DirectiveDecl* decl = DirectiveDecl::Create(astContext, identifierInfo, args, range);
@@ -889,7 +892,7 @@ VCL::Type* VCL::Sema::ActOnType(SymbolRef symbolRef, TemplateArgumentList* list,
                 .Report();
             return nullptr;
         }
-        if (!list && !decl->IsTypeDecl()) {
+        if (!decl->IsTypeDecl()) {
             diagnosticReporter.Error(Diagnostic::NotTypeDecl, symbolRef.GetSymbolName()->GetName().str())
                 .AddHint(DiagnosticHint{ range })
                 .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared })
@@ -1671,6 +1674,9 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(SymbolRef symbolRef, SourceRange range
 
 VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
     FunctionDecl* decl = nullptr;
+    for (Expr* arg : args)
+        if (arg->GetResultType().GetType()->IsDependent())
+            return DependentCallExpr::Create(astContext, symbolRef, args, templateArgs, range);
     if (TemplateDecl* templateDecl = LookupTemplateDecl(symbolRef)) {
         FunctionDecl* templatedFunctionDecl = (FunctionDecl*)templateDecl->GetTemplatedNamedDecl();
 
@@ -1734,21 +1740,26 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
     for (size_t i = 0; i < args.size(); ++i) {
         Expr* arg = args[i];
         QualType paramType = type->GetParamsType()[i];
+
         if (paramType.GetType()->IsDependent() || arg->GetResultType().GetType()->IsDependent()) {
             trueArgs.push_back(arg);
             continue;
         }
+
+        Type* canonicalArgType = Type::GetCanonicalType(arg->GetResultType().GetType());
+        Type* canonicalParameterType = Type::GetCanonicalType(paramType.GetType());
+
+        if (canonicalArgType != canonicalParameterType) {
+            diagnosticReporter.Error(Diagnostic::IncorrectType, TypePrinter::Print(arg->GetResultType()), TypePrinter::Print(paramType))
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ arg->GetSourceRange() })
+                .Report();
+            return nullptr;
+        }
+
         if (paramType.GetType()->GetTypeClass() == Type::ReferenceTypeClass) {
-            QualType actualType = ((ReferenceType*)paramType.GetType())->GetType();
             if (arg->GetValueCategory() != Expr::LValue) {
                 diagnosticReporter.Error(Diagnostic::MustBeLValue)
-                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                    .AddHint(DiagnosticHint{ arg->GetSourceRange() })
-                    .Report();
-                return nullptr;
-            }
-            if (arg->GetResultType().GetType() != actualType.GetType()) {
-                diagnosticReporter.Error(Diagnostic::IncorrectType, TypePrinter::Print(arg->GetResultType()), TypePrinter::Print(paramType))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ arg->GetSourceRange() })
                     .Report();
@@ -1883,7 +1894,8 @@ bool VCL::Sema::IsWithinALoop() {
 
 bool VCL::Sema::TypePreferByReference(Type* type) {
     type = Type::GetCanonicalType(type);
-    if (type->GetTypeClass() == Type::BuiltinTypeClass || type->GetTypeClass() == Type::VectorTypeClass)
+    if (type->GetTypeClass() == Type::BuiltinTypeClass 
+            || type->GetTypeClass() == Type::VectorTypeClass)
         return false;
     return true;
 }
@@ -1916,15 +1928,32 @@ bool VCL::Sema::IsCurrentScopeGlobal() {
 std::variant<VCL::Type*, VCL::ConstantScalar> VCL::Sema::RecursivelyDeduceTemplateArgument(NamedDecl* parameter, TemplateSpecializationType* a, TemplateSpecializationType* b) {
     TemplateSpecializationType* aSpe = (TemplateSpecializationType*)a;
     TemplateSpecializationType* bSpe = (TemplateSpecializationType*)b;
-    if (aSpe->GetTemplateDecl() != bSpe->GetTemplateDecl())
+    IdentifierInfo* aId = aSpe->GetTemplateDecl()->GetTemplatedNamedDecl()->GetIdentifierInfo();
+    IdentifierInfo* bId = bSpe->GetTemplateDecl()->GetTemplatedNamedDecl()->GetIdentifierInfo();
+    if (aSpe->GetTemplateDecl() != bSpe->GetTemplateDecl() && !(aId == bId && aId->IsKeyword() == true))
         return { nullptr };
 
     for (int i = 0; i < aSpe->GetTemplateArgumentList()->GetCount(); ++i) {
         TemplateArgument aTemplateArg = aSpe->GetTemplateArgumentList()->GetArgs()[i];
         TemplateArgument bTemplateArg = bSpe->GetTemplateArgumentList()->GetArgs()[i];
 
-        if (aTemplateArg.GetKind() != TemplateArgument::Type)
-            break;
+        if (aTemplateArg.GetKind() != TemplateArgument::Type) {
+            switch (bTemplateArg.GetKind()) {
+                case TemplateArgument::Integral:
+                    return bTemplateArg.GetIntegral();
+                case TemplateArgument::Expression: {
+                    ExprEvaluator eval{ astContext };
+                    ConstantValue* value = eval.Visit(bTemplateArg.GetExpr());
+                    if (!value)
+                        return { nullptr };
+                    if (value->GetConstantValueClass() != ConstantValue::ConstantScalarClass)
+                        return { nullptr };
+                    return *((ConstantScalar*)value);
+                }
+                default:
+                    return { nullptr };
+            }
+        }
             
         Type* aTemplateArgType = aTemplateArg.GetType().GetType();
         if (aTemplateArgType->GetTypeClass() == Type::TemplateTypeParamTypeClass) {
@@ -1987,7 +2016,7 @@ VCL::TemplateArgumentList* VCL::Sema::DeduceTemplateArgumentFromCall(
                     Type* resultType = std::get<Type*>(r);
                     if (!resultType)
                         continue;
-                    newTemplateArgs.push_back(TemplateArgument{ std::get<Type*>(r) });
+                    newTemplateArgs.push_back(TemplateArgument{ resultType });
                     deduced = true;
                     break;
                 } else {

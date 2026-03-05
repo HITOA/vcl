@@ -17,7 +17,7 @@ namespace VCL {
 
         CompilerInvocation& operator=(const CompilerInvocation& other) = default;
         CompilerInvocation& operator=(CompilerInvocation&& other) = default;
-
+        
         inline DiagnosticOptions& GetDiagnosticOptions() { return *diagnosticOptions; }
         inline TargetOptions& GetTargetOptions() { return *targetOptions; }
  

@@ -337,6 +337,13 @@ namespace VCL {
             return instance;
         }
 
+        static inline DependentFieldAccessExpr* Create(ASTContext& context, Expr* expr, IdentifierInfo* field, QualType resultType, SourceRange range) {
+            DependentFieldAccessExpr* instance = context.AllocateNode<DependentFieldAccessExpr>(expr, field);
+            instance->SetResultType(resultType);
+            instance->SetSourceRange(range);
+            return instance;
+        }
+
     private:
         Expr* expr;
         IdentifierInfo* field;

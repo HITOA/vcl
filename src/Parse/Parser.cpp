@@ -987,11 +987,11 @@ VCL::Expr* VCL::Parser::ParseBinaryExpression(Expr* lhs, int precedence) {
     while (lookaheadOp.precedence >= precedence) {
         BinaryOperator op = lookaheadOp;
         NEXT_TOKEN();
-        GET_TOKEN(token);
         Expr* rhs = ParsePrefixExpression();
         if (!rhs)
             return nullptr;
         
+        GET_TOKEN(token);
         lookaheadOp = GetBinaryOperator(*token, onTemplateArgument);
         while(lookaheadOp.precedence > op.precedence || 
             (lookaheadOp.precedence == op.precedence && lookaheadOp.associativity == OperatorAssociativity::Right)) {
@@ -1191,11 +1191,12 @@ VCL::Expr* VCL::Parser::ParseIdentifierExpr() {
     int o = 1;
     GET_TOKEN_N(token, o);
     if (token->kind == TokenKind::ColonColon) {
+        EXPECT_TOKEN_N(token, TokenKind::Identifier, 2);
         o = 3;
-        GET_TOKEN_N(token, o);
     }
     if (TryParseTemplateArgumentList(o) != 0)
         return ParseCallExpr();
+    GET_TOKEN_N(token, o);
     if (token->kind == TokenKind::LeftPar)
         return ParseCallExpr();
     GET_TOKEN(token);

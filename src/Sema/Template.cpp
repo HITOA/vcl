@@ -253,12 +253,10 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedRecordDecl(TemplateDec
     
     return (RecordType*)newDecl->GetType();
 }
-
 VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(TemplateDecl* decl) {
     FunctionDecl* functionDecl = (FunctionDecl*)decl->GetTemplatedNamedDecl();
 
     FunctionDecl* newFunctionDecl = FunctionDecl::Create(sema.GetASTContext(), functionDecl->GetIdentifierInfo());
-    
     if (!newFunctionDecl)
         return nullptr;
 
@@ -329,7 +327,7 @@ VCL::TemplateArgumentList* VCL::TemplateInstantiator::TransformTemplateArgumentL
         switch (arg.GetKind()) {
             case TemplateArgument::Type: {
                 QualType type = TransformType(arg.GetType());
-                if (type.GetType() == nullptr)
+                if (type.GetType() == nullptr) 
                     return nullptr;
                 newTemplateArgs.push_back(type);
                 break;
@@ -361,6 +359,9 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformStmt(Stmt* stmt) {
         case Stmt::DeclStmtClass: return TransformDeclStmt((DeclStmt*)stmt);
         case Stmt::CompoundStmtClass: return TransformCompoundStmt((CompoundStmt*)stmt);
         case Stmt::ReturnStmtClass: return TransformReturnStmt((ReturnStmt*)stmt);
+        case Stmt::IfStmtClass: return TransformIfStmt((IfStmt*)stmt);
+        case Stmt::WhileStmtClass: return TransformWhileStmt((WhileStmt*)stmt);
+        case Stmt::ForStmtClass: return TransformForStmt((ForStmt*)stmt);
         default: return stmt;
     }
 }
@@ -443,8 +444,9 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformCompoundStmt(CompoundStmt* stmt) 
 
 VCL::Stmt* VCL::TemplateInstantiator::TransformReturnStmt(ReturnStmt* stmt) {
     Expr* expr = TransformExpr(stmt->GetExpr());
-    if (!expr)
+    if (!expr) {
         return nullptr;
+    }
     return sema.ActOnReturnStmt(expr, stmt->GetSourceRange());
 }
 
@@ -596,11 +598,12 @@ VCL::Expr* VCL::TemplateInstantiator::TransformDependentCallExpr(DependentCallEx
             return nullptr;
         args.push_back(newArg);
     }
-
-    TemplateArgumentList* templateArgs = TransformTemplateArgumentList(expr->GetTemplateArgs());
-    if (!templateArgs)
-        return nullptr;
-
+    TemplateArgumentList* templateArgs = nullptr;
+    if (expr->GetTemplateArgs() != nullptr) {
+        templateArgs = TransformTemplateArgumentList(expr->GetTemplateArgs());
+        if (!templateArgs)
+            return nullptr;
+    }
     return sema.ActOnCallExpr(expr->GetSymbolRef(), args, templateArgs, expr->GetSourceRange());
 }
 

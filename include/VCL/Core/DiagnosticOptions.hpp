@@ -29,6 +29,9 @@ namespace VCL {
         inline bool HasIgnoreAllNoteFlag() const { return flags.ignoreAllNote; }
         inline void SetIgnoreAllNoteFlag(bool v) { flags.ignoreAllNote = v; }
 
+        inline bool HasIgnoreMissingDirective() const { return flags.ignoreMissingDirective; }
+        inline void SetIgnoreMissingDirective(bool v) { flags.ignoreMissingDirective = v; }
+
     private:
         DiagnosticConsumer* consumer = nullptr;
 
@@ -37,6 +40,7 @@ namespace VCL {
             unsigned ignoreAllWarning : 1 = 0;
             unsigned ignoreAllRemark : 1 = 0;
             unsigned ignoreAllNote : 1 = 0;
+            unsigned ignoreMissingDirective : 1 = 0;
         } flags;
     };
 
