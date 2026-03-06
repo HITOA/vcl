@@ -48,6 +48,9 @@ namespace VCL {
         ConstantScalar(uint16_t v) : ConstantValue{ ConstantValue::ConstantScalarClass } { *this = v; }
         ConstantScalar(uint32_t v) : ConstantValue{ ConstantValue::ConstantScalarClass } { *this = v; }
         ConstantScalar(uint64_t v) : ConstantValue{ ConstantValue::ConstantScalarClass } { *this = v; }
+        ConstantScalar(BuiltinType::Kind kind) : kind{ kind }, ConstantValue{ ConstantValue::ConstantScalarClass } {
+            memset(data, 0x0, sizeof(uint8_t) * 8);
+        }
         ~ConstantScalar() = default;
         
         template<typename T>
@@ -117,6 +120,8 @@ namespace VCL {
 
         inline bool operator==(const ConstantScalar& rhs) { return kind == rhs.kind && memcmp(data, rhs.data, sizeof(data)) == 0; }
         inline bool operator!=(const ConstantScalar& rhs) { return !(*this == rhs); }
+
+        inline void* Data() { return data; }
 
     private:
         template<typename T>
