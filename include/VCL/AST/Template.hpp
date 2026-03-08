@@ -6,7 +6,6 @@
 
 #include <llvm/Support/TrailingObjects.h>
 
-
 namespace VCL {
 
     class TemplateArgument {
@@ -39,7 +38,7 @@ namespace VCL {
         inline bool IsDependent() const { 
             switch (kind) {
                 case Kind::Type: return GetType().GetType()->IsDependent();
-                case Kind::Expression: return GetExpr()->GetResultType().GetType()->IsDependent();
+                case Kind::Expression: return GetExpr()->IsDependent();
                 default: return false;
             }
         }

@@ -7,6 +7,7 @@
 
 #include <llvm/Linker/Linker.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <llvm/IR/Verifier.h>
 
 
 VCL::CodeGenModule::CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target, 
@@ -32,15 +33,32 @@ bool VCL::CodeGenModule::LinkNow() {
         }
     }
 
+    if (llvm::verifyModule(module, &llvm::errs())) {
+        diagnosticReporter.Error(Diagnostic::InternalError)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return false;
+    }
+
     return true;
 }
 
-bool VCL::CodeGenModule::Emit() {
+bool VCL::CodeGenModule::Emit(bool verifyModule) {
     TranslationUnitDecl* tu = astContext.GetTranslationUnitDecl();
     for (auto it = tu->Begin(); it != tu->End(); ++it) {
         if (!EmitTopLevelDecl(it.Get()))
             return false;
     }
+
+    if (verifyModule) {
+        if (llvm::verifyModule(module, &llvm::errs())) {
+            diagnosticReporter.Error(Diagnostic::InternalError)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -78,7 +96,8 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl, bool imported) {
             initializerValue = llvm::ConstantDataVector::getSplat(GetTarget().GetVectorWidthInElement(), initializerValue);
     }
 
-    llvm::GlobalVariable::LinkageTypes linkageType = llvm::GlobalVariable::LinkageTypes::InternalLinkage;
+    llvm::GlobalVariable::LinkageTypes linkageType = decl->IsExported() ? 
+            llvm::GlobalVariable::LinkageTypes::ExternalLinkage : llvm::GlobalVariable::LinkageTypes::InternalLinkage;
     bool isConstant = false;
 
     if ((!decl->HasOutAttribute() && decl->HasInAttribute()) || decl->GetValueType().HasQualifier(Qualifier::Const))
@@ -86,7 +105,7 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl, bool imported) {
     if (decl->HasInAttribute() || decl->HasOutAttribute())
         linkageType = llvm::GlobalVariable::LinkageTypes::ExternalLinkage;
     else if (imported)
-        linkageType = llvm::GlobalVariable::LinkageTypes::LinkOnceAnyLinkage;
+        linkageType = llvm::GlobalVariable::LinkageTypes::ExternalLinkage;
 
     std::string globalName = decl->GetIdentifierInfo()->GetName().str();
     if (linkageType != llvm::GlobalVariable::LinkageTypes::ExternalLinkage) {

@@ -42,7 +42,7 @@ namespace VCL {
 
         bool LinkNow();
 
-        bool Emit();
+        bool Emit(bool verifyModule = true);
         bool EmitTopLevelDecl(Decl* decl);
         bool EmitGlobalVarDecl(VarDecl* decl, bool imported = false);
         bool EmitFunctionDecl(FunctionDecl* decl, bool imported = false);

@@ -8,7 +8,6 @@
 #include <VCL/AST/ASTContext.hpp>
 #include <VCL/AST/SymbolRef.hpp>
 
-
 namespace VCL {
 
     class Expr : public ValueStmt {
@@ -37,8 +36,8 @@ namespace VCL {
 
     public:
         Expr() = delete;
-        Expr(ExprClass exprClass) : exprClass{ exprClass }, resultType{}, constantValue{ }, valueCategory{ RValue } {}
-        Expr(ExprClass exprClass, QualType resultType) : exprClass{ exprClass }, resultType{ resultType }, constantValue{ }, valueCategory{ RValue } {}
+        Expr(ExprClass exprClass) : exprClass{ exprClass }, resultType{}, constantValue{ }, valueCategory{ RValue }, bitfield{} {}
+        Expr(ExprClass exprClass, QualType resultType) : exprClass{ exprClass }, resultType{ resultType }, constantValue{ }, valueCategory{ RValue }, bitfield{} {}
         Expr(const Expr& other) = delete;
         Expr(Expr&& other) = delete;
         ~Expr() = default;
@@ -55,7 +54,7 @@ namespace VCL {
         inline void SetConstantValue(ConstantValue* constantValue) { this->constantValue = constantValue; }
 
         inline bool IsDependent() const { return bitfield.isDependent; }
-        inline void SetDependent(bool isDependent) { bitfield.isDependent = true; }
+        inline void SetDependent(bool isDependent) { bitfield.isDependent = isDependent; }
 
     private:
         ExprClass exprClass;
@@ -72,6 +71,7 @@ namespace VCL {
     public:
         NumericLiteralExpr(ConstantScalar scalar) : scalar{ scalar }, Expr{ Expr::NumericLiteralExprClass } {
             SetConstantValue(&(this->scalar));
+            SetDependent(false);
         }
         ~NumericLiteralExpr() = default;
 
@@ -92,7 +92,9 @@ namespace VCL {
     // LValue2RValue
     class LoadExpr : public Expr {
     public:
-        LoadExpr(Expr* expr): expr{ expr }, Expr{ Expr::LoadExprClass } {}
+        LoadExpr(Expr* expr): expr{ expr }, Expr{ Expr::LoadExprClass } {
+            SetDependent(expr->IsDependent());
+        }
         ~LoadExpr() = default;
 
         inline Expr* GetExpr() { return expr; }
@@ -113,7 +115,9 @@ namespace VCL {
 
     class DeclRefExpr : public Expr {
     public:
-        DeclRefExpr(ValueDecl* decl) : decl{ decl }, Expr{ Expr::DeclRefExprClass } {}
+        DeclRefExpr(ValueDecl* decl) : decl{ decl }, Expr{ Expr::DeclRefExprClass } {
+            SetDependent(decl->GetDeclClass() == Decl::NonTypeTemplateParamDeclClass);
+        }
         ~DeclRefExpr() = default;    
 
         inline ValueDecl* GetValueDecl() const { return decl; }
@@ -131,7 +135,9 @@ namespace VCL {
     
     class SplatExpr : public Expr {
     public:
-        SplatExpr(Expr* expr) : expr{ expr }, Expr{ Expr::SplatExprClass } {}
+        SplatExpr(Expr* expr) : expr{ expr }, Expr{ Expr::SplatExprClass } {
+            SetDependent(expr->IsDependent());
+        }
         ~SplatExpr() = default;    
 
         inline Expr* GetExpr() const { return expr; }
@@ -167,7 +173,9 @@ namespace VCL {
         }; 
 
     public:
-        CastExpr(Expr* expr, CastKind kind) : expr{ expr }, kind{ kind }, Expr{ Expr::CastExprClass } {}
+        CastExpr(Expr* expr, CastKind kind) : expr{ expr }, kind{ kind }, Expr{ Expr::CastExprClass } {
+            SetDependent(expr->IsDependent());
+        }
         ~CastExpr() = default;
 
         inline Expr* GetExpr() { return expr; }
@@ -188,7 +196,9 @@ namespace VCL {
     class BinaryExpr : public Expr {
     public:
         BinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op) :
-            lhs{ lhs }, rhs{ rhs }, op{ op }, Expr{ Expr::BinaryExprClass } {}
+            lhs{ lhs }, rhs{ rhs }, op{ op }, Expr{ Expr::BinaryExprClass } {
+                SetDependent(lhs->IsDependent() || rhs->IsDependent());
+            }
         ~BinaryExpr() = default;
 
         inline Expr* GetLHS() { return lhs; }
@@ -218,7 +228,9 @@ namespace VCL {
     class UnaryExpr : public Expr {
     public:
         UnaryExpr(Expr* expr, UnaryOperator op) : 
-            expr{ expr }, op{ op }, Expr{ Expr::UnaryExprClass } {}
+            expr{ expr }, op{ op }, Expr{ Expr::UnaryExprClass } {
+            SetDependent(expr->IsDependent());
+        }
         ~UnaryExpr() = default;
 
         inline Expr* GetExpr() { return expr; }
@@ -243,6 +255,7 @@ namespace VCL {
         CallExpr(FunctionDecl* decl, llvm::ArrayRef<Expr*> args)
                 : decl{ decl }, argsCount{ args.size() }, Expr{ Expr::CallExprClass } {
             std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects());
+            SetDependent(false);
         }
         ~CallExpr() = default;
 
@@ -270,6 +283,7 @@ namespace VCL {
         DependentCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs)
                 : symbolRef{ symbolRef }, templateArgs{ templateArgs }, argsCount{ args.size() }, Expr{ Expr::DependentCallExprClass } {
             std::uninitialized_copy(args.begin(), args.end(), getTrailingObjects());
+            SetDependent(true);
         }
         ~DependentCallExpr() = default;
 
@@ -324,6 +338,7 @@ namespace VCL {
         DependentFieldAccessExpr(Expr* expr, IdentifierInfo* field) 
                 : expr{ expr }, field{ field }, Expr{ Expr::DependentFieldAccessExprClass } {
             SetValueCategory(Expr::LValue);
+            SetDependent(true);
         }
         ~DependentFieldAccessExpr() = default;
 
@@ -354,6 +369,7 @@ namespace VCL {
         SubscriptExpr(Expr* expr, Expr* index, bool isSpan) 
                 : expr{ expr }, index{ index }, isSpan{ isSpan }, Expr{ Expr::SubscriptExprClass } {
             SetValueCategory(Expr::LValue);
+            SetDependent(expr->IsDependent() || index->IsDependent());
         }
         ~SubscriptExpr() = default;
 
@@ -379,7 +395,9 @@ namespace VCL {
 
     class NullExpr : public Expr {
     public:
-        NullExpr() : Expr{ Expr::NullExprClass } {}
+        NullExpr() : Expr{ Expr::NullExprClass } {
+            SetDependent(false);
+        }
         ~NullExpr() = default;
 
         static inline NullExpr* Create(ASTContext& context, QualType type, SourceRange range) {
@@ -392,7 +410,14 @@ namespace VCL {
 
     class AggregateExpr : public Expr {
     public:
-        AggregateExpr(llvm::ArrayRef<Expr*> elems) : elements{ elems }, Expr{ Expr::AggregateExprClass } {}
+        AggregateExpr(llvm::ArrayRef<Expr*> elems) : elements{ elems }, Expr{ Expr::AggregateExprClass } {
+            for (Expr* expr : elems) {
+                if (expr->IsDependent()) {
+                    SetDependent(true);
+                    break;
+                }
+            }
+        }
         ~AggregateExpr() = default;
 
         llvm::ArrayRef<Expr*> GetElements() { return { elements.begin(), elements.size() }; }

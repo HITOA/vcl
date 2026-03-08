@@ -43,6 +43,8 @@ namespace VCL {
         void EnableGDBListener();
         void DisableGDBListener();
 
+        void DefineDefaultMathIntrinsic();
+
     private:
         std::unique_ptr<llvm::orc::ExecutionSession> session;
         std::unique_ptr<llvm::DataLayout> layout;

@@ -44,9 +44,9 @@ VCL::ConstantScalar* CastFrom(VCL::ASTContext& context, VCL::QualType to, VCL::C
         case VCL::BuiltinType::Int32: return CastFromTo<T, int32_t>(context, value);
         case VCL::BuiltinType::Int64: return CastFromTo<T, int64_t>(context, value);
         case VCL::BuiltinType::UInt8: return CastFromTo<T, uint8_t>(context, value);
-        case VCL::BuiltinType::UInt16: return CastFromTo<T, uint8_t>(context, value);
-        case VCL::BuiltinType::UInt32: return CastFromTo<T, uint8_t>(context, value);
-        case VCL::BuiltinType::UInt64: return CastFromTo<T, uint8_t>(context, value);
+        case VCL::BuiltinType::UInt16: return CastFromTo<T, uint16_t>(context, value);
+        case VCL::BuiltinType::UInt32: return CastFromTo<T, uint32_t>(context, value);
+        case VCL::BuiltinType::UInt64: return CastFromTo<T, uint64_t>(context, value);
         default: return nullptr;
     }
 }
@@ -66,9 +66,9 @@ VCL::ConstantValue* VCL::ExprEvaluator::VisitCastExpr(CastExpr* expr) {
         case BuiltinType::Int32: return CastFrom<int32_t>(context, expr->GetResultType(), scalar);
         case BuiltinType::Int64: return CastFrom<int64_t>(context, expr->GetResultType(), scalar);
         case BuiltinType::UInt8: return CastFrom<uint8_t>(context, expr->GetResultType(), scalar);
-        case BuiltinType::UInt16: return CastFrom<uint8_t>(context, expr->GetResultType(), scalar);
-        case BuiltinType::UInt32: return CastFrom<uint8_t>(context, expr->GetResultType(), scalar);
-        case BuiltinType::UInt64: return CastFrom<uint8_t>(context, expr->GetResultType(), scalar);
+        case BuiltinType::UInt16: return CastFrom<uint16_t>(context, expr->GetResultType(), scalar);
+        case BuiltinType::UInt32: return CastFrom<uint32_t>(context, expr->GetResultType(), scalar);
+        case BuiltinType::UInt64: return CastFrom<uint64_t>(context, expr->GetResultType(), scalar);
         default: return nullptr;
     }
 }
@@ -77,8 +77,105 @@ VCL::ConstantValue* VCL::ExprEvaluator::VisitSplatExpr(SplatExpr* expr) {
     return Visit(expr->GetExpr());
 }
 
+template<typename T>
+T BinaryOp(T a, T b, VCL::BinaryOperator::Kind op) {
+    switch (op) {
+        case VCL::BinaryOperator::Kind::Add:
+            return a + b;
+        case VCL::BinaryOperator::Kind::Sub:
+            return a - b;
+        case VCL::BinaryOperator::Kind::Mul:
+            return a * b;
+        case VCL::BinaryOperator::Kind::Div:
+            return a / b;
+        default:
+            assert(false && "unsupported binary operator at compile time");
+    }
+}
+
 VCL::ConstantValue* VCL::ExprEvaluator::VisitBinaryExpr(BinaryExpr* expr) {
-    return nullptr;
+    ConstantValue* lhs = Visit(expr->GetLHS());
+    ConstantValue* rhs = Visit(expr->GetRHS());
+
+    if (lhs->GetConstantValueClass() != ConstantValue::ConstantScalarClass || 
+        rhs->GetConstantValueClass() != ConstantValue::ConstantScalarClass)
+        return nullptr;
+    
+    ConstantScalar* lhsScalar = (ConstantScalar*)lhs;
+    ConstantScalar* rhsScalar = (ConstantScalar*)rhs;
+
+    BinaryOperator::Kind op = expr->GetOperatorKind();
+
+    switch (lhsScalar->GetKind()) {
+        case BuiltinType::Float32:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<float>(), rhsScalar->Get<float>(), op));
+        case BuiltinType::Float64:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<double>(), rhsScalar->Get<double>(), op));
+        case BuiltinType::Int8:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<int8_t>(), rhsScalar->Get<int8_t>(), op));
+        case BuiltinType::Int16:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<int16_t>(), rhsScalar->Get<int16_t>(), op));
+        case BuiltinType::Int32:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<int32_t>(), rhsScalar->Get<int32_t>(), op));
+        case BuiltinType::Int64:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<int64_t>(), rhsScalar->Get<int64_t>(), op));
+        case BuiltinType::UInt8:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<uint8_t>(), rhsScalar->Get<uint8_t>(), op));
+        case BuiltinType::UInt16:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<uint16_t>(), rhsScalar->Get<uint16_t>(), op));
+        case BuiltinType::UInt32:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<uint32_t>(), rhsScalar->Get<uint32_t>(), op));
+        case BuiltinType::UInt64:
+            return context.AllocateNode<ConstantScalar>(BinaryOp(lhsScalar->Get<uint64_t>(), rhsScalar->Get<uint64_t>(), op));
+        default:
+            return nullptr;
+    }
+}
+
+template<typename T>
+T UnaryOp(T value, VCL::UnaryOperator op) {
+    switch (op) {
+        case VCL::UnaryOperator::Minus:
+            return -value;
+        case VCL::UnaryOperator::Plus:
+            return value;
+        default:
+            assert(false && "unsupported unary operator at compile time");
+    }
+}
+
+VCL::ConstantValue* VCL::ExprEvaluator::VisitUnaryExpr(UnaryExpr* expr) {
+    ConstantValue* value = Visit(expr->GetExpr());
+    if (value->GetConstantValueClass() != ConstantValue::ConstantScalarClass)
+        return nullptr;
+
+    UnaryOperator op = expr->GetOperator();
+    ConstantScalar* scalar = (ConstantScalar*)value;
+    
+    switch (scalar->GetKind()) {
+        case BuiltinType::Float32:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<float>(), op));
+        case BuiltinType::Float64:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<double>(), op));
+        case BuiltinType::Int8:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<int8_t>(), op));
+        case BuiltinType::Int16:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<int16_t>(), op));
+        case BuiltinType::Int32:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<int32_t>(), op));
+        case BuiltinType::Int64:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<int64_t>(), op));
+        case BuiltinType::UInt8:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<uint8_t>(), op));
+        case BuiltinType::UInt16:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<uint16_t>(), op));
+        case BuiltinType::UInt32:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<uint32_t>(), op));
+        case BuiltinType::UInt64:
+            return context.AllocateNode<ConstantScalar>(UnaryOp(scalar->Get<uint64_t>(), op));
+        default:
+            return nullptr;
+    }
 }
 
 VCL::ConstantValue* VCL::ExprEvaluator::VisitAggregateExpr(AggregateExpr* expr) {

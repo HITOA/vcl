@@ -53,6 +53,8 @@ namespace VCL {
         Stmt* TransformIfStmt(IfStmt* stmt);
         Stmt* TransformWhileStmt(WhileStmt* stmt);
         Stmt* TransformForStmt(ForStmt* stmt);
+        Stmt* TransformBreakStmt(BreakStmt* stmt);
+        Stmt* TransformContinueStmt(ContinueStmt* stmt);
 
         // Transform Decl
 

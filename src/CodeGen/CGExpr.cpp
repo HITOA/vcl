@@ -46,7 +46,8 @@ llvm::Value* VCL::CodeGenFunction::GenerateLoadExpr(LoadExpr* expr) {
     llvm::Value* exprValue = GenerateExpr(expr->GetExpr());
     if (!exprValue)
         return nullptr;
-    return builder.CreateLoad(cgm.GetCGT().ConvertType(expr->GetResultType()), exprValue);
+    llvm::Value* v = builder.CreateLoad(cgm.GetCGT().ConvertType(expr->GetResultType()), exprValue);
+    return v;
 }
 
 llvm::Value* VCL::CodeGenFunction::GenerateDeclRefExpr(DeclRefExpr* expr) {
@@ -155,8 +156,9 @@ llvm::Value* VCL::CodeGenFunction::GenerateBinaryExpr(BinaryExpr* expr) {
         case BinaryOperator::Assignment: {
             llvm::Value* lhsExprValue = GenerateExpr(lhsExpr);
             llvm::Value* rhsExprValue = GenerateExpr(rhsExpr);
-            if (!lhsExprValue || !rhsExprValue)
+            if (!lhsExprValue || !rhsExprValue) {
                 return nullptr;
+            }
             return builder.CreateStore(rhsExprValue, lhsExprValue);
         }
         default:
@@ -359,13 +361,9 @@ llvm::Value* VCL::CodeGenFunction::GenerateIntrinsicCallExpr(CallExpr* expr) {
         // Unpack & Pack
         case FunctionDecl::IntrinsicID::Unpack:
         case FunctionDecl::IntrinsicID::Pack: {
-            llvm::Type* argType = cgm.GetCGT().ConvertType(expr->GetFunctionDecl()->GetType()->GetParamsType()[0]);
             llvm::Type* returnType = cgm.GetCGT().ConvertType(expr->GetFunctionDecl()->GetType()->GetReturnType());
-            llvm::AllocaInst* tmp = GenerateAllocaInst(argType, "tmp");
             llvm::Align align{ (uint64_t)cgm.GetTarget().GetVectorWidthInByte() };
-            tmp->setAlignment(align);
-            builder.CreateAlignedStore(argsValue[0], tmp, align);
-            return builder.CreateAlignedLoad(returnType, tmp, align);
+            return builder.CreateAlignedLoad(returnType, argsValue[0], align);
         }
         // Length
         case FunctionDecl::IntrinsicID::Length: {

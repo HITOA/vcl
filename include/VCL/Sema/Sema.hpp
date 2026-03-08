@@ -34,6 +34,21 @@ namespace VCL {
      */
     class Sema {
     public:
+        class SemaScopeGuard {
+        public:
+            SemaScopeGuard(Sema& sema, DeclContext* context);
+            SemaScopeGuard(const SemaScopeGuard& other) = delete;
+            SemaScopeGuard(SemaScopeGuard&& other);
+            ~SemaScopeGuard();
+            
+            inline void Release();
+
+        private:
+            Sema& sema;
+            DeclContext* context;
+        };
+
+    public:
         Sema() = delete;
         Sema(CompilerContext& cc, ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
                 DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules, DefineTable& defineTable);
@@ -59,6 +74,8 @@ namespace VCL {
         void AddIntrinsicMathFunction(FunctionDecl::IntrinsicID intrinsicID, llvm::StringRef name, uint32_t argCount);
         void AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm::StringRef name);
         void AddIntrinsicTemplateDecl();
+        
+        SemaScopeGuard PushScope(DeclContext* context, bool loopScope = false);
 
         bool PushDeclContextScope(DeclContext* context, bool loopScope = false);
         bool PopDeclContextScope(DeclContext* context);

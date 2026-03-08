@@ -138,22 +138,6 @@ namespace VCL {
             ParserFlag oldFlags;
         };
 
-        class ParserScopeGuard {
-        public:
-            ParserScopeGuard() = delete;
-            ParserScopeGuard(Parser* parser, DeclContext* context, bool loopScope = false);
-            ParserScopeGuard(const ParserScopeGuard& other) = delete;
-            ParserScopeGuard(ParserScopeGuard&& other) = delete;
-            ~ParserScopeGuard();
-
-            ParserScopeGuard& operator=(const ParserScopeGuard& other) = delete;
-            ParserScopeGuard& operator=(ParserScopeGuard&& other) = delete;
-            
-        private:
-            Parser* parser;
-            DeclContext* context;
-        };
-
     private:
         TokenStream& stream;
         Sema& sema;

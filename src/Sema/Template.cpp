@@ -5,6 +5,7 @@
 #include <VCL/Sema/Sema.hpp>
 #include <VCL/AST/TypePrinter.hpp>
 
+
 bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
     switch (type->GetTypeClass()) {
         case Type::TemplateSpecializationTypeClass: {
@@ -310,8 +311,6 @@ VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(T
 }
 
 void VCL::TemplateInstantiator::AddSubstitution(NamedDecl* param, TemplateArgument* arg) {
-    if (substitutionTable.count(param))
-        return;
     substitutionTable[param] = arg;
 }
 
@@ -362,6 +361,8 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformStmt(Stmt* stmt) {
         case Stmt::IfStmtClass: return TransformIfStmt((IfStmt*)stmt);
         case Stmt::WhileStmtClass: return TransformWhileStmt((WhileStmt*)stmt);
         case Stmt::ForStmtClass: return TransformForStmt((ForStmt*)stmt);
+        case Stmt::BreakStmtClass: return TransformBreakStmt((BreakStmt*)stmt);
+        case Stmt::ContinueStmtClass: return TransformContinueStmt((ContinueStmt*)stmt);
         default: return stmt;
     }
 }
@@ -451,6 +452,8 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformReturnStmt(ReturnStmt* stmt) {
 }
 
 VCL::Stmt* VCL::TemplateInstantiator::TransformIfStmt(IfStmt* stmt) {
+    auto guard = sema.PushScope(nullptr, true);
+    
     Expr* condition = TransformExpr(stmt->GetCondition());
     Stmt* thenStmt = TransformStmt(stmt->GetThenStmt());
     Stmt* elseStmt = nullptr;
@@ -465,6 +468,8 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformIfStmt(IfStmt* stmt) {
 }
 
 VCL::Stmt* VCL::TemplateInstantiator::TransformWhileStmt(WhileStmt* stmt) {
+    auto guard = sema.PushScope(nullptr, true);
+
     Expr* condition = TransformExpr(stmt->GetCondition());
     Stmt* thenStmt = TransformStmt(stmt->GetThenStmt());
     if (!condition || !thenStmt)
@@ -473,6 +478,8 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformWhileStmt(WhileStmt* stmt) {
 }
 
 VCL::Stmt* VCL::TemplateInstantiator::TransformForStmt(ForStmt* stmt) {
+    auto guard = sema.PushScope(nullptr, true);
+
     Stmt* startStmt = nullptr;
     Expr* condition = nullptr;
     Expr* loopExpr = nullptr;
@@ -497,6 +504,14 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformForStmt(ForStmt* stmt) {
         return nullptr;
 
     return sema.ActOnForStmt(startStmt, condition, loopExpr, thenStmt, stmt->GetSourceRange());
+}
+
+VCL::Stmt* VCL::TemplateInstantiator::TransformBreakStmt(BreakStmt* stmt) {
+    return sema.ActOnBreakStmt(stmt->GetSourceRange());
+}
+
+VCL::Stmt* VCL::TemplateInstantiator::TransformContinueStmt(ContinueStmt* stmt) {
+    return sema.ActOnContinueStmt(stmt->GetSourceRange());
 }
 
 VCL::Decl* VCL::TemplateInstantiator::TransformFieldDecl(FieldDecl* decl) {

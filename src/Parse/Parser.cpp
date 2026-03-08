@@ -373,7 +373,7 @@ VCL::TemplateDecl* VCL::Parser::ParseTemplateDecl() {
 
     TemplateDecl* templateDecl = sema.ActOnTemplateDecl(parameters, range);
 
-    ParserScopeGuard scopeGuard{ this, templateDecl };
+    auto guard = sema.PushScope(templateDecl, false);
 
     for (auto param : parameters->GetParams())
         if (!sema.AddDeclToScopeAndContext(param))
@@ -437,7 +437,7 @@ VCL::NamedDecl* VCL::Parser::ParseRecordDecl() {
     
     RecordDecl* decl = sema.ActOnRecordDecl(identifier, range);
 
-    ParserScopeGuard scopeGuard{ this, decl };
+    auto guard = sema.PushScope(decl, false);
 
     EXPECT_TOKEN(token, TokenKind::LeftBrace);
     NEXT_TOKEN();
@@ -493,7 +493,7 @@ VCL::NamedDecl* VCL::Parser::ParseFunctionDecl() {
         return nullptr;
 
     {
-        ParserScopeGuard sg{ this, functionDecl };
+        auto guard = sema.PushScope(functionDecl, false);
         EXPECT_TOKEN(token, TokenKind::LeftPar);
         NEXT_TOKEN();
         GET_TOKEN(token);
@@ -522,7 +522,7 @@ VCL::NamedDecl* VCL::Parser::ParseFunctionDecl() {
         NEXT_TOKEN();
         return functionDecl;
     }
-    ParserScopeGuard sg{ this, functionDecl };
+    auto guard = sema.PushScope(functionDecl, false);
     Stmt* body = ParseFunctionBody(functionDecl);
     if (!body)
         return nullptr;
@@ -581,7 +581,7 @@ VCL::IfStmt* VCL::Parser::ParseIfStmt() {
     EXPECT_TOKEN(token, TokenKind::LeftPar);
     NEXT_TOKEN();
 
-    ParserScopeGuard sg{ this, nullptr }; //If stmt scope guard
+    auto guard = sema.PushScope(nullptr, false);
 
     Expr* condition = ParseExpression();
     if (!condition)
@@ -616,7 +616,7 @@ VCL::WhileStmt* VCL::Parser::ParseWhileStmt() {
     SourceRange range = token->range;
     NEXT_TOKEN();
 
-    ParserScopeGuard sg{ this, nullptr, true };
+    auto guard = sema.PushScope(nullptr, true);
 
     EXPECT_TOKEN(token, TokenKind::LeftPar);
     NEXT_TOKEN();
@@ -637,7 +637,7 @@ VCL::ForStmt* VCL::Parser::ParseForStmt() {
     SourceRange range = token->range;
     NEXT_TOKEN();
 
-    ParserScopeGuard sg{ this, nullptr, true };
+    auto guard = sema.PushScope(nullptr, true);
 
     Stmt* startStmt = nullptr;
     Expr* condition = nullptr;
@@ -1269,9 +1269,3 @@ VCL::Parser::TentativeParsingGuard::~TentativeParsingGuard() {
     if (isSupressing)
         parser->sema.GetDiagnosticReporter().SetSupressAll(false);
 }
-
-VCL::Parser::ParserScopeGuard::ParserScopeGuard(Parser* parser, DeclContext* context, bool loopScope) : parser{ parser }, context{ context } {
-    parser->sema.PushDeclContextScope(context, loopScope);
-}
-
-VCL::Parser::ParserScopeGuard::~ParserScopeGuard() { parser->sema.PopDeclContextScope(context); }

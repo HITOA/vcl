@@ -23,6 +23,7 @@ namespace VCL {
         ConstantValue* VisitCastExpr(CastExpr* expr);
         ConstantValue* VisitSplatExpr(SplatExpr* expr);
         ConstantValue* VisitBinaryExpr(BinaryExpr* expr);
+        ConstantValue* VisitUnaryExpr(UnaryExpr* expr);
         ConstantValue* VisitAggregateExpr(AggregateExpr* expr);
         ConstantValue* VisitNullExpr(NullExpr* expr);
 
@@ -33,6 +34,7 @@ namespace VCL {
                 case Expr::CastExprClass: return VisitCastExpr((CastExpr*)expr);
                 case Expr::SplatExprClass: return VisitSplatExpr((SplatExpr*)expr);
                 case Expr::BinaryExprClass: return VisitBinaryExpr((BinaryExpr*)expr);
+                case Expr::UnaryExprClass: return VisitUnaryExpr((UnaryExpr*)expr);
                 case Expr::AggregateExprClass: return VisitAggregateExpr((AggregateExpr*)expr);
                 case Expr::NullExprClass: return VisitNullExpr((NullExpr*)expr);
                 default: return nullptr;

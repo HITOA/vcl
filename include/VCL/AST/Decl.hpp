@@ -89,6 +89,8 @@ namespace VCL {
         inline void SetTemplateDecl(bool isTemplateDecl) { bitfield.isTemplateDecl = isTemplateDecl; }
         inline bool IsDeclContext() const { return bitfield.isDeclContext; }
         inline void SetDeclContext(bool isDeclContext) { bitfield.isDeclContext = isDeclContext; }
+        inline bool IsExported() const { return bitfield.isExported; }
+        inline void SetExported(bool isExported) { bitfield.isExported = isExported; }
 
     private:
         DeclClass declClass;
@@ -102,6 +104,7 @@ namespace VCL {
             unsigned isValueDecl : 1 = 0;
             unsigned isTemplateDecl : 1 = 0;
             unsigned isDeclContext : 1 = 0;
+            unsigned isExported : 1 = 0;
         } bitfield{};
     };
 

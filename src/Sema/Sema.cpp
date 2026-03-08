@@ -11,6 +11,21 @@
 #include <llvm/ADT/SmallPtrSet.h>
 
 
+VCL::Sema::SemaScopeGuard::SemaScopeGuard(Sema& sema, DeclContext* context) : sema{ sema }, context{ context } {}
+
+VCL::Sema::SemaScopeGuard::SemaScopeGuard(SemaScopeGuard&& other) : sema{ other.sema }, context{ std::move(other.context) } {
+    other.context = nullptr;
+}
+
+VCL::Sema::SemaScopeGuard::~SemaScopeGuard() {
+    Release();
+}
+
+void VCL::Sema::SemaScopeGuard::Release() {
+    if (context)
+        sema.PopDeclContextScope(context);
+}
+
 VCL::Sema::Sema(CompilerContext& cc, ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
         DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules, DefineTable& definedValues) 
         : cc{ cc }, astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable }, 
@@ -124,6 +139,7 @@ void VCL::Sema::AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm
         case FunctionDecl::IntrinsicID::Unpack: {
             returnType = CreateLanesTemplateSpecializationType(ofTypeType);
             Type* argType = CreateVectorTemplateSpecializationType(ofTypeType);
+            argType = astContext.GetTypeCache().GetOrCreateReferenceType(argType);
             paramsType.push_back(argType);
             IdentifierInfo* paramIdentifier = identifierTable.Get("Arg_0");
             ParamDecl* paramDecl = ParamDecl::Create(astContext, argType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
@@ -133,6 +149,7 @@ void VCL::Sema::AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm
         case FunctionDecl::IntrinsicID::Pack: {
             returnType = CreateVectorTemplateSpecializationType(ofTypeType);
             Type* argType = CreateLanesTemplateSpecializationType(ofTypeType);
+            argType = astContext.GetTypeCache().GetOrCreateReferenceType(argType);
             paramsType.push_back(argType);
             IdentifierInfo* paramIdentifier = identifierTable.Get("Arg_0");
             ParamDecl* paramDecl = ParamDecl::Create(astContext, argType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
@@ -225,6 +242,13 @@ void VCL::Sema::AddIntrinsicTemplateDecl() {
     AddIntrinsicFunction(FunctionDecl::IntrinsicID::Select, "select");
 }
 
+VCL::Sema::SemaScopeGuard VCL::Sema::PushScope(DeclContext* context, bool loopScope) {
+    if (!context)
+        context = astContext.AllocateNode<DeclContext>(DeclContext::TransientDeclContext);
+    PushDeclContextScope(context, loopScope);
+    return SemaScopeGuard{ *this, context };
+}
+
 bool VCL::Sema::PushDeclContextScope(DeclContext* context, bool loopScope) {
     Scope* parent = sm.GetScopeFront();
     Scope* scope = sm.EmplaceScopeFront(context);
@@ -294,6 +318,7 @@ bool VCL::Sema::ExportSymbol(Decl* decl, SourceRange range) {
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
     }
+    decl->SetExported(true);
     return exportedSymbols.Add(identifierInfo, decl);
 }
 
@@ -772,7 +797,7 @@ VCL::ContinueStmt* VCL::Sema::ActOnContinueStmt(SourceRange range) {
     }
     return ContinueStmt::Create(astContext, range);
 }
-
+#include <iostream>
 VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range) {
     if (identifier->IsKeyword()) {
         diagnosticReporter.Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
@@ -815,14 +840,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
         TemplateInstantiator instantiator{ *this };
         if (!instantiator.MakeTypeComplete(type.GetType()))
             return nullptr;
-
-        if (initializer && initializer->GetExprClass() == Expr::AggregateExprClass) {
-            AggregateExpr* aggregateExpr = (AggregateExpr*)initializer;
-            aggregateExpr->SetResultType(type);
-            if (!ActOnAggregateExpr(aggregateExpr))
-                return nullptr;
-        }
-
+        
         if (IsCurrentScopeGlobal() && initializer) {
             if (initializer->GetResultType().GetType() != type.GetType()) {
                 Expr* castedInitializer = ActOnCast(initializer, type, initializer->GetSourceRange());
@@ -1806,17 +1824,17 @@ bool VCL::Sema::ActOnAggregateExpr(AggregateExpr* aggregate) {
     case Type::ArrayTypeClass: {
         QualType ofType = ((ArrayType*)trueType)->GetElementType();
         uint64_t ofSize = ((ArrayType*)trueType)->GetElementCount();
-        llvm::ArrayRef<Expr*> elements = aggregate->GetElements();
-        if (elements.size() > ofSize) {
+        size_t elementCount = aggregate->GetElements().size();
+        if (elementCount > ofSize) {
             diagnosticReporter.Error(Diagnostic::TooManyInitializerValue)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .AddHint(DiagnosticHint{ elements[ofSize]->GetSourceRange() })
+                .AddHint(DiagnosticHint{ aggregate->GetElements()[ofSize]->GetSourceRange() })
                 .Report();
             return false;
         }
         for (size_t i = 0; i < ofSize; ++i) {
-            if (i < elements.size()) {
-                Expr* expr = ActOnLoad(elements[i]);
+            if (i < elementCount) {
+                Expr* expr = ActOnLoad(aggregate->GetElements()[i]);
                 aggregate->SetElement(ActOnCast(expr, ofType, expr->GetSourceRange()), i);
                 if (expr == nullptr)
                     return false;
@@ -1830,26 +1848,26 @@ bool VCL::Sema::ActOnAggregateExpr(AggregateExpr* aggregate) {
     case Type::RecordTypeClass: {
         RecordDecl* recordDecl = ((RecordType*)trueType)->GetRecordDecl();
         uint32_t i = 0;
-        llvm::ArrayRef<Expr*> elements = aggregate->GetElements();
+        size_t elementCount = aggregate->GetElements().size();
         for (auto it = recordDecl->Begin(); it != recordDecl->End(); ++it) {
             if (it->GetDeclClass() != Decl::FieldDeclClass)
                 continue;
             FieldDecl* fieldDecl = (FieldDecl*)it.Get();
             QualType ofType = fieldDecl->GetType();
-            if (elements.size() <= i) {
+            if (elementCount <= i) {
                 aggregate->AddElement(NullExpr::Create(astContext, ofType, aggregate->GetSourceRange()));
             } else {
-                Expr* expr = ActOnLoad(elements[i]);
+                Expr* expr = ActOnLoad(aggregate->GetElements()[i]);
                 aggregate->SetElement(ActOnCast(expr, ofType, expr->GetSourceRange()), i);
                 if (expr == nullptr)
                     return false;
             }
             ++i;
         }
-        if (i < elements.size()) {
+        if (i < elementCount) {
             diagnosticReporter.Error(Diagnostic::TooManyInitializerValue)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .AddHint(DiagnosticHint{ elements[i]->GetSourceRange() })
+                .AddHint(DiagnosticHint{ aggregate->GetElements()[i]->GetSourceRange() })
                 .Report();
             return false;
         }
@@ -2002,6 +2020,9 @@ VCL::TemplateArgumentList* VCL::Sema::DeduceTemplateArgumentFromCall(
         for (size_t j = 0; j < functionType->GetParamsType().size(); ++j) {
             Type* paramType = functionType->GetParamsType()[j].GetType();
             Type* argType = args[j]->GetResultType().GetType();
+
+            if (paramType->GetTypeClass() == Type::ReferenceTypeClass)
+                paramType = ((ReferenceType*)paramType)->GetType().GetType();
 
             if (paramType->GetTypeClass() != Type::TemplateTypeParamTypeClass && 
                     paramType->GetTypeClass() == Type::TemplateSpecializationTypeClass) {

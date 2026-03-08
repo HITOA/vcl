@@ -4,6 +4,8 @@
 #include <VCL/CodeGen/Mangler.hpp>
 
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/IR/Verifier.h>
+
 
 VCL::CodeGenFunction::CodeGenFunction(CodeGenModule& cgm) : cgm{ cgm }, builder{ cgm.GetLLVMContext() }, locals{}, breakBBStack{}, continueBBStack{} {
     
@@ -83,6 +85,13 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
     }
 
     llvm::EliminateUnreachableBlocks(*function);
+
+    if (llvm::verifyFunction(*function, &llvm::errs())) {
+        cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
 
     return function;
 }

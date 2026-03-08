@@ -9,6 +9,7 @@ namespace VCL {
     class DeclContext {
     public:
         enum DeclContextClass {
+            TransientDeclContext,
             TranslationUnitDeclContextClass,
             RecordDeclContextClass,
             TransientFunctionDeclContextClass,
