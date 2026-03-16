@@ -334,6 +334,9 @@ bool VCL::Sema::ImportModule(Module* module, IdentifierInfo* identifierInfo) {
 
     importedModules.Add(identifierInfo, module);
 
+    for (auto dep : module->GetCompilerInstance()->GetImportModuleTable())
+        ImportModule(dep.second, dep.first);
+
     return true;
 }
 
@@ -508,6 +511,8 @@ VCL::TemplateDecl* VCL::Sema::LookupTemplateDecl(SymbolRef symbolRef, int depth)
         }
         Module* module = importedModules.Get(symbolRef.GetModuleName());
         Decl* decl = module->GetCompilerInstance()->GetExportSymbolTable().Get(symbolRef.GetSymbolName());
+        if (!decl)
+            return nullptr;
         if (decl->GetDeclClass() == Decl::TemplateDeclClass) {
             TemplateDecl* templateDecl = (TemplateDecl*)decl;
             if (templateDecl->GetTemplatedNamedDecl() == nullptr)
@@ -546,6 +551,23 @@ VCL::DirectiveDecl* VCL::Sema::ActOnDirectiveDecl(IdentifierInfo* identifierInfo
     }
 
     return decl;
+}
+
+VCL::TypeAliasDecl* VCL::Sema::ActOnTypeAliasDecl(IdentifierInfo* identifierInfo, Type* type, SourceRange range) {
+    TemplateInstantiator instantiator{ *this };
+    if (!instantiator.MakeTypeComplete(type)) {
+        diagnosticReporter.Error(Diagnostic::TypeAliasCannotBeTemplated)
+            .AddHint(DiagnosticHint{ range })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+    TypeAliasDecl* instance = TypeAliasDecl::Create(astContext, identifierInfo, type, range);
+    type = astContext.GetTypeCache().GetOrCreateTypeAliasType(Type::GetCanonicalType(type), instance);
+    instance->SetType(type);
+    if (!AddDeclToScopeAndContext(instance))
+        return nullptr;
+    return instance;
 }
 
 VCL::DeclStmt* VCL::Sema::ActOnDeclStmt(Decl* decl, SourceRange range) {
@@ -797,7 +819,7 @@ VCL::ContinueStmt* VCL::Sema::ActOnContinueStmt(SourceRange range) {
     }
     return ContinueStmt::Create(astContext, range);
 }
-#include <iostream>
+
 VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range) {
     if (identifier->IsKeyword()) {
         diagnosticReporter.Error(Diagnostic::ReservedIdentifier, identifier->GetName().str())
@@ -840,7 +862,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
         TemplateInstantiator instantiator{ *this };
         if (!instantiator.MakeTypeComplete(type.GetType()))
             return nullptr;
-        
+            
         if (IsCurrentScopeGlobal() && initializer) {
             if (initializer->GetResultType().GetType() != type.GetType()) {
                 Expr* castedInitializer = ActOnCast(initializer, type, initializer->GetSourceRange());
@@ -1009,7 +1031,7 @@ VCL::TemplateParameterList* VCL::Sema::ActOnTemplateParameterList(llvm::ArrayRef
     return TemplateParameterList::Create(astContext, params, range);
 }
 
-VCL::TemplateArgumentList* VCL::Sema::ActOnTemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range) {
+VCL::TemplateArgumentList* VCL::Sema::ActOnTemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range, bool canonicalize) {
     llvm::SmallVector<TemplateArgument> argsEval{};
 
     for (auto arg : args) {
@@ -1018,21 +1040,39 @@ VCL::TemplateArgumentList* VCL::Sema::ActOnTemplateArgumentList(llvm::ArrayRef<T
             continue;
         }
         switch (arg.GetKind()) {
+            case TemplateArgument::Type: {
+                if (!canonicalize) {
+                    argsEval.push_back(arg);
+                    break;
+                }
+                TemplateInstantiator instantiator{ *this };
+                if (!instantiator.MakeTypeComplete(arg.GetType().GetType()))
+                    return nullptr;
+                VCL::Type* type = Type::GetCanonicalType(arg.GetType().GetType());
+                QualType qualType{ type, arg.GetType().GetQualifiers() };
+                argsEval.push_back(qualType);
+                break;
+            }
             case TemplateArgument::Expression: {
                 ExprEvaluator eval{ astContext };
                 ConstantValue* value = eval.Visit(arg.GetExpr());
-                if (!value) {
+                arg.GetExpr()->SetConstantValue(value);
+                if (!canonicalize) {
                     argsEval.push_back(arg);
                     break;
-                } else if (value->GetConstantValueClass() != ConstantValue::ConstantScalarClass) {
-                    argsEval.push_back(arg);
-                    break;
+                } else if (!value || value->GetConstantValueClass() != ConstantValue::ConstantScalarClass) {
+                    diagnosticReporter.Error(Diagnostic::ExprDoesNotEvaluateScalar)
+                        .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                        .AddHint(DiagnosticHint{ arg.GetSourceRange() })
+                        .Report();
+                    return nullptr;
                 }
                 argsEval.push_back(TemplateArgument{ *(ConstantScalar*)value });
                 break;
             }
             default:
                 argsEval.push_back(arg);
+                break;
         }
     }
 
@@ -1693,7 +1733,7 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(SymbolRef symbolRef, SourceRange range
 VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
     FunctionDecl* decl = nullptr;
     for (Expr* arg : args)
-        if (arg->GetResultType().GetType()->IsDependent())
+        if (arg->GetExprClass() != Expr::AggregateExprClass && arg->GetResultType().GetType()->IsDependent())
             return DependentCallExpr::Create(astContext, symbolRef, args, templateArgs, range);
     if (TemplateDecl* templateDecl = LookupTemplateDecl(symbolRef)) {
         FunctionDecl* templatedFunctionDecl = (FunctionDecl*)templateDecl->GetTemplatedNamedDecl();
@@ -1702,6 +1742,12 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
         templateArgs = DeduceTemplateArgumentFromCall(templatedFunctionDecl, args, templateArgs, parameters);
         if (!templateArgs)
             return nullptr;
+        
+        if (!templateArgs->IsCanonical()) {
+            templateArgs = ActOnTemplateArgumentList(templateArgs->GetArgs(), templateArgs->GetSourceRange(), true);
+            if (!templateArgs)
+                return nullptr;
+        }
 
         if (templateArgs->IsDependent())
             return DependentCallExpr::Create(astContext, symbolRef, args, templateArgs, range);
@@ -1759,15 +1805,15 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
         Expr* arg = args[i];
         QualType paramType = type->GetParamsType()[i];
 
+        if (arg->GetExprClass() == Expr::AggregateExprClass)
+            arg = ActOnCast(arg, paramType, arg->GetSourceRange());
+
         if (paramType.GetType()->IsDependent() || arg->GetResultType().GetType()->IsDependent()) {
             trueArgs.push_back(arg);
             continue;
         }
-
-        Type* canonicalArgType = Type::GetCanonicalType(arg->GetResultType().GetType());
-        Type* canonicalParameterType = Type::GetCanonicalType(paramType.GetType());
-
-        if (canonicalArgType != canonicalParameterType) {
+        
+        if (!Type::IsCanonicallyEqual(arg->GetResultType().GetType(), paramType.GetType())) {
             diagnosticReporter.Error(Diagnostic::IncorrectType, TypePrinter::Print(arg->GetResultType()), TypePrinter::Print(paramType))
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)
                 .AddHint(DiagnosticHint{ arg->GetSourceRange() })
@@ -2018,6 +2064,9 @@ VCL::TemplateArgumentList* VCL::Sema::DeduceTemplateArgumentFromCall(
         bool deduced = false;
 
         for (size_t j = 0; j < functionType->GetParamsType().size(); ++j) {
+            if (args[j]->GetExprClass() == Expr::AggregateExprClass)
+                continue;
+
             Type* paramType = functionType->GetParamsType()[j].GetType();
             Type* argType = args[j]->GetResultType().GetType();
 

@@ -68,3 +68,7 @@ VCL::TemplateSpecializationType* VCL::TypeCache::GetOrCreateTemplateSpecializati
 VCL::DependentType* VCL::TypeCache::GetOrCreateDependentType() {
     return GetOrCreateInFoldingSet(typeAllocator, dependentTypeCache);
 }
+
+VCL::TypeAliasType* VCL::TypeCache::GetOrCreateTypeAliasType(Type* ofType, TypeAliasDecl* decl) {
+    return GetOrCreateInFoldingSet(typeAllocator, typeAliasTypeCache, ofType, decl);
+}

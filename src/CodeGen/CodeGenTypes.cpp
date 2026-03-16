@@ -31,6 +31,7 @@ llvm::Type* VCL::CodeGenTypes::ConvertType(QualType type) {
             }
             return ConvertType(instantiatedType);
         }
+        case Type::TypeAliasTypeClass: return ConvertType(((TypeAliasType*)type.GetType())->GetType());
         default:
             cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                 .SetCompilerInfo(__FILE__, __func__, __LINE__)

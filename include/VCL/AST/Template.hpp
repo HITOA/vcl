@@ -84,6 +84,17 @@ namespace VCL {
             return false;
         }
 
+        inline bool IsCanonical() const {
+            for (TemplateArgument arg : GetArgs()) {
+                if (arg.GetKind() == TemplateArgument::Expression)
+                    return false;
+                if (arg.GetKind() == TemplateArgument::Type)
+                    if (Type::GetCanonicalType(arg.GetType().GetType()) != arg.GetType().GetType())
+                        return false;
+            }
+            return true;
+        }
+
         static inline TemplateArgumentList* Create(ASTContext& context, llvm::ArrayRef<TemplateArgument> args, SourceRange range) {
             size_t size = additionalSizeToAlloc<TemplateArgument>(args.size());
             void* ptr = context.Allocate(sizeof(TemplateArgumentList) + size);

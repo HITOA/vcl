@@ -2,12 +2,12 @@
 
 #include <VCL/AST/ASTContext.hpp>
 #include <VCL/AST/ConstantValue.hpp>
-#include <VCL/AST/Expr.hpp>
+#include <VCL/AST/ExprVisitor.hpp>
 
 
 namespace VCL {
 
-    class ExprEvaluator {
+    class ExprEvaluator : public ExprVisitor<ConstantValue*> {
     public:
         ExprEvaluator() = delete;
         ExprEvaluator(ASTContext& context) : context{ context } {}
@@ -18,28 +18,26 @@ namespace VCL {
         ExprEvaluator& operator=(const ExprEvaluator& other) = delete;
         ExprEvaluator& operator=(ExprEvaluator&& other) = delete;
 
-        ConstantValue* VisitNumericLiteralExpr(NumericLiteralExpr* expr);
-        ConstantValue* VisitDeclRefExpr(DeclRefExpr* expr);
-        ConstantValue* VisitCastExpr(CastExpr* expr);
-        ConstantValue* VisitSplatExpr(SplatExpr* expr);
-        ConstantValue* VisitBinaryExpr(BinaryExpr* expr);
-        ConstantValue* VisitUnaryExpr(UnaryExpr* expr);
-        ConstantValue* VisitAggregateExpr(AggregateExpr* expr);
-        ConstantValue* VisitNullExpr(NullExpr* expr);
-
         inline ConstantValue* Visit(Expr* expr) {
-            switch (expr->GetExprClass()) {
-                case Expr::NumericLiteralExprClass: return VisitNumericLiteralExpr((NumericLiteralExpr*)expr);
-                case Expr::DeclRefExprClass: return VisitDeclRefExpr((DeclRefExpr*)expr);
-                case Expr::CastExprClass: return VisitCastExpr((CastExpr*)expr);
-                case Expr::SplatExprClass: return VisitSplatExpr((SplatExpr*)expr);
-                case Expr::BinaryExprClass: return VisitBinaryExpr((BinaryExpr*)expr);
-                case Expr::UnaryExprClass: return VisitUnaryExpr((UnaryExpr*)expr);
-                case Expr::AggregateExprClass: return VisitAggregateExpr((AggregateExpr*)expr);
-                case Expr::NullExprClass: return VisitNullExpr((NullExpr*)expr);
-                default: return nullptr;
-            }
+            if (expr->GetConstantValue() != nullptr)
+                return expr->GetConstantValue();
+            return VisitExpr(expr);
         }
+
+        ConstantValue* VisitNumericLiteralExpr(NumericLiteralExpr* expr) override;
+        ConstantValue* VisitDeclRefExpr(DeclRefExpr* expr) override;
+        ConstantValue* VisitCastExpr(CastExpr* expr) override;
+        ConstantValue* VisitSplatExpr(SplatExpr* expr) override;
+        ConstantValue* VisitBinaryExpr(BinaryExpr* expr) override;
+        ConstantValue* VisitUnaryExpr(UnaryExpr* expr) override;
+        ConstantValue* VisitAggregateExpr(AggregateExpr* expr) override;
+        ConstantValue* VisitNullExpr(NullExpr* expr) override;
+        ConstantValue* VisitLoadExpr(LoadExpr* expr) override;
+        ConstantValue* VisitCallExpr(CallExpr* expr) override;
+        ConstantValue* VisitDependentCallExpr(DependentCallExpr* expr) override;
+        ConstantValue* VisitFieldAccessExpr(FieldAccessExpr* expr) override;
+        ConstantValue* VisitDependentFieldAccessExpr(DependentFieldAccessExpr* expr) override;
+        ConstantValue* VisitSubscriptExpr(SubscriptExpr* expr) override;
 
     private:
         ASTContext& context;

@@ -46,6 +46,8 @@ namespace VCL {
         TemplateSpecializationType* GetOrCreateTemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args);
         /** Get a DependentType */
         DependentType* GetOrCreateDependentType();
+        /** Get a TypeAliasType of the given type */
+        TypeAliasType* GetOrCreateTypeAliasType(Type* ofType, TypeAliasDecl* decl);
 
     private:
         llvm::BumpPtrAllocator typeAllocator{};
@@ -60,6 +62,7 @@ namespace VCL {
         llvm::FoldingSet<TemplateTypeParamType> templateTypeParamTypeCache{};
         llvm::FoldingSet<TemplateSpecializationType> templateSpecializationTypeTypeCache{};
         llvm::FoldingSet<DependentType> dependentTypeCache{};
+        llvm::FoldingSet<TypeAliasType> typeAliasTypeCache{};
     };
 
 }

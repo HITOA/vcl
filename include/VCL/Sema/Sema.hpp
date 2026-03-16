@@ -95,6 +95,8 @@ namespace VCL {
 
         DirectiveDecl* ActOnDirectiveDecl(IdentifierInfo* identifierInfo, llvm::ArrayRef<ConstantValue*> args, SourceRange range);
 
+        TypeAliasDecl* ActOnTypeAliasDecl(IdentifierInfo* identifierInfo, Type* type, SourceRange range);
+
         DeclStmt* ActOnDeclStmt(Decl* decl, SourceRange range);
 
         TemplateDecl* ActOnTemplateDecl(TemplateParameterList* parameters, SourceRange range);
@@ -123,7 +125,7 @@ namespace VCL {
         Type* ActOnType(SymbolRef symbolRef, TemplateArgumentList* list, SourceRange range);
         
         TemplateParameterList* ActOnTemplateParameterList(llvm::ArrayRef<NamedDecl*> params, SourceRange range);
-        TemplateArgumentList* ActOnTemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range);
+        TemplateArgumentList* ActOnTemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range, bool canonicalize = false);
 
         TemplateTypeParamDecl* ActOnTemplateTypeParamDecl(IdentifierInfo* identifier, SourceRange range);
         NonTypeTemplateParamDecl* ActOnNonTypeTemplateParamDecl(BuiltinType* type, IdentifierInfo* identifier, SourceRange range);

@@ -13,7 +13,7 @@
 #define EXPECT_TOKEN(token, kind) token = ExpectToken(kind, 0, __FILE__, __func__, __LINE__); if (token == nullptr) return nullptr
 
 
-VCL::Parser::Parser(TokenStream& stream, Sema& sema, AttributeTable& attributeTable) : stream{ stream }, sema{ sema }, attributeTable{ attributeTable } {
+VCL::Parser::Parser(TokenStream& stream, Sema& sema, AttributeTable& attributeTable) : stream{ stream }, sema{ sema }, attributeTable{ attributeTable }, consumer{ nullptr } {
 
 }
 
@@ -73,6 +73,9 @@ VCL::Decl* VCL::Parser::ParseTopLevelDecl() {
         case TokenKind::Keyword_struct:
             decl = ParseRecordDecl();
             break;
+        case TokenKind::Keyword_using:
+            decl = ParseTypeAliasDecl();
+            break;
         case TokenKind::At:
             if (exportDecl || attribute != nullptr) {
                 sema.GetDiagnosticReporter().Error(Diagnostic::UnexpectedToken, std::string{ token->range.start.GetPtr(), token->range.end.GetPtr() })
@@ -101,6 +104,8 @@ VCL::Decl* VCL::Parser::ParseTopLevelDecl() {
     if (!decl)
         return nullptr;
     decl->PushAttribute(attribute);
+    if (consumer)
+        consumer->HandleTopLevelDecl(decl);
     if (exportDecl)
         if (!sema.ExportSymbol(decl, exportRange))
             return nullptr;
@@ -422,6 +427,26 @@ VCL::TemplateDecl* VCL::Parser::ParseTemplateDecl() {
         .SetCompilerInfo(__FILE__, __func__, __LINE__)
         .Report();
     return nullptr;
+}
+
+VCL::TypeAliasDecl* VCL::Parser::ParseTypeAliasDecl() {
+    SourceRange range;
+    Token* token;
+    EXPECT_TOKEN(token, TokenKind::Keyword_using);
+    range = token->range;
+    NEXT_TOKEN();
+    EXPECT_TOKEN(token, TokenKind::Identifier);
+    IdentifierInfo* identifier = token->identifier;
+    NEXT_TOKEN();
+    EXPECT_TOKEN(token, TokenKind::Equal);
+    NEXT_TOKEN();
+    WithFullLoc<Type*> type = ParseType();
+    if (type.value == nullptr)
+        return nullptr;
+    range.end = type.range.end;
+    EXPECT_TOKEN(token, TokenKind::Semicolon);
+    NEXT_TOKEN();
+    return sema.ActOnTypeAliasDecl(identifier, type.value, range);
 }
 
 VCL::NamedDecl* VCL::Parser::ParseRecordDecl() {

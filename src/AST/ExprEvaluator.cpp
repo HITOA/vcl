@@ -15,7 +15,7 @@ VCL::ConstantValue* VCL::ExprEvaluator::VisitDeclRefExpr(DeclRefExpr* expr) {
             Expr* initializer = varDecl->GetInitializer();
             if (!initializer)
                 return nullptr;
-            return Visit(initializer);
+            return VisitExpr(initializer);
         }
         default: return nullptr;
     }
@@ -52,7 +52,7 @@ VCL::ConstantScalar* CastFrom(VCL::ASTContext& context, VCL::QualType to, VCL::C
 }
 
 VCL::ConstantValue* VCL::ExprEvaluator::VisitCastExpr(CastExpr* expr) {
-    ConstantValue* value = Visit(expr->GetExpr());
+    ConstantValue* value = VisitExpr(expr->GetExpr());
     if (!value)
         return nullptr;
     if (value->GetConstantValueClass() != ConstantValue::ConstantScalarClass)
@@ -74,7 +74,7 @@ VCL::ConstantValue* VCL::ExprEvaluator::VisitCastExpr(CastExpr* expr) {
 }
 
 VCL::ConstantValue* VCL::ExprEvaluator::VisitSplatExpr(SplatExpr* expr) {
-    return Visit(expr->GetExpr());
+    return VisitExpr(expr->GetExpr());
 }
 
 template<typename T>
@@ -94,8 +94,11 @@ T BinaryOp(T a, T b, VCL::BinaryOperator::Kind op) {
 }
 
 VCL::ConstantValue* VCL::ExprEvaluator::VisitBinaryExpr(BinaryExpr* expr) {
-    ConstantValue* lhs = Visit(expr->GetLHS());
-    ConstantValue* rhs = Visit(expr->GetRHS());
+    ConstantValue* lhs = VisitExpr(expr->GetLHS());
+    ConstantValue* rhs = VisitExpr(expr->GetRHS());
+
+    if (!lhs || !rhs)
+        return nullptr;
 
     if (lhs->GetConstantValueClass() != ConstantValue::ConstantScalarClass || 
         rhs->GetConstantValueClass() != ConstantValue::ConstantScalarClass)
@@ -145,7 +148,7 @@ T UnaryOp(T value, VCL::UnaryOperator op) {
 }
 
 VCL::ConstantValue* VCL::ExprEvaluator::VisitUnaryExpr(UnaryExpr* expr) {
-    ConstantValue* value = Visit(expr->GetExpr());
+    ConstantValue* value = VisitExpr(expr->GetExpr());
     if (value->GetConstantValueClass() != ConstantValue::ConstantScalarClass)
         return nullptr;
 
@@ -183,7 +186,7 @@ VCL::ConstantValue* VCL::ExprEvaluator::VisitAggregateExpr(AggregateExpr* expr) 
     values.reserve(expr->GetElementCount());
 
     for (Expr* element : expr->GetElements()) {
-        ConstantValue* value = Visit(element);
+        ConstantValue* value = VisitExpr(element);
         if (!value)
             return nullptr;
         values.push_back(value);
@@ -194,4 +197,28 @@ VCL::ConstantValue* VCL::ExprEvaluator::VisitAggregateExpr(AggregateExpr* expr) 
 
 VCL::ConstantValue* VCL::ExprEvaluator::VisitNullExpr(NullExpr* expr) {
     return context.AllocateNode<ConstantNull>(expr->GetResultType());
+}
+
+VCL::ConstantValue* VCL::ExprEvaluator::VisitLoadExpr(LoadExpr* expr) {
+    return VisitExpr(expr->GetExpr());
+}
+
+VCL::ConstantValue* VCL::ExprEvaluator::VisitCallExpr(CallExpr* expr) {
+    return nullptr;
+}
+
+VCL::ConstantValue* VCL::ExprEvaluator::VisitDependentCallExpr(DependentCallExpr* expr) {
+    return nullptr;
+}
+
+VCL::ConstantValue* VCL::ExprEvaluator::VisitFieldAccessExpr(FieldAccessExpr* expr) {
+    return nullptr;
+}
+
+VCL::ConstantValue* VCL::ExprEvaluator::VisitDependentFieldAccessExpr(DependentFieldAccessExpr* expr) {
+    return nullptr;
+}
+
+VCL::ConstantValue* VCL::ExprEvaluator::VisitSubscriptExpr(SubscriptExpr* expr) {
+    return nullptr;
 }

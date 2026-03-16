@@ -5,6 +5,7 @@
 
 
 bool VCL::Type::IsTypeNumeric(Type* type) {
+    type = GetCanonicalType(type);
     switch (type->GetTypeClass()) {
         case Type::BuiltinTypeClass: {
             BuiltinType::Kind kind = ((BuiltinType*)type)->GetKind();
@@ -64,9 +65,15 @@ VCL::Type* VCL::Type::GetCanonicalType(Type* type) {
             return GetCanonicalType(((ReferenceType*)type)->GetType().GetType());
         case Type::TemplateSpecializationTypeClass:
             return GetCanonicalType(((TemplateSpecializationType*)type)->GetInstantiatedType());
+        case Type::TypeAliasTypeClass:
+            return GetCanonicalType(((TypeAliasType*)type)->GetType());
         default:
             return type;
     }
+}
+
+bool VCL::Type::IsCanonicallyEqual(Type* typeA, Type* typeB) {
+    return GetCanonicalType(typeA) == GetCanonicalType(typeB);
 }
 
 uint32_t VCL::BuiltinType::GetKindBitWidth(Kind kind) {
@@ -124,7 +131,8 @@ void VCL::TemplateSpecializationType::Profile(llvm::FoldingSetNodeID& id, Templa
     for (auto& arg : args->GetArgs()) {
         switch (arg.GetKind()) {
             case TemplateArgument::Type:
-                id.AddInteger((uintptr_t)arg.GetType().GetAsOpaquePtr());
+                id.AddInteger((uintptr_t)arg.GetType().GetQualifiers());
+                id.AddPointer(arg.GetType().GetType());
                 break;
             case TemplateArgument::Integral:
                 id.AddInteger(arg.GetIntegral().Get<uint64_t>());
@@ -137,4 +145,9 @@ void VCL::TemplateSpecializationType::Profile(llvm::FoldingSetNodeID& id, Templa
                 break;
         }
     }
+}
+
+void VCL::TypeAliasType::Profile(llvm::FoldingSetNodeID& id, Type* ofType, TypeAliasDecl* decl) {
+    id.AddPointer(ofType);
+    id.AddPointer(decl);
 }

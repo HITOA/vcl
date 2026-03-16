@@ -14,12 +14,28 @@ bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
                 return true;
             return InstantiateTemplateSpecializationType(t);
         }
+        case Type::TypeAliasTypeClass:
+            return MakeTypeComplete(((TypeAliasType*)type)->GetType());
         default:
             return true;
     }
 }
 
 bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSpecializationType* type) {
+    if (!type->GetTemplateArgumentList()->IsCanonical()) {
+        TemplateArgumentList* args = sema.ActOnTemplateArgumentList(
+            type->GetTemplateArgumentList()->GetArgs(), 
+            type->GetTemplateArgumentList()->GetSourceRange(), 
+            true);
+        if (!args)
+            return false;
+        TemplateSpecializationType* ct = sema.GetASTContext().GetTypeCache().GetOrCreateTemplateSpecializationType(
+            type->GetTemplateDecl(), args);
+        if (!InstantiateTemplateSpecializationType(ct))
+            return false;
+        type->SetInstantiatedType(ct->GetInstantiatedType());
+        return true;
+    }
     if (!AddTemplateArgumentListAndDecl(type->GetTemplateArgumentList(), type->GetTemplateDecl()))
         return false;
     Type* t = nullptr;
@@ -156,7 +172,7 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedIntrinsicTypeDecl(Temp
     switch (identifier->GetTokenKind()) {
         case TokenKind::Keyword_Vec: {
             TemplateArgument* arg0 = Lookup(decl->GetTemplateParametersList()->GetParams()[0]);
-            QualType ofType = arg0->GetType();
+            QualType ofType = Type::GetCanonicalType(arg0->GetType().GetType());
             if (ofType.GetType()->GetTypeClass() != Type::BuiltinTypeClass) {
                 sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -184,7 +200,7 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedIntrinsicTypeDecl(Temp
         }
         case TokenKind::Keyword_Lanes: {
             TemplateArgument* arg0 = Lookup(decl->GetTemplateParametersList()->GetParams()[0]);
-            QualType ofType = arg0->GetType();
+            QualType ofType = Type::GetCanonicalType(arg0->GetType().GetType());
             if (ofType.GetType()->GetTypeClass() != Type::BuiltinTypeClass) {
                 sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentWrongType)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -215,11 +231,15 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedIntrinsicTypeDecl(Temp
             TemplateArgument* arg1 = Lookup(decl->GetTemplateParametersList()->GetParams()[1]);
             QualType ofType = arg0->GetType();
             uint64_t ofSize = arg1->GetIntegral().Get<uint64_t>();
+            if (!MakeTypeComplete(ofType.GetType()))
+                return nullptr;
             return sema.GetASTContext().GetTypeCache().GetOrCreateArrayType(ofType, ofSize);
         }
         case TokenKind::Keyword_Span: {
             TemplateArgument* arg0 = Lookup(decl->GetTemplateParametersList()->GetParams()[0]);
             QualType ofType = arg0->GetType();
+            if (!MakeTypeComplete(ofType.GetType()))
+                return nullptr;
             return sema.GetASTContext().GetTypeCache().GetOrCreateSpanType(ofType);
         }
         default:
@@ -238,6 +258,8 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedRecordDecl(TemplateDec
         switch (d->GetDeclClass()) {
             case Decl::FieldDeclClass: {
                 FieldDecl* fieldDecl = (FieldDecl*)TransformDecl(d.Get());
+                if (!fieldDecl)
+                    return nullptr;
                 if (!MakeTypeComplete(fieldDecl->GetType().GetType()))
                     return nullptr;
                 newDecl->InsertBack(fieldDecl);
@@ -341,13 +363,14 @@ VCL::TemplateArgumentList* VCL::TemplateInstantiator::TransformTemplateArgumentL
             default: newTemplateArgs.push_back(arg);
         }
     }
-    return sema.ActOnTemplateArgumentList(newTemplateArgs, templateArgs->GetSourceRange());
+    return sema.ActOnTemplateArgumentList(newTemplateArgs, templateArgs->GetSourceRange(), true);
 }
 
 VCL::QualType VCL::TemplateInstantiator::TransformType(QualType type) {
     switch (type.GetType()->GetTypeClass()) {
         case Type::TemplateTypeParamTypeClass: return TransformTemplateTypeParamType(type);
         case Type::TemplateSpecializationTypeClass: return TransformTemplateSpecializationType(type);
+        case Type::TypeAliasTypeClass: return TransformType(((TypeAliasType*)type.GetType())->GetType());
         default: return type;
     }
 }
@@ -419,6 +442,8 @@ VCL::QualType VCL::TemplateInstantiator::TransformTemplateTypeParamType(QualType
 VCL::QualType VCL::TemplateInstantiator::TransformTemplateSpecializationType(QualType type) {
     TemplateSpecializationType* t = (TemplateSpecializationType*)type.GetType();
     TemplateArgumentList* arglist = TransformTemplateArgumentList(t->GetTemplateArgumentList());
+    if (!t || !arglist)
+        return nullptr;
     TemplateSpecializationType* newType = sema.GetASTContext().GetTypeCache().GetOrCreateTemplateSpecializationType(t->GetTemplateDecl(), arglist);
     if (!MakeTypeComplete(newType))
         return nullptr;
@@ -516,6 +541,8 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformContinueStmt(ContinueStmt* stmt) 
 
 VCL::Decl* VCL::TemplateInstantiator::TransformFieldDecl(FieldDecl* decl) {
     QualType type = TransformType(decl->GetType());
+    if (type.GetAsOpaquePtr() == 0)
+        return nullptr;
     return FieldDecl::Create(sema.GetASTContext(), decl->GetIdentifierInfo(), type, decl->GetSourceRange());
 }
 
@@ -539,8 +566,10 @@ VCL::Expr* VCL::TemplateInstantiator::TransformLoadExpr(LoadExpr* expr) {
 
 VCL::Expr* VCL::TemplateInstantiator::TransformDeclRefExpr(DeclRefExpr* expr) {
     TemplateArgument* arg = Lookup(expr->GetValueDecl());
-    if (!arg)
-        return sema.ActOnIdentifierExpr(expr->GetValueDecl()->GetIdentifierInfo(), expr->GetSourceRange());;
+    if (!arg && expr->GetValueDecl()->IsExported())
+        return expr;
+    else if (!arg)
+        return sema.ActOnIdentifierExpr(expr->GetValueDecl()->GetIdentifierInfo(), expr->GetSourceRange());
     switch (arg->GetKind()) {
         case TemplateArgument::Type: {
             sema.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)

@@ -26,6 +26,7 @@ namespace VCL {
             FunctionDeclClass,
             IntrinsicTypeDeclClass,
             DirectiveDeclClass,
+            TypeAliasDeclClass,
 
             TemplateTypeParamDeclClass,
             NonTypeTemplateParamDeclClass,
@@ -354,6 +355,18 @@ namespace VCL {
     private:
         IdentifierInfo* identifierInfo;
         size_t argsCount;
+    };
+
+    class TypeAliasDecl : public TypeDecl {
+    public:
+        TypeAliasDecl(IdentifierInfo* identifierInfo, VCL::Type* type) : TypeDecl{ type, identifierInfo, Decl::TypeAliasDeclClass } {}
+        ~TypeAliasDecl() = default;
+
+        static inline TypeAliasDecl* Create(ASTContext& context, IdentifierInfo* identifier, Type* type, SourceRange range) {
+            TypeAliasDecl* instance = context.AllocateNode<TypeAliasDecl>(identifier, type);
+            instance->SetSourceRange(range);
+            return instance;
+        }
     };
 
 }

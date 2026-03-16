@@ -70,6 +70,7 @@ KEYWORD(continue)
 KEYWORD(struct)
 KEYWORD(template)
 KEYWORD(typename)
+KEYWORD(using)
 KEYWORD(export)
 
 // Type Qualifiers

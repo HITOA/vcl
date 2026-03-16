@@ -9,8 +9,10 @@
 #include <VCL/AST/Template.hpp>
 #include <VCL/AST/DeclTemplate.hpp>
 #include <VCL/AST/SymbolRef.hpp>
+#include <VCL/AST/ASTConsumer.hpp>
 
 #include <optional>
+#include <memory>
 
 
 namespace VCL {
@@ -34,6 +36,9 @@ namespace VCL {
         Parser& operator=(Parser&& other) = delete;
 
     public:
+        inline void SetASTConsumer(ASTConsumer* consumer) { this->consumer = consumer; }
+        inline ASTConsumer& GetASTConsumer() { return *consumer; }
+
         inline Token* GetToken(uint32_t n = 0) { return stream.GetTok(n); }
         inline Token* NextAndGetToken() { return stream.NextAndGetTok(); }
         inline bool NextToken(uint32_t n = 1) { return stream.Next(n); }
@@ -57,6 +62,8 @@ namespace VCL {
         CompoundStmt* ParseCompoundStmt();
 
         TemplateDecl* ParseTemplateDecl();
+        
+        TypeAliasDecl* ParseTypeAliasDecl();
         
         NamedDecl* ParseRecordDecl();
         FieldDecl* ParseFieldDecl();
@@ -143,6 +150,8 @@ namespace VCL {
         Sema& sema;
         AttributeTable& attributeTable;
         ParserFlag flags = ParserFlag::None;
+
+        ASTConsumer* consumer;
     };
 
 }

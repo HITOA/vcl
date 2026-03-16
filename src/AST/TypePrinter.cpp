@@ -31,6 +31,8 @@ std::string VCL::TypePrinter::Print(QualType type) {
             return qualifiers + PrintTemplateSpecializationType((TemplateSpecializationType*)type.GetType());
         case Type::DependentTypeClass:
             return qualifiers + PrintDependentType((DependentType*)type.GetType());
+        case Type::TypeAliasTypeClass:
+            return qualifiers + PrintTypeAliasType((TypeAliasType*)type.GetType());
         default:
             return "invalid";
     }
@@ -154,4 +156,8 @@ std::string VCL::TypePrinter::PrintTemplateSpecializationType(TemplateSpecializa
 
 std::string VCL::TypePrinter::PrintDependentType(DependentType* type) {
     return "DependentType";
+}
+
+std::string VCL::TypePrinter::PrintTypeAliasType(TypeAliasType* type) {
+    return Print(type->GetType());
 }

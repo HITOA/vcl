@@ -22,6 +22,7 @@ DIAGNOSTIC_HINT(Declared,                        "declared here")
 
 DIAGNOSTIC(MissingImplementation,                "missing implementation")
 DIAGNOSTIC(InternalError,                        "internal compiler error")
+DIAGNOSTIC(CustomDiagnostic,                     "%0")
 
 SOURCE_DIAGNOSTIC(FileNotFound,                  "could not open '%0'; file not found")
 SOURCE_DIAGNOSTIC(MemoryBufferCreationFailed,    "memory buffer creation failed")
@@ -93,6 +94,7 @@ SEMA_DIAGNOSTIC(ImportDuplicatedNamespace,       "previous import share the same
 SEMA_DIAGNOSTIC(ModuleNameDoesNotExists,         "no module named '%0' has been imported")
 SEMA_DIAGNOSTIC(MathIntrinsicBadSpecialization,  "math intrinsic '%0' cannot take argument(s) of type '%1'")
 SEMA_DIAGNOSTIC(LengthIntrinsicBadSpecialization,"length intrinsic cannot take argument of type '%0'")
+SEMA_DIAGNOSTIC(TypeAliasCannotBeTemplated,      "type alias cannot alias a dependent type")
 
 #undef DIAGNOSTIC_HINT
 #undef SEMA_DIAGNOSTIC

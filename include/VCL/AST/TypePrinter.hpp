@@ -25,6 +25,7 @@ namespace VCL {
         static std::string PrintTemplateTypeParamType(TemplateTypeParamType* type);
         static std::string PrintTemplateSpecializationType(TemplateSpecializationType* type);
         static std::string PrintDependentType(DependentType* type);
+        static std::string PrintTypeAliasType(TypeAliasType* type);
     };
 
 }

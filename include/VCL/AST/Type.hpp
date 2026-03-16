@@ -13,6 +13,7 @@ namespace VCL {
     class TemplateArgumentList;
     class RecordDecl;
     class FunctionDecl;
+    class TypeAliasDecl;
     class QualType;
 
     /**
@@ -31,7 +32,8 @@ namespace VCL {
             FunctionTypeClass,
             TemplateTypeParamTypeClass,
             TemplateSpecializationTypeClass,
-            DependentTypeClass
+            DependentTypeClass,
+            TypeAliasTypeClass
         };
 
     public:
@@ -52,6 +54,7 @@ namespace VCL {
         static bool IsTypeIntegral(Type* type);
 
         static Type* GetCanonicalType(Type* type);
+        static bool IsCanonicallyEqual(Type* typeA, Type* typeB);
         
     protected:
         inline void SetDependent(bool isDependent) { bitfield.isDependent = isDependent; }
@@ -337,5 +340,23 @@ namespace VCL {
         inline static void Profile(llvm::FoldingSetNodeID& id) {
             id.AddInteger(0);
         }
+    };
+
+    class TypeAliasType : public Type, public llvm::FoldingSetNode {
+    public:
+        TypeAliasType(Type* ofType, TypeAliasDecl* decl) : ofType{ ofType }, decl{ decl }, Type{ Type::TypeAliasTypeClass } {
+            SetDependent(ofType->IsDependent());
+        }
+        ~TypeAliasType() = default;
+
+        inline Type* GetType() { return ofType; }
+        inline TypeAliasDecl* GetDecl() { return decl; }
+
+        inline void Profile(llvm::FoldingSetNodeID& id) { Profile(id, ofType, decl); }
+        static void Profile(llvm::FoldingSetNodeID& id, Type* ofType, TypeAliasDecl* decl);
+
+    private:
+        Type* ofType;
+        TypeAliasDecl* decl;
     };
 }
