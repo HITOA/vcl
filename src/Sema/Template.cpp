@@ -5,6 +5,8 @@
 #include <VCL/Sema/Sema.hpp>
 #include <VCL/AST/TypePrinter.hpp>
 
+#include <iostream>
+
 
 bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
     switch (type->GetTypeClass()) {

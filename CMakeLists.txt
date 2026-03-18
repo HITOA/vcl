@@ -25,7 +25,9 @@ endif()
 
 target_include_directories(vcl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-set_property(TARGET vcl PROPERTY COMPILE_WARNING_AS_ERROR ON)
+if(CMAKE_BUILD_TYPE EQUAL "Release")
+    set_property(TARGET vcl PROPERTY COMPILE_WARNING_AS_ERROR ON)
+endif()
 
 llvm_map_components_to_libnames(llvm_libs support core irreader orcjit nativecodegen)
 

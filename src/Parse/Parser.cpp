@@ -1227,6 +1227,10 @@ VCL::Expr* VCL::Parser::ParseIdentifierExpr() {
     GET_TOKEN(token);
     SourceRange range = token->range;
     SymbolRef symbolRef = ParseSymbolRef();
+    if (symbolRef.GetModuleName() != nullptr) {
+        GET_TOKEN(token);
+        range.end = token->range.start;
+    }
     return sema.ActOnIdentifierExpr(symbolRef, range);
 }
 
