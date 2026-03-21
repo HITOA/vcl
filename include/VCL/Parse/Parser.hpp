@@ -22,7 +22,8 @@ namespace VCL {
     public:
         enum class ParserFlag : uint32_t {
             None = 0x0,
-            OnTemplateArgument = 0x1
+            OnTemplateArgument = 0x1,
+            ConsumeGreaterGreaterAsTemplateEndToken = 0x2
         };
 
     public:
@@ -62,13 +63,14 @@ namespace VCL {
         CompoundStmt* ParseCompoundStmt();
 
         TemplateDecl* ParseTemplateDecl();
+        NamedDecl* ParseSpecialization();
         
         TypeAliasDecl* ParseTypeAliasDecl();
         
         NamedDecl* ParseRecordDecl();
         FieldDecl* ParseFieldDecl();
 
-        NamedDecl* ParseFunctionDecl();
+        NamedDecl* ParseFunctionDecl(TemplateArgumentList* args = nullptr);
         ParamDecl* ParseParamDecl();
         CompoundStmt* ParseFunctionBody(FunctionDecl* function);
 
@@ -89,7 +91,7 @@ namespace VCL {
         WithFullLoc<Type*> ParseType();
 
         TemplateParameterList* ParseTemplateParameterList();
-        TemplateArgumentList* ParseTemplateArgumentList();
+        TemplateArgumentList* ParseTemplateArgumentList(bool canonicalize);
         int TryParseTemplateArgumentList(int n = 0);
 
         Expr* ParseExpression();
@@ -125,6 +127,7 @@ namespace VCL {
             Parser* parser;
             TokenStreamSavePointGuard sp;
             bool isSupressing;
+            ParserFlag old;
         };
 
         class ParserFlagGuard {

@@ -131,7 +131,7 @@ void VCL::TemplateSpecializationType::Profile(llvm::FoldingSetNodeID& id, Templa
     for (auto& arg : args->GetArgs()) {
         switch (arg.GetKind()) {
             case TemplateArgument::Type:
-                id.AddInteger((uintptr_t)arg.GetType().GetQualifiers());
+                //id.AddInteger((uintptr_t)arg.GetType().GetQualifiers());
                 id.AddPointer(arg.GetType().GetType());
                 break;
             case TemplateArgument::Integral:

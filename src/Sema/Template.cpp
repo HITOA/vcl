@@ -10,6 +10,8 @@
 
 bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
     switch (type->GetTypeClass()) {
+        case Type::ReferenceTypeClass:
+            return MakeTypeComplete(((ReferenceType*)type)->GetType().GetType());
         case Type::TemplateSpecializationTypeClass: {
             TemplateSpecializationType* t = (TemplateSpecializationType*)type;
             if (t->GetInstantiatedType() != nullptr)
@@ -22,7 +24,7 @@ bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
             return true;
     }
 }
-
+#include <iostream>
 bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSpecializationType* type) {
     if (!type->GetTemplateArgumentList()->IsCanonical()) {
         TemplateArgumentList* args = sema.ActOnTemplateArgumentList(
@@ -33,8 +35,20 @@ bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSp
             return false;
         TemplateSpecializationType* ct = sema.GetASTContext().GetTypeCache().GetOrCreateTemplateSpecializationType(
             type->GetTemplateDecl(), args);
-        if (!InstantiateTemplateSpecializationType(ct))
-            return false;
+        
+        llvm::FoldingSetNodeID id{};
+        TemplateSpecializationType::Profile(id, type->GetTemplateDecl(), args);
+
+        if (ct->GetInstantiatedType() == nullptr) {
+            if (!InstantiateTemplateSpecializationType(ct))
+                return false;
+            if (type->GetTemplateDecl()->GetTemplatedNamedDecl()->GetIdentifierInfo()->GetName().str() == "AudioBlock") {
+                std::cout << "Instantiating AudioBlock (" << id.ComputeHash() << "):" << std::endl;
+                std::cout << "\tType: " << args->GetArgs()[0].GetType().GetType() << std::endl;
+                std::cout << "\tChannel: " << args->GetArgs()[1].GetIntegral().Get<uint64_t>() << std::endl;
+                std::cout << "\tResult: " << ct->GetInstantiatedType() << std::endl;
+            }
+        }
         type->SetInstantiatedType(ct->GetInstantiatedType());
         return true;
     }
@@ -310,7 +324,7 @@ VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(T
         }
     }
 
-    if (FunctionDecl* r = sema.ActOnFunctionDecl(newFunctionDecl, returnType, functionDecl->GetSourceRange()); r != nullptr) {
+    if (FunctionDecl* r = sema.ActOnFunctionDecl(newFunctionDecl, returnType, nullptr, functionDecl->GetSourceRange()); r != nullptr) {
         newFunctionDecl = r;
     } else {
         sema.PopDeclContextScope(newFunctionDecl);

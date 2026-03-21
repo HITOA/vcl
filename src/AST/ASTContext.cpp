@@ -4,4 +4,10 @@
 
 
 VCL::ASTContext::ASTContext(TypeCache& typecache) 
-        : nodeAllocator{}, typeCache{ typecache }, root{ AllocateNode<TranslationUnitDecl>() } {}
+        : nodeAllocator{}, typeCache{}, root{ AllocateNode<TranslationUnitDecl>() } {
+    typecache.InsertTypeCacheChild(&this->typeCache);
+}
+
+VCL::ASTContext::~ASTContext() {
+	typeCache.GetParent()->RemoveTypecacheChild(&typeCache);
+}

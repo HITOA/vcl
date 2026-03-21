@@ -51,7 +51,11 @@ namespace VCL {
             case TokenKind::Plus: return BinaryOperator{ BinaryOperator::Add, OperatorAssociativity::Left, 11 };
             case TokenKind::Minus: return BinaryOperator{ BinaryOperator::Sub, OperatorAssociativity::Left, 11 };
             // Binary Bitwise
-            case TokenKind::GreaterGreater: return BinaryOperator{ BinaryOperator::RightShift, OperatorAssociativity::Left, 10 };
+            case TokenKind::GreaterGreater: {
+                if (onTemplateArgument)
+                    return BinaryOperator{};
+                return BinaryOperator{ BinaryOperator::RightShift, OperatorAssociativity::Left, 10 };
+            }
             case TokenKind::LesserLesser: return BinaryOperator{ BinaryOperator::LeftShift, OperatorAssociativity::Left, 10 };
             case TokenKind::Amp: return BinaryOperator{ BinaryOperator::BitwiseAnd, OperatorAssociativity::Left, 6 };
             case TokenKind::Caret: return BinaryOperator{ BinaryOperator::BitwiseXor, OperatorAssociativity::Left, 5 };

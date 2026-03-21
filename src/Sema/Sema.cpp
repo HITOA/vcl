@@ -623,9 +623,9 @@ VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identif
     return (FieldDecl*)decl;
 }
 
-VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType returnType, SourceRange range) {
+VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType returnType, TemplateArgumentList* args, SourceRange range) {
     NamedDecl* lookupDecl = LookupNamedDecl(SymbolRef{ decl->GetIdentifierInfo() }, 1);
-    if (lookupDecl) {
+    if (lookupDecl && !args) {
         SourceRange redeclRange = lookupDecl->GetSourceRange();
         diagnosticReporter.Error(Diagnostic::Redeclaration, lookupDecl->GetIdentifierInfo()->GetName().str())
             .AddHint(DiagnosticHint{ range })
@@ -657,9 +657,39 @@ VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType ret
         if (!ValidateIntrinsicFunctionDeclSpecialization(decl))
             return nullptr;
 
-    if (sm.GetScopeFront()->GetDeclContext() != decl) {
+    if (!args && sm.GetScopeFront()->GetDeclContext() != decl) {
         if (!AddDeclToScopeAndContext(decl))
             return nullptr;
+    } else if (args) {
+        TemplateDecl* templateDecl = LookupTemplateDecl(SymbolRef{ decl->GetIdentifierInfo() }, 1);
+        if (!templateDecl) {
+            diagnosticReporter.Error(Diagnostic::MissingTemplateDecl)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ range })
+                .Report();
+            return nullptr;
+        }
+
+        TemplateInstantiator instantiator{ *this };
+        if (!instantiator.CheckTemplateArgumentsParametersMatch(args, templateDecl->GetTemplateParametersList()))
+            return nullptr;
+
+        for (auto it = templateDecl->Begin(); it != templateDecl->End(); ++it) {
+            if (it->GetDeclClass() != Decl::TemplateSpecializationDeclClass)
+                continue;
+            TemplateSpecializationDecl* specializationDecl = (TemplateSpecializationDecl*)it.Get();
+            if (MatchTemplateArgumentList(specializationDecl->GetTemplateArgumentList(), args)) {
+                diagnosticReporter.Error(Diagnostic::SpecializationAlreadyExist)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ range })
+                    .AddHint(DiagnosticHint{ specializationDecl->GetNamedDecl()->GetSourceRange(), DiagnosticHint::PreviouslyDeclared })
+                    .Report();
+                return nullptr;
+            }
+        }
+
+        TemplateSpecializationDecl* specializationDecl = TemplateSpecializationDecl::Create(astContext, args, decl);
+        templateDecl->InsertBack(specializationDecl);
     }
 
     return decl;
@@ -904,7 +934,7 @@ VCL::QualType VCL::Sema::ActOnQualType(Type* type, Qualifier qualifiers, SourceR
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)\
                     .Report(); \
                 return nullptr; }
-
+                
 VCL::Type* VCL::Sema::ActOnType(SymbolRef symbolRef, TemplateArgumentList* list, SourceRange range) {
     if (!symbolRef.GetSymbolName()->IsKeyword()) {
         NamedDecl* decl = LookupNamedDecl(symbolRef);
@@ -946,7 +976,7 @@ VCL::Type* VCL::Sema::ActOnType(SymbolRef symbolRef, TemplateArgumentList* list,
         else
             return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType(templateDecl, list);
     }
-
+    
     switch (symbolRef.GetSymbolName()->GetTokenKind()) {
         case TokenKind::Keyword_void:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
@@ -978,9 +1008,11 @@ VCL::Type* VCL::Sema::ActOnType(SymbolRef symbolRef, TemplateArgumentList* list,
         case TokenKind::Keyword_int64:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
             return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int64);
-        case TokenKind::Keyword_float32:
+        case TokenKind::Keyword_float32: {
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Float32);
+            Type* type = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Float32);
+            return type;
+        }
         case TokenKind::Keyword_float64:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
             return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Float64);
@@ -1583,11 +1615,9 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
     if (expr->GetResultType().GetType()->IsDependent() || toType.GetType()->IsDependent())
         return expr;
 
-    if (toType.GetType()->GetTypeClass() == Type::TemplateSpecializationTypeClass) {
-        TemplateInstantiator instantiator{ *this };
-        if (!instantiator.MakeTypeComplete(toType.GetType()))
-            return nullptr;
-    }
+    TemplateInstantiator instantiator{ *this };
+    if (!instantiator.MakeTypeComplete(toType.GetType()))
+        return nullptr;
 
     Type* srcType = Type::GetCanonicalType(expr->GetResultType().GetType());
     Type* dstType = Type::GetCanonicalType(toType.GetType());
@@ -2133,7 +2163,7 @@ bool VCL::Sema::MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateA
 
         switch (arg1.GetKind()) {
             case TemplateArgument::Type: {
-                if (arg1.GetType() != arg2.GetType())
+                if (!Type::IsCanonicallyEqual(arg1.GetType().GetType(), arg2.GetType().GetType()))
                     return false;
                 break;
             }

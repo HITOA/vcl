@@ -6,6 +6,8 @@
 #include <llvm/ADT/IntrusiveRefCntPtr.h>
 #include <llvm/Support/Allocator.h>
 
+#include <vector>
+
 
 namespace VCL {
 
@@ -23,6 +25,11 @@ namespace VCL {
         TypeCache& operator=(const TypeCache& other) = delete;
         TypeCache& operator=(TypeCache&& other) = delete;
 
+
+        void InsertTypeCacheChild(TypeCache* child);
+        void RemoveTypecacheChild(TypeCache* child);
+
+        inline TypeCache* GetParent() { return parent; }
 
         /** Get a BuiltinType of the given kind. if it does not exists, create it and return it instead. */
         BuiltinType* GetOrCreateBuiltinType(BuiltinType::Kind kind);
@@ -48,8 +55,26 @@ namespace VCL {
         DependentType* GetOrCreateDependentType();
         /** Get a TypeAliasType of the given type */
         TypeAliasType* GetOrCreateTypeAliasType(Type* ofType, TypeAliasDecl* decl);
+    
+    private:
+        inline TypeCache* GetTopmostParent() { return parent != nullptr ? parent->GetTopmostParent() : this; }
+
+        template<typename T, typename... Args>
+        T* GetOrCreate(Args&&... args);
+
+        template<typename T, typename... Args>
+        T* GetOrCreateTrailing(size_t totalSizeToAlloc, Args&&... args);
+
+        template<typename T, typename... Args>
+        T* FindType(llvm::FoldingSetNodeID& id, Args&&... args);
+
+        template<typename T>
+        llvm::FoldingSet<T>* GetSet();
 
     private:
+        TypeCache* parent = nullptr;
+        std::vector<TypeCache*> childs{};
+
         llvm::BumpPtrAllocator typeAllocator{};
         llvm::FoldingSet<BuiltinType> builtinTypeCache{};
         llvm::FoldingSet<ReferenceType> referenceTypeCache{};

@@ -105,7 +105,7 @@ namespace VCL {
 
         FieldDecl* ActOnFieldDecl(QualType type, IdentifierInfo* identifier, SourceRange range);
 
-        FunctionDecl* ActOnFunctionDecl(FunctionDecl* decl, QualType returnType, SourceRange range);
+        FunctionDecl* ActOnFunctionDecl(FunctionDecl* decl, QualType returnType, TemplateArgumentList* args, SourceRange range);
 
         ParamDecl* ActOnParamDecl(VarDecl::VarAttrBitfield attr, QualType type, IdentifierInfo* identifier, SourceRange range);
         

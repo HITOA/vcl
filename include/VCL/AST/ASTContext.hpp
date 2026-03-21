@@ -20,7 +20,7 @@ namespace VCL {
         ASTContext(TypeCache& typecache);
         ASTContext(const ASTContext& other) = delete;
         ASTContext(ASTContext&& other) = delete;
-        ~ASTContext() = default;
+        ~ASTContext();
 
         ASTContext& operator=(const ASTContext& other) = delete;
         ASTContext& operator=(ASTContext&& other) = delete;
@@ -41,7 +41,7 @@ namespace VCL {
         
     private:
         llvm::BumpPtrAllocator nodeAllocator;
-        TypeCache& typeCache;
+        TypeCache typeCache;
 
         // Root translation unit decl of this AST
         TranslationUnitDecl* root;
