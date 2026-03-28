@@ -29,6 +29,7 @@ namespace VCL {
 
         Type* InstantiateTemplatedIntrinsicTypeDecl(TemplateDecl* decl);
         Type* InstantiateTemplatedRecordDecl(TemplateDecl* decl);
+        Type* InstantiateTemplatedTypeAliasDecl(TemplateDecl* decl);
         FunctionDecl* InstantiateTemplatedFunctionDecl(TemplateDecl* decl);
 
         void AddSubstitution(NamedDecl* param, TemplateArgument* arg);

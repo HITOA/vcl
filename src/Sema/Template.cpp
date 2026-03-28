@@ -24,7 +24,7 @@ bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
             return true;
     }
 }
-#include <iostream>
+
 bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSpecializationType* type) {
     if (!type->GetTemplateArgumentList()->IsCanonical()) {
         TemplateArgumentList* args = sema.ActOnTemplateArgumentList(
@@ -39,16 +39,9 @@ bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSp
         llvm::FoldingSetNodeID id{};
         TemplateSpecializationType::Profile(id, type->GetTemplateDecl(), args);
 
-        if (ct->GetInstantiatedType() == nullptr) {
+        if (ct->GetInstantiatedType() == nullptr)
             if (!InstantiateTemplateSpecializationType(ct))
                 return false;
-            if (type->GetTemplateDecl()->GetTemplatedNamedDecl()->GetIdentifierInfo()->GetName().str() == "AudioBlock") {
-                std::cout << "Instantiating AudioBlock (" << id.ComputeHash() << "):" << std::endl;
-                std::cout << "\tType: " << args->GetArgs()[0].GetType().GetType() << std::endl;
-                std::cout << "\tChannel: " << args->GetArgs()[1].GetIntegral().Get<uint64_t>() << std::endl;
-                std::cout << "\tResult: " << ct->GetInstantiatedType() << std::endl;
-            }
-        }
         type->SetInstantiatedType(ct->GetInstantiatedType());
         return true;
     }
@@ -61,6 +54,9 @@ bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSp
             break;
         case Decl::RecordDeclClass:
             t = InstantiateTemplatedRecordDecl(type->GetTemplateDecl());
+            break;
+        case Decl::TypeAliasDeclClass:
+            t = InstantiateTemplatedTypeAliasDecl(type->GetTemplateDecl());
             break;
         default:
             sema.GetDiagnosticReporter().Error(Diagnostic::InternalError)
@@ -292,6 +288,13 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedRecordDecl(TemplateDec
     
     return (RecordType*)newDecl->GetType();
 }
+
+VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedTypeAliasDecl(TemplateDecl* decl) {
+    TypeAliasDecl* typeAliasDecl = (TypeAliasDecl*)decl->GetTemplatedNamedDecl();
+    QualType concreteType = TransformType(typeAliasDecl->GetType());
+    return sema.GetASTContext().GetTypeCache().GetOrCreateTypeAliasType(concreteType.GetType(), typeAliasDecl);
+}
+
 VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(TemplateDecl* decl) {
     FunctionDecl* functionDecl = (FunctionDecl*)decl->GetTemplatedNamedDecl();
 
@@ -379,7 +382,7 @@ VCL::TemplateArgumentList* VCL::TemplateInstantiator::TransformTemplateArgumentL
             default: newTemplateArgs.push_back(arg);
         }
     }
-    return sema.ActOnTemplateArgumentList(newTemplateArgs, templateArgs->GetSourceRange(), true);
+    return sema.ActOnTemplateArgumentList(newTemplateArgs, templateArgs->GetSourceRange(), false);
 }
 
 VCL::QualType VCL::TemplateInstantiator::TransformType(QualType type) {

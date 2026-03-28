@@ -63,7 +63,8 @@ bool VCL::ImportDirective::OnSema(Sema& sema, DirectiveDecl* decl) {
         ci->BeginSource(source);
         r = ci->ExecuteAction(act);
         ci->EndSource();
-        m = compilerContext.GetModuleCache().Add(source, ci, act.MoveModule());
+        if (r)
+            m = compilerContext.GetModuleCache().Add(source, ci, act.MoveModule());
     }
 
     if (!r || !m) {

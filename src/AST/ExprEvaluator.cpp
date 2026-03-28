@@ -29,13 +29,7 @@ VCL::ConstantScalar* CastFromTo(VCL::ASTContext& context, VCL::ConstantScalar* v
 
 template<typename T>
 VCL::ConstantScalar* CastFrom(VCL::ASTContext& context, VCL::QualType to, VCL::ConstantScalar* value) {
-    VCL::Type* type = to.GetType();
-    if (type->GetTypeClass() == VCL::Type::TemplateSpecializationTypeClass)
-        type = ((VCL::TemplateSpecializationType*)type)->GetInstantiatedType();
-    if (type->GetTypeClass() == VCL::Type::VectorTypeClass)
-        type = ((VCL::VectorType*)type)->GetElementType().GetType();
-    if (type->GetTypeClass() != VCL::Type::BuiltinTypeClass)
-        return nullptr;
+    VCL::Type* type = VCL::Type::GetCanonicalType(to.GetType());
     switch (((VCL::BuiltinType*)type)->GetKind()) {
         case VCL::BuiltinType::Float32: return CastFromTo<T, float>(context, value);
         case VCL::BuiltinType::Float64: return CastFromTo<T, double>(context, value);

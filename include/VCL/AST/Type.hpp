@@ -55,6 +55,8 @@ namespace VCL {
 
         static Type* GetCanonicalType(Type* type);
         static bool IsCanonicallyEqual(Type* typeA, Type* typeB);
+
+        static Type* GetDesugaredType(Type* type);
         
     protected:
         inline void SetDependent(bool isDependent) { bitfield.isDependent = isDependent; }

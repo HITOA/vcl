@@ -129,6 +129,8 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl, bool imported) {
     if (linkageType != llvm::GlobalVariable::LinkageTypes::ExternalLinkage)
         gv->setDSOLocal(true);
 
+    gv->setAlignment(llvm::Align{ target.GetVectorWidthInByte() });
+
     globals.insert(std::make_pair(decl, gv));
 
     return true;

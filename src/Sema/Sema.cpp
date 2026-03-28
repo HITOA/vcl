@@ -5,6 +5,7 @@
 #include <VCL/AST/ExprEvaluator.hpp>
 #include <VCL/AST/TypePrinter.hpp>
 #include <VCL/Sema/Template.hpp>
+#include <VCL/Sema/TemplateArgumentDeducer.hpp>
 #include <VCL/Frontend/ModuleCache.hpp>
 #include <VCL/Frontend/CompilerContext.hpp>
 
@@ -563,7 +564,7 @@ VCL::TypeAliasDecl* VCL::Sema::ActOnTypeAliasDecl(IdentifierInfo* identifierInfo
         return nullptr;
     }
     TypeAliasDecl* instance = TypeAliasDecl::Create(astContext, identifierInfo, type, range);
-    type = astContext.GetTypeCache().GetOrCreateTypeAliasType(Type::GetCanonicalType(type), instance);
+    type = astContext.GetTypeCache().GetOrCreateTypeAliasType(type, instance);
     instance->SetType(type);
     if (!AddDeclToScopeAndContext(instance))
         return nullptr;
@@ -661,6 +662,8 @@ VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType ret
         if (!AddDeclToScopeAndContext(decl))
             return nullptr;
     } else if (args) {
+        decl->SetFunctionFlag(FunctionDecl::FunctionFlags::IsTemplateSpecialization);
+
         TemplateDecl* templateDecl = LookupTemplateDecl(SymbolRef{ decl->GetIdentifierInfo() }, 1);
         if (!templateDecl) {
             diagnosticReporter.Error(Diagnostic::MissingTemplateDecl)
@@ -1418,10 +1421,7 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
     if (type->IsDependent())
         return DependentFieldAccessExpr::Create(astContext, lhs, field, range);
 
-    if (type->GetTypeClass() == Type::ReferenceTypeClass)
-        type = ((ReferenceType*)type)->GetType().GetType();
-    if (type->GetTypeClass() == Type::TemplateSpecializationTypeClass)
-        type = ((TemplateSpecializationType*)type)->GetInstantiatedType();
+    type = Type::GetCanonicalType(type);
     if (type->GetTypeClass() != Type::RecordTypeClass) {
         diagnosticReporter.Error(Diagnostic::MustHaveStructType, TypePrinter::Print(type))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -1462,7 +1462,7 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
 
     return FieldAccessExpr::Create(astContext, lhs, (RecordType*)type, fieldIdx, returnedFieldType, range);
 }
-
+#include <iostream>
 VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange range) {
     index = ActOnLoad(index);
     if (!index)
@@ -1481,18 +1481,27 @@ VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange ra
         return SubscriptExpr::Create(astContext, expr, index, resultType, range);
     }
 
-    Type* exprTrueType = Type::GetCanonicalType(expr->GetResultType().GetType());
+    Type* type = Type::GetDesugaredType(expr->GetResultType().GetType());
+    QualType resultType{ nullptr };
+    if (type->GetTypeClass() == Type::TemplateSpecializationTypeClass) {
+        TemplateSpecializationType* spe = (TemplateSpecializationType*)type;
+        resultType = spe->GetTemplateArgumentList()->GetArgs()[0].GetType();
+    }
+    Type* exprTrueType = Type::GetCanonicalType(type);
     switch (exprTrueType->GetTypeClass()) {
         case Type::LanesTypeClass: {
-            QualType resultType = ((LanesType*)exprTrueType)->GetElementType();
+            if (resultType.GetAsOpaquePtr() == 0)
+                resultType = ((LanesType*)exprTrueType)->GetElementType();
             return SubscriptExpr::Create(astContext, expr, index, resultType, range);
         }
         case Type::ArrayTypeClass: {
-            QualType resultType = ((ArrayType*)exprTrueType)->GetElementType();
+            if (resultType.GetAsOpaquePtr() == 0)
+                resultType = ((ArrayType*)exprTrueType)->GetElementType();
             return SubscriptExpr::Create(astContext, expr, index, resultType, range);
         }
         case Type::SpanTypeClass: {
-            QualType resultType = ((SpanType*)exprTrueType)->GetElementType();
+            if (resultType.GetAsOpaquePtr() == 0)
+                resultType = ((SpanType*)exprTrueType)->GetElementType();
             return SubscriptExpr::Create(astContext, expr, index, resultType, range);
         }
         default:
@@ -1709,6 +1718,7 @@ VCL::Expr* VCL::Sema::ActOnSplat(Expr* expr, SourceRange range) {
     Type* type = expr->GetResultType().GetType();
     if (type->IsDependent())
         return expr;
+    type = Type::GetCanonicalType(type);
     if (type->GetTypeClass() != Type::BuiltinTypeClass) {
         diagnosticReporter.Error(Diagnostic::InvalidSplat, TypePrinter::Print(type))
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -1769,15 +1779,25 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
         FunctionDecl* templatedFunctionDecl = (FunctionDecl*)templateDecl->GetTemplatedNamedDecl();
 
         TemplateParameterList* parameters = templateDecl->GetTemplateParametersList();
-        templateArgs = DeduceTemplateArgumentFromCall(templatedFunctionDecl, args, templateArgs, parameters);
-        if (!templateArgs)
+
+        TemplateArgumentDeducer deducer{ *this, parameters };
+        if (!deducer.FillSubstitutionMapWithTemplateArgumentList(templateArgs))
             return nullptr;
         
-        if (!templateArgs->IsCanonical()) {
-            templateArgs = ActOnTemplateArgumentList(templateArgs->GetArgs(), templateArgs->GetSourceRange(), true);
-            if (!templateArgs)
-                return nullptr;
+        if (!deducer.IsDeductionComplete() && args.size() == templatedFunctionDecl->GetType()->GetParamsType().size()) {
+            for (size_t i = 0; i < args.size(); ++i) {
+                bool s = deducer.DeduceForType(
+                    templatedFunctionDecl->GetType()->GetParamsType()[i].GetType(), 
+                    args[i]->GetResultType().GetType());
+                if (!s)
+                    return nullptr;
+            }
         }
+
+        templateArgs = deducer.BuildTemplateArgumentList(true);
+
+        if (!templateArgs)
+            return nullptr;
 
         if (templateArgs->IsDependent())
             return DependentCallExpr::Create(astContext, symbolRef, args, templateArgs, range);

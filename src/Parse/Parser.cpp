@@ -414,6 +414,16 @@ VCL::TemplateDecl* VCL::Parser::ParseTemplateDecl() {
                     return nullptr;
             return templateDecl;
         }
+        case TokenKind::Keyword_using: {
+            NamedDecl* decl = ParseTypeAliasDecl();
+            if (!decl)
+                return nullptr;
+            templateDecl->SetTemplatedNamedDecl(decl);
+            if (exportDecl)
+                if (!sema.ExportSymbol(templateDecl, exportRange))
+                    return nullptr;
+            return templateDecl;
+        }
         default: {
             NamedDecl* decl = ParseFunctionDecl();
             if (!decl)

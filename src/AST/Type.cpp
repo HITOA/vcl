@@ -76,6 +76,26 @@ bool VCL::Type::IsCanonicallyEqual(Type* typeA, Type* typeB) {
     return GetCanonicalType(typeA) == GetCanonicalType(typeB);
 }
 
+VCL::Type* VCL::Type::GetDesugaredType(Type* type) {
+    if (!type)
+        return type;
+    
+    switch (type->GetTypeClass()) {
+        case Type::ReferenceTypeClass:
+            return GetDesugaredType(((ReferenceType*)type)->GetType().GetType());
+        case Type::TemplateSpecializationTypeClass: {
+            TemplateSpecializationType* spe = (TemplateSpecializationType*)type;
+            if (spe->GetTemplateDecl()->GetTemplatedNamedDecl()->GetDeclClass() == Decl::TypeAliasDeclClass)
+                return GetDesugaredType(spe->GetInstantiatedType());
+            return type;
+        }
+        case Type::TypeAliasTypeClass:
+            return GetDesugaredType(((TypeAliasType*)type)->GetType());
+        default:
+            return type;
+    }
+}
+
 uint32_t VCL::BuiltinType::GetKindBitWidth(Kind kind) {
     switch (kind) {
         case Float32: return 32;
