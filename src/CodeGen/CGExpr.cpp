@@ -363,7 +363,14 @@ llvm::Value* VCL::CodeGenFunction::GenerateIntrinsicCallExpr(CallExpr* expr) {
         case FunctionDecl::IntrinsicID::Pack: {
             llvm::Type* returnType = cgm.GetCGT().ConvertType(expr->GetFunctionDecl()->GetType()->GetReturnType());
             llvm::Align align{ (uint64_t)cgm.GetTarget().GetVectorWidthInByte() };
-            return builder.CreateAlignedLoad(returnType, argsValue[0], align);
+            llvm::Value* value = argsValue[0];
+            if (!value->getType()->isPointerTy()) {
+                llvm::AllocaInst* alloca = GenerateAllocaInst(value->getType(), "tmp");
+                alloca->setAlignment(align);
+                builder.CreateAlignedStore(value, alloca, align);
+                value = alloca;
+            }
+            return builder.CreateAlignedLoad(returnType, value, align);
         }
         // Length
         case FunctionDecl::IntrinsicID::Length: {

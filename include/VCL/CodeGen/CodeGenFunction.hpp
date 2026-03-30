@@ -25,6 +25,7 @@ namespace VCL {
         llvm::Function* Generate(FunctionDecl* decl, bool imported = false);
 
         llvm::AllocaInst* GenerateAllocaInst(llvm::Type* type, llvm::StringRef name);
+        llvm::AllocaInst* GenerateAllocaInst(QualType type, llvm::StringRef name);
 
         llvm::Value* GetDeclValue(Decl* decl);
 

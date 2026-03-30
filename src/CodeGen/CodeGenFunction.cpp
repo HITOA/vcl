@@ -58,7 +58,7 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
             if (paramDecl->GetValueType().GetType()->GetTypeClass() == Type::ReferenceTypeClass) {
                 locals.insert(std::make_pair(paramDecl, arg));
             } else {
-                llvm::AllocaInst* alloca = GenerateAllocaInst(arg->getType(), paramDecl->GetIdentifierInfo()->GetName());
+                llvm::AllocaInst* alloca = GenerateAllocaInst(paramDecl->GetValueType(), paramDecl->GetIdentifierInfo()->GetName());
                 builder.CreateStore(arg, alloca);
                 locals.insert(std::make_pair(paramDecl, alloca));
             }
@@ -87,6 +87,7 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
     llvm::EliminateUnreachableBlocks(*function);
 
     if (llvm::verifyFunction(*function, &llvm::errs())) {
+        function->dump();
         cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
@@ -101,6 +102,16 @@ llvm::AllocaInst* VCL::CodeGenFunction::GenerateAllocaInst(llvm::Type* type, llv
     builder.SetInsertPoint(builder.GetInsertBlock()->getFirstInsertionPt());
     builder.SetCurrentDebugLocation(llvm::DebugLoc());
     llvm::AllocaInst* alloca = builder.CreateAlloca(type, nullptr, name);
+    return alloca;
+}
+
+llvm::AllocaInst* VCL::CodeGenFunction::GenerateAllocaInst(QualType type, llvm::StringRef name) {
+    llvm::Type* convertedType = cgm.GetCGT().ConvertType(type);
+    llvm::AllocaInst* alloca = GenerateAllocaInst(convertedType, name);
+    Type* canonicalType = Type::GetCanonicalType(type.GetType());
+    if (canonicalType->GetTypeClass() == Type::LanesTypeClass || canonicalType->GetTypeClass() == Type::RecordTypeClass) {
+        alloca->setAlignment(llvm::Align{ cgm.GetTarget().GetVectorWidthInByte() });
+    }
     return alloca;
 }
 

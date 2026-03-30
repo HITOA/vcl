@@ -86,13 +86,30 @@ void VCL::ExecutionSession::DisableGDBListener() {
     linkingLayer->unregisterJITEventListener(*gdbListener);
 }
 
+void VCL::ExecutionSession::DefineDefaultMemIntrinsic() {
+    llvm::orc::SymbolMap symbolMap{ 2 };
+
+    symbolMap[session->intern("memset")] = llvm::orc::ExecutorSymbolDef{
+        llvm::orc::ExecutorAddr::fromPtr(&memset),
+        llvm::JITSymbolFlags::Exported
+    };
+
+
+    symbolMap[session->intern("memcpy")] = llvm::orc::ExecutorSymbolDef{
+        llvm::orc::ExecutorAddr::fromPtr(&memcpy),
+        llvm::JITSymbolFlags::Exported
+    };
+
+    lastError = main->define(llvm::orc::absoluteSymbols(symbolMap));
+}
+
 #define ADD_MATH_SYMBOL(name, ptr) symbolMap[session->intern(name)] = llvm::orc::ExecutorSymbolDef{ \
         llvm::orc::ExecutorAddr::fromPtr(ptr), \
         llvm::JITSymbolFlags::Exported \
     }
 
 void VCL::ExecutionSession::DefineDefaultMathIntrinsic() {
-    llvm::orc::SymbolMap symbolMap{ 22 };
+    llvm::orc::SymbolMap symbolMap{ 44 };
 
     // Float
     ADD_MATH_SYMBOL("sqrtf",    &sqrtf);

@@ -18,7 +18,7 @@ bool VCL::CodeGenFunction::GenerateDecl(Decl* decl) {
 
 bool VCL::CodeGenFunction::GenerateVarDecl(VarDecl* decl) {
     llvm::Type* type = cgm.GetCGT().ConvertType(decl->GetValueType());
-    llvm::AllocaInst* alloca = GenerateAllocaInst(type, decl->GetIdentifierInfo()->GetName());
+    llvm::AllocaInst* alloca = GenerateAllocaInst(decl->GetValueType(), decl->GetIdentifierInfo()->GetName());
     Expr* initializer = decl->GetInitializer();
     if (initializer) {
         llvm::Value* initializerValue = GenerateExpr(initializer);

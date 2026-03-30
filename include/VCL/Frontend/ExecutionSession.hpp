@@ -43,6 +43,7 @@ namespace VCL {
         void EnableGDBListener();
         void DisableGDBListener();
 
+        void DefineDefaultMemIntrinsic();
         void DefineDefaultMathIntrinsic();
 
     private:
