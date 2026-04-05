@@ -1,5 +1,6 @@
 #pragma once
 
+#include <VCL/Core/Hasher.hpp>
 #include <VCL/AST/Type.hpp>
 #include <VCL/AST/Expr.hpp>
 #include <VCL/AST/ConstantValue.hpp>
@@ -93,6 +94,24 @@ namespace VCL {
                         return false;
             }
             return true;
+        }
+
+        inline uint64_t GetHash() const {
+            Hasher hasher{};
+            for (TemplateArgument arg : GetArgs()) {
+                switch (arg.GetKind()) {
+                    case TemplateArgument::Type:
+                        hasher.Hash((uint64_t)arg.GetType().GetAsOpaquePtr());
+                        break;
+                    case TemplateArgument::Integral:
+                        hasher.Hash(arg.GetIntegral().Get<uint64_t>());
+                        break;
+                    default:
+                        hasher.Hash((uint64_t)arg.GetExpr());
+                        break;
+                }
+            }
+            return hasher.Get();
         }
 
         static inline TemplateArgumentList* Create(ASTContext& context, llvm::ArrayRef<TemplateArgument> args, SourceRange range) {

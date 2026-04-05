@@ -25,67 +25,87 @@ VCL::Sema::SemaScopeGuard::~SemaScopeGuard() {
 void VCL::Sema::SemaScopeGuard::Release() {
     if (context)
         sema.PopDeclContextScope(context);
+    context = nullptr;
+}
+
+VCL::Sema::SemaContextGuard::SemaContextGuard(Sema& sema, ASTContext& context) : sema{ sema }, context{ &context } {
+    sema.PushASTContext(context);
+}
+
+/*VCL::Sema::SemaContextGuard::SemaContextGuard(SemaContextGuard&& other) : sema{ other.sema }, context{ std::move(other.context) } {
+    other.context = nullptr;
+}*/
+
+VCL::Sema::SemaContextGuard::~SemaContextGuard() {
+    Release();
+}
+
+inline void VCL::Sema::SemaContextGuard::Release() {
+    if (context)
+        sema.PopASTContext(*context);
+    context = nullptr;
 }
 
 VCL::Sema::Sema(CompilerContext& cc, ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
         DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules, DefineTable& definedValues) 
-        : cc{ cc }, astContext{ astContext }, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable }, 
+        : cc{ cc }, astContextStack{}, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable }, 
             directiveRegistry{ directiveRegistry }, exportedSymbols{ exportedSymbols }, importedModules{ importedModules }, definedValues{ definedValues } {
-    translationUnitScope = sm.EmplaceScopeFront(astContext.GetTranslationUnitDecl());
+    astContextStack.push(&astContext);
+    translationUnitScope = sm.EmplaceScopeFront(GetASTContext().GetTranslationUnitDecl());
     AddIntrinsicTemplateDecl();
 }
 
 VCL::TemplateSpecializationType* VCL::Sema::CreateVectorTemplateSpecializationType(Type* ofType) {
-    TemplateArgumentList* argList = TemplateArgumentList::Create(astContext, { TemplateArgument{ ofType } }, SourceRange{});
+    TemplateArgumentList* argList = TemplateArgumentList::Create(GetASTContext(), { TemplateArgument{ ofType } }, SourceRange{});
     TemplateDecl* decl = LookupTemplateDecl(SymbolRef{ identifierTable.GetKeyword(TokenKind::Keyword_Vec) });
-    return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType(decl, argList);
+    return GetASTContext().GetTypeCache().GetOrCreateTemplateSpecializationType(decl, argList);
 }
 
 VCL::TemplateSpecializationType* VCL::Sema::CreateLanesTemplateSpecializationType(Type* ofType) {
-    TemplateArgumentList* argList = TemplateArgumentList::Create(astContext, { TemplateArgument{ ofType } }, SourceRange{});
+    TemplateArgumentList* argList = TemplateArgumentList::Create(GetASTContext(), { TemplateArgument{ ofType } }, SourceRange{});
     TemplateDecl* decl = LookupTemplateDecl(SymbolRef{ identifierTable.GetKeyword(TokenKind::Keyword_Lanes) });
-    return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType(decl, argList);
+    return GetASTContext().GetTypeCache().GetOrCreateTemplateSpecializationType(decl, argList);
 }
 
 void VCL::Sema::AddIntrinsicTypes() {
     IdentifierInfo* ofTypeIdentifier = identifierTable.Get("T");
     IdentifierInfo* ofSizeIdentifier = identifierTable.Get("Size");
-    BuiltinType* ofSizeType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
+    BuiltinType* ofSizeType = GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
 
     // Vec
-    IntrinsicTypeDecl* vecDecl = IntrinsicTypeDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Vec));
-    NamedDecl* vecOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
-    TemplateParameterList* vecParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
-    TemplateDecl* templatedVecDecl = TemplateDecl::Create(astContext, vecParamList, SourceRange{});
+    IntrinsicTypeDecl* vecDecl = IntrinsicTypeDecl::Create(GetASTContext(), identifierTable.GetKeyword(TokenKind::Keyword_Vec));
+    NamedDecl* vecOfType = TemplateTypeParamDecl::Create(GetASTContext(), ofTypeIdentifier, SourceRange{});
+    TemplateParameterList* vecParamList = TemplateParameterList::Create(GetASTContext(), llvm::ArrayRef<NamedDecl*>{ &vecOfType, 1 }, SourceRange{});
+    TemplateDecl* templatedVecDecl = TemplateDecl::Create(GetASTContext(), vecParamList, SourceRange{});
     templatedVecDecl->SetTemplatedNamedDecl(vecDecl);
     if (!AddDeclToScopeAndContext(templatedVecDecl))
         return;
 
     // Vec
-    IntrinsicTypeDecl* lanesDecl = IntrinsicTypeDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Lanes));
-    NamedDecl* lanesOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
-    TemplateParameterList* lanesParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &lanesOfType, 1 }, SourceRange{});
-    TemplateDecl* templatedLanesDecl = TemplateDecl::Create(astContext, lanesParamList, SourceRange{});
+    IntrinsicTypeDecl* lanesDecl = IntrinsicTypeDecl::Create(GetASTContext(), identifierTable.GetKeyword(TokenKind::Keyword_Lanes));
+    NamedDecl* lanesOfType = TemplateTypeParamDecl::Create(GetASTContext(), ofTypeIdentifier, SourceRange{});
+    TemplateParameterList* lanesParamList = TemplateParameterList::Create(GetASTContext(), llvm::ArrayRef<NamedDecl*>{ &lanesOfType, 1 }, SourceRange{});
+    TemplateDecl* templatedLanesDecl = TemplateDecl::Create(GetASTContext(), lanesParamList, SourceRange{});
     templatedLanesDecl->SetTemplatedNamedDecl(lanesDecl);
     if (!AddDeclToScopeAndContext(templatedLanesDecl))
         return;
 
     // Array
-    IntrinsicTypeDecl* arrayDecl = IntrinsicTypeDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Array));
-    NamedDecl* arrayOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
-    NamedDecl* arrayOfSize = NonTypeTemplateParamDecl::Create(astContext, ofSizeType, ofSizeIdentifier, SourceRange{});
+    IntrinsicTypeDecl* arrayDecl = IntrinsicTypeDecl::Create(GetASTContext(), identifierTable.GetKeyword(TokenKind::Keyword_Array));
+    NamedDecl* arrayOfType = TemplateTypeParamDecl::Create(GetASTContext(), ofTypeIdentifier, SourceRange{});
+    NamedDecl* arrayOfSize = NonTypeTemplateParamDecl::Create(GetASTContext(), ofSizeType, ofSizeIdentifier, SourceRange{});
     llvm::SmallVector<NamedDecl*> arrayParams{ arrayOfType, arrayOfSize };
-    TemplateParameterList* arrayParamList = TemplateParameterList::Create(astContext, arrayParams, SourceRange{});
-    TemplateDecl* templatedArrayDecl = TemplateDecl::Create(astContext, arrayParamList, SourceRange{});
+    TemplateParameterList* arrayParamList = TemplateParameterList::Create(GetASTContext(), arrayParams, SourceRange{});
+    TemplateDecl* templatedArrayDecl = TemplateDecl::Create(GetASTContext(), arrayParamList, SourceRange{});
     templatedArrayDecl->SetTemplatedNamedDecl(arrayDecl);
     if (!AddDeclToScopeAndContext(templatedArrayDecl))
         return;
 
     // Span
-    IntrinsicTypeDecl* spanDecl = IntrinsicTypeDecl::Create(astContext, identifierTable.GetKeyword(TokenKind::Keyword_Span));
-    NamedDecl* spanOfType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
-    TemplateParameterList* spanParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &spanOfType, 1 }, SourceRange{});
-    TemplateDecl* templatedSpanDecl = TemplateDecl::Create(astContext, spanParamList, SourceRange{});
+    IntrinsicTypeDecl* spanDecl = IntrinsicTypeDecl::Create(GetASTContext(), identifierTable.GetKeyword(TokenKind::Keyword_Span));
+    NamedDecl* spanOfType = TemplateTypeParamDecl::Create(GetASTContext(), ofTypeIdentifier, SourceRange{});
+    TemplateParameterList* spanParamList = TemplateParameterList::Create(GetASTContext(), llvm::ArrayRef<NamedDecl*>{ &spanOfType, 1 }, SourceRange{});
+    TemplateDecl* templatedSpanDecl = TemplateDecl::Create(GetASTContext(), spanParamList, SourceRange{});
     templatedSpanDecl->SetTemplatedNamedDecl(spanDecl);
     if (!AddDeclToScopeAndContext(templatedSpanDecl))
         return;
@@ -95,25 +115,25 @@ void VCL::Sema::AddIntrinsicMathFunction(FunctionDecl::IntrinsicID intrinsicID, 
     IdentifierInfo* nameIdentifier = identifierTable.Get(name);
     IdentifierInfo* ofTypeIdentifier = identifierTable.Get("T");
 
-    NamedDecl* ofType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
-    TemplateTypeParamType* ofTypeType = astContext.GetTypeCache().GetOrCreateTemplateTypeParamType((TemplateTypeParamDecl*)ofType);
-    TemplateParameterList* templateParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &ofType, 1 }, SourceRange{});
+    NamedDecl* ofType = TemplateTypeParamDecl::Create(GetASTContext(), ofTypeIdentifier, SourceRange{});
+    TemplateTypeParamType* ofTypeType = GetASTContext().GetTypeCache().GetOrCreateTemplateTypeParamType((TemplateTypeParamDecl*)ofType);
+    TemplateParameterList* templateParamList = TemplateParameterList::Create(GetASTContext(), llvm::ArrayRef<NamedDecl*>{ &ofType, 1 }, SourceRange{});
 
-    FunctionDecl* functionDecl = FunctionDecl::Create(astContext, nameIdentifier, intrinsicID);
+    FunctionDecl* functionDecl = FunctionDecl::Create(GetASTContext(), nameIdentifier, intrinsicID);
 
     llvm::SmallVector<QualType> paramsType{};
     for (int i = 0; i < argCount; ++i) {
         paramsType.push_back(ofTypeType);
         std::string paramName = "Arg_" + std::to_string(i);
         IdentifierInfo* paramIdentifier = identifierTable.Get(paramName);
-        ParamDecl* paramDecl = ParamDecl::Create(astContext, ofTypeType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+        ParamDecl* paramDecl = ParamDecl::Create(GetASTContext(), ofTypeType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
         functionDecl->InsertBack(paramDecl);
     }
 
-    FunctionType* type = astContext.GetTypeCache().GetOrCreateFunctionType(ofTypeType, paramsType);
+    FunctionType* type = GetASTContext().GetTypeCache().GetOrCreateFunctionType(ofTypeType, paramsType);
     functionDecl->SetType(type);
 
-    TemplateDecl* templateDecl = TemplateDecl::Create(astContext, templateParamList, SourceRange{});
+    TemplateDecl* templateDecl = TemplateDecl::Create(GetASTContext(), templateParamList, SourceRange{});
     templateDecl->InsertBack(functionDecl);
     templateDecl->SetTemplatedNamedDecl(functionDecl);
 
@@ -127,11 +147,11 @@ void VCL::Sema::AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm
     IdentifierInfo* nameIdentifier = identifierTable.Get(name);
     IdentifierInfo* ofTypeIdentifier = identifierTable.Get("T");
 
-    NamedDecl* ofType = TemplateTypeParamDecl::Create(astContext, ofTypeIdentifier, SourceRange{});
-    TemplateTypeParamType* ofTypeType = astContext.GetTypeCache().GetOrCreateTemplateTypeParamType((TemplateTypeParamDecl*)ofType);
-    TemplateParameterList* templateParamList = TemplateParameterList::Create(astContext, llvm::ArrayRef<NamedDecl*>{ &ofType, 1 }, SourceRange{});
+    NamedDecl* ofType = TemplateTypeParamDecl::Create(GetASTContext(), ofTypeIdentifier, SourceRange{});
+    TemplateTypeParamType* ofTypeType = GetASTContext().GetTypeCache().GetOrCreateTemplateTypeParamType((TemplateTypeParamDecl*)ofType);
+    TemplateParameterList* templateParamList = TemplateParameterList::Create(GetASTContext(), llvm::ArrayRef<NamedDecl*>{ &ofType, 1 }, SourceRange{});
 
-    FunctionDecl* functionDecl = FunctionDecl::Create(astContext, nameIdentifier, intrinsicID);
+    FunctionDecl* functionDecl = FunctionDecl::Create(GetASTContext(), nameIdentifier, intrinsicID);
 
     Type* returnType = ofTypeType;
     llvm::SmallVector<QualType> paramsType{};
@@ -140,34 +160,34 @@ void VCL::Sema::AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm
         case FunctionDecl::IntrinsicID::Unpack: {
             returnType = CreateLanesTemplateSpecializationType(ofTypeType);
             Type* argType = CreateVectorTemplateSpecializationType(ofTypeType);
-            argType = astContext.GetTypeCache().GetOrCreateReferenceType(argType);
+            argType = GetASTContext().GetTypeCache().GetOrCreateReferenceType(argType);
             paramsType.push_back(argType);
             IdentifierInfo* paramIdentifier = identifierTable.Get("Arg_0");
-            ParamDecl* paramDecl = ParamDecl::Create(astContext, argType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            ParamDecl* paramDecl = ParamDecl::Create(GetASTContext(), argType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
             functionDecl->InsertBack(paramDecl);
             break;
         }
         case FunctionDecl::IntrinsicID::Pack: {
             returnType = CreateVectorTemplateSpecializationType(ofTypeType);
             Type* argType = CreateLanesTemplateSpecializationType(ofTypeType);
-            argType = astContext.GetTypeCache().GetOrCreateReferenceType(argType);
+            argType = GetASTContext().GetTypeCache().GetOrCreateReferenceType(argType);
             paramsType.push_back(argType);
             IdentifierInfo* paramIdentifier = identifierTable.Get("Arg_0");
-            ParamDecl* paramDecl = ParamDecl::Create(astContext, argType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            ParamDecl* paramDecl = ParamDecl::Create(GetASTContext(), argType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
             functionDecl->InsertBack(paramDecl);
             break;
         }
         case FunctionDecl::IntrinsicID::Length: {
-            returnType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
+            returnType = GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
             paramsType.push_back(ofTypeType);
             IdentifierInfo* paramIdentifier = identifierTable.Get("Arg_0");
-            ParamDecl* paramDecl = ParamDecl::Create(astContext, ofTypeType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            ParamDecl* paramDecl = ParamDecl::Create(GetASTContext(), ofTypeType, paramIdentifier, VarDecl::VarAttrBitfield{}, SourceRange{});
             functionDecl->InsertBack(paramDecl);
             break;
         }
         case FunctionDecl::IntrinsicID::Select: {
             returnType = CreateVectorTemplateSpecializationType(ofTypeType);
-            Type* param0Type = astContext.GetTypeCache().GetOrCreateVectorType(astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool));
+            Type* param0Type = GetASTContext().GetTypeCache().GetOrCreateVectorType(GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool));
             Type* param1Type = CreateVectorTemplateSpecializationType(ofTypeType);
             Type* param2Type = CreateVectorTemplateSpecializationType(ofTypeType);
             paramsType.push_back(param0Type);
@@ -176,9 +196,9 @@ void VCL::Sema::AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm
             IdentifierInfo* param0Identifier = identifierTable.Get("Arg_0");
             IdentifierInfo* param1Identifier = identifierTable.Get("Arg_1");
             IdentifierInfo* param2Identifier = identifierTable.Get("Arg_2");
-            ParamDecl* param0Decl = ParamDecl::Create(astContext, param0Type, param0Identifier, VarDecl::VarAttrBitfield{}, SourceRange{});
-            ParamDecl* param1Decl = ParamDecl::Create(astContext, param1Type, param1Identifier, VarDecl::VarAttrBitfield{}, SourceRange{});
-            ParamDecl* param2Decl = ParamDecl::Create(astContext, param2Type, param2Identifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            ParamDecl* param0Decl = ParamDecl::Create(GetASTContext(), param0Type, param0Identifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            ParamDecl* param1Decl = ParamDecl::Create(GetASTContext(), param1Type, param1Identifier, VarDecl::VarAttrBitfield{}, SourceRange{});
+            ParamDecl* param2Decl = ParamDecl::Create(GetASTContext(), param2Type, param2Identifier, VarDecl::VarAttrBitfield{}, SourceRange{});
             functionDecl->InsertBack(param0Decl);
             functionDecl->InsertBack(param1Decl);
             functionDecl->InsertBack(param2Decl);
@@ -191,10 +211,10 @@ void VCL::Sema::AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm
             return;
     }
 
-    FunctionType* type = astContext.GetTypeCache().GetOrCreateFunctionType(returnType, paramsType);
+    FunctionType* type = GetASTContext().GetTypeCache().GetOrCreateFunctionType(returnType, paramsType);
     functionDecl->SetType(type);
 
-    TemplateDecl* templateDecl = TemplateDecl::Create(astContext, templateParamList, SourceRange{});
+    TemplateDecl* templateDecl = TemplateDecl::Create(GetASTContext(), templateParamList, SourceRange{});
     templateDecl->InsertBack(functionDecl);
     templateDecl->SetTemplatedNamedDecl(functionDecl);
 
@@ -243,9 +263,18 @@ void VCL::Sema::AddIntrinsicTemplateDecl() {
     AddIntrinsicFunction(FunctionDecl::IntrinsicID::Select, "select");
 }
 
+void VCL::Sema::PushASTContext(ASTContext& astContext) {
+    astContextStack.push(&astContext);
+}
+
+void VCL::Sema::PopASTContext(ASTContext& astContext) {
+    assert(astContextStack.top() == &astContext);
+    astContextStack.pop();
+}
+
 VCL::Sema::SemaScopeGuard VCL::Sema::PushScope(DeclContext* context, bool loopScope) {
     if (!context)
-        context = astContext.AllocateNode<DeclContext>(DeclContext::TransientDeclContext);
+        context = GetASTContext().AllocateNode<DeclContext>(DeclContext::TransientDeclContext);
     PushDeclContextScope(context, loopScope);
     return SemaScopeGuard{ *this, context };
 }
@@ -261,12 +290,7 @@ bool VCL::Sema::PushDeclContextScope(DeclContext* context, bool loopScope) {
 }
 
 bool VCL::Sema::PopDeclContextScope(DeclContext* context) {
-    if (sm.GetScopeFront()->GetDeclContext() != context)  {
-        diagnosticReporter.Error(Diagnostic::InternalError)
-            .SetCompilerInfo(__FILE__, __func__, __LINE__)
-            .Report();
-        return false;
-    }
+    assert(sm.GetScopeFront()->GetDeclContext() == context);
     sm.PopScopeFront(context);
     return true;
 }
@@ -527,7 +551,7 @@ VCL::TemplateDecl* VCL::Sema::LookupTemplateDecl(SymbolRef symbolRef, int depth)
 }
 
 VCL::CompoundStmt* VCL::Sema::ActOnCompoundStmt(llvm::ArrayRef<Stmt*> stmts, SourceRange range) {
-    return CompoundStmt::Create(astContext, stmts, range);
+    return CompoundStmt::Create(GetASTContext(), stmts, range);
 }
 
 VCL::DirectiveDecl* VCL::Sema::ActOnDirectiveDecl(IdentifierInfo* identifierInfo, llvm::ArrayRef<ConstantValue*> args, SourceRange range) {
@@ -539,10 +563,10 @@ VCL::DirectiveDecl* VCL::Sema::ActOnDirectiveDecl(IdentifierInfo* identifierInfo
             .Report();
         if (r)
             return nullptr;
-        return DirectiveDecl::Create(astContext, identifierInfo, args, range);
+        return DirectiveDecl::Create(GetASTContext(), identifierInfo, args, range);
     }
 
-    DirectiveDecl* decl = DirectiveDecl::Create(astContext, identifierInfo, args, range);
+    DirectiveDecl* decl = DirectiveDecl::Create(GetASTContext(), identifierInfo, args, range);
     if (!handler->OnSema(*this, decl)) {
         diagnosticReporter.Error(Diagnostic::DirectiveSemaError)
             .AddHint(DiagnosticHint{ range })
@@ -563,8 +587,8 @@ VCL::TypeAliasDecl* VCL::Sema::ActOnTypeAliasDecl(IdentifierInfo* identifierInfo
             .Report();
         return nullptr;
     }
-    TypeAliasDecl* instance = TypeAliasDecl::Create(astContext, identifierInfo, type, range);
-    type = astContext.GetTypeCache().GetOrCreateTypeAliasType(type, instance);
+    TypeAliasDecl* instance = TypeAliasDecl::Create(GetASTContext(), identifierInfo, type, range);
+    type = GetASTContext().GetTypeCache().GetOrCreateTypeAliasType(type, instance);
     instance->SetType(type);
     if (!AddDeclToScopeAndContext(instance))
         return nullptr;
@@ -572,11 +596,11 @@ VCL::TypeAliasDecl* VCL::Sema::ActOnTypeAliasDecl(IdentifierInfo* identifierInfo
 }
 
 VCL::DeclStmt* VCL::Sema::ActOnDeclStmt(Decl* decl, SourceRange range) {
-    return DeclStmt::Create(astContext, decl, range);
+    return DeclStmt::Create(GetASTContext(), decl, range);
 }
 
 VCL::TemplateDecl* VCL::Sema::ActOnTemplateDecl(TemplateParameterList* parameters, SourceRange range) {
-    TemplateDecl* decl = TemplateDecl::Create(astContext, parameters, range);
+    TemplateDecl* decl = TemplateDecl::Create(GetASTContext(), parameters, range);
     if (!AddDeclToScopeAndContext(decl))
         return nullptr;
     return decl;
@@ -594,7 +618,7 @@ VCL::RecordDecl* VCL::Sema::ActOnRecordDecl(IdentifierInfo* identifier, SourceRa
         return nullptr;
     }
 
-    decl = RecordDecl::Create(astContext, identifier, range);
+    decl = RecordDecl::Create(GetASTContext(), identifier, range);
     if (!AddDeclToScopeAndContext(decl))
         return nullptr;
     return (RecordDecl*)decl;
@@ -618,7 +642,7 @@ VCL::FieldDecl* VCL::Sema::ActOnFieldDecl(QualType type, IdentifierInfo* identif
             return nullptr;
     }
 
-    decl = FieldDecl::Create(astContext, identifier, type, range);
+    decl = FieldDecl::Create(GetASTContext(), identifier, type, range);
     if (!AddDeclToScopeAndContext(decl))
         return nullptr;
     return (FieldDecl*)decl;
@@ -644,7 +668,7 @@ VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType ret
         paramsType.push_back(paramDecl->GetValueType());
     }
 
-    FunctionType* type = astContext.GetTypeCache().GetOrCreateFunctionType(returnType, paramsType);
+    FunctionType* type = GetASTContext().GetTypeCache().GetOrCreateFunctionType(returnType, paramsType);
     decl->SetType(type);
     decl->SetSourceRange(range);
 
@@ -681,7 +705,7 @@ VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType ret
             if (it->GetDeclClass() != Decl::TemplateSpecializationDeclClass)
                 continue;
             TemplateSpecializationDecl* specializationDecl = (TemplateSpecializationDecl*)it.Get();
-            if (MatchTemplateArgumentList(specializationDecl->GetTemplateArgumentList(), args)) {
+            if (specializationDecl->GetTemplateArgumentListHash() == args->GetHash()) {
                 diagnosticReporter.Error(Diagnostic::SpecializationAlreadyExist)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ range })
@@ -691,7 +715,7 @@ VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType ret
             }
         }
 
-        TemplateSpecializationDecl* specializationDecl = TemplateSpecializationDecl::Create(astContext, args, decl);
+        TemplateSpecializationDecl* specializationDecl = TemplateSpecializationDecl::Create(GetASTContext(), args, decl);
         templateDecl->InsertBack(specializationDecl);
     }
 
@@ -717,12 +741,12 @@ VCL::ParamDecl* VCL::Sema::ActOnParamDecl(Decl::VarAttrBitfield attr, QualType t
 
         bool isPassedByReference = attr.hasOutAttribute || (!attr.hasInAttribute && TypePreferByReference(type.GetType()));
         if (isPassedByReference) {
-            Type* refType = astContext.GetTypeCache().GetOrCreateReferenceType(type);
+            Type* refType = GetASTContext().GetTypeCache().GetOrCreateReferenceType(type);
             type = QualType{ refType, type.GetQualifiers() };
         }
     }
 
-    decl = ParamDecl::Create(astContext, type, identifier, attr, range);
+    decl = ParamDecl::Create(GetASTContext(), type, identifier, attr, range);
     if (!AddDeclToScopeAndContext(decl))
         return nullptr;
     return (ParamDecl*)decl;
@@ -805,30 +829,30 @@ VCL::ReturnStmt* VCL::Sema::ActOnReturnStmt(Expr* expr, SourceRange range) {
         }
     }
 
-    return ReturnStmt::Create(astContext, expr, range);
+    return ReturnStmt::Create(GetASTContext(), expr, range);
 }
 
 VCL::IfStmt* VCL::Sema::ActOnIfStmt(Expr* condition, Stmt* thenStmt, Stmt* elseStmt, SourceRange range) {
-    condition = ActOnCast(ActOnLoad(condition), astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool), condition->GetSourceRange());
+    condition = ActOnCast(ActOnLoad(condition), GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool), condition->GetSourceRange());
     if (!condition)
         return nullptr;
-    return IfStmt::Create(astContext, condition, thenStmt, elseStmt, range);
+    return IfStmt::Create(GetASTContext(), condition, thenStmt, elseStmt, range);
 }
 
 VCL::WhileStmt* VCL::Sema::ActOnWhileStmt(Expr* condition, Stmt* thenStmt, SourceRange range) {
-    condition = ActOnCast(ActOnLoad(condition), astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool), condition->GetSourceRange());
+    condition = ActOnCast(ActOnLoad(condition), GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool), condition->GetSourceRange());
     if (!condition)
         return nullptr;
-    return WhileStmt::Create(astContext, condition, thenStmt, range);
+    return WhileStmt::Create(GetASTContext(), condition, thenStmt, range);
 }
 
 VCL::ForStmt* VCL::Sema::ActOnForStmt(Stmt* startStmt, Expr* condition, Expr* loopExpr, Stmt* thenStmt, SourceRange range) {
     if (condition) {
-        condition = ActOnCast(ActOnLoad(condition), astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool), condition->GetSourceRange());
+        condition = ActOnCast(ActOnLoad(condition), GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool), condition->GetSourceRange());
         if (!condition)
             return nullptr;
     }
-    return ForStmt::Create(astContext, startStmt, condition, loopExpr, thenStmt, range);
+    return ForStmt::Create(GetASTContext(), startStmt, condition, loopExpr, thenStmt, range);
 }
 
 VCL::BreakStmt* VCL::Sema::ActOnBreakStmt(SourceRange range) {
@@ -839,7 +863,7 @@ VCL::BreakStmt* VCL::Sema::ActOnBreakStmt(SourceRange range) {
             .Report();
         return nullptr;
     }
-    return BreakStmt::Create(astContext, range);
+    return BreakStmt::Create(GetASTContext(), range);
 }
 
 VCL::ContinueStmt* VCL::Sema::ActOnContinueStmt(SourceRange range) {
@@ -850,7 +874,7 @@ VCL::ContinueStmt* VCL::Sema::ActOnContinueStmt(SourceRange range) {
             .Report();
         return nullptr;
     }
-    return ContinueStmt::Create(astContext, range);
+    return ContinueStmt::Create(GetASTContext(), range);
 }
 
 VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier, VarDecl::VarAttrBitfield varAttrBitfield, Expr* initializer, SourceRange range) {
@@ -903,7 +927,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
                     return nullptr;
                 initializer = castedInitializer;
             }
-            ExprEvaluator exprEvaluator{ astContext };
+            ExprEvaluator exprEvaluator{ GetASTContext() };
             ConstantValue* value = exprEvaluator.Visit(initializer);
             if (!value) {
                 diagnosticReporter.Error(Diagnostic::ExprDoesNotEvaluate)
@@ -920,7 +944,7 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
         }
     }
 
-    decl = VarDecl::Create(astContext, type, identifier, varAttrBitfield, range);
+    decl = VarDecl::Create(GetASTContext(), type, identifier, varAttrBitfield, range);
     ((VarDecl*)decl)->SetInitializer(initializer);
     if (!AddDeclToScopeAndContext(decl))
         return nullptr;
@@ -977,48 +1001,48 @@ VCL::Type* VCL::Sema::ActOnType(SymbolRef symbolRef, TemplateArgumentList* list,
         if (!list)
             return ((TypeDecl*)decl)->GetType();
         else
-            return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType(templateDecl, list);
+            return GetASTContext().GetTypeCache().GetOrCreateTemplateSpecializationType(templateDecl, list);
     }
     
     switch (symbolRef.GetSymbolName()->GetTokenKind()) {
         case TokenKind::Keyword_void:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Void);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Void);
         case TokenKind::Keyword_bool:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
         case TokenKind::Keyword_uint8:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt8);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt8);
         case TokenKind::Keyword_uint16:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt16);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt16);
         case TokenKind::Keyword_uint32:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt32);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt32);
         case TokenKind::Keyword_uint64:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::UInt64);
         case TokenKind::Keyword_int8:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int8);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int8);
         case TokenKind::Keyword_int16:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int16);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int16);
         case TokenKind::Keyword_int32:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int32);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int32);
         case TokenKind::Keyword_int64:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int64);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int64);
         case TokenKind::Keyword_float32: {
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            Type* type = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Float32);
+            Type* type = GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Float32);
             return type;
         }
         case TokenKind::Keyword_float64:
             ASSERT_BUILTIN_TYPE_NOT_TEMPLATED(list);
-            return astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Float64);
+            return GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Float64);
         default:
             TemplateDecl* decl = LookupTemplateDecl(symbolRef);
             if (decl == nullptr) {
@@ -1036,7 +1060,7 @@ VCL::Type* VCL::Sema::ActOnType(SymbolRef symbolRef, TemplateArgumentList* list,
                     .Report();
                 return nullptr;
             }
-            return astContext.GetTypeCache().GetOrCreateTemplateSpecializationType(decl, list);
+            return GetASTContext().GetTypeCache().GetOrCreateTemplateSpecializationType(decl, list);
     }
 }
 
@@ -1063,7 +1087,7 @@ VCL::TemplateParameterList* VCL::Sema::ActOnTemplateParameterList(llvm::ArrayRef
         set.insert(param->GetIdentifierInfo());
     }
 
-    return TemplateParameterList::Create(astContext, params, range);
+    return TemplateParameterList::Create(GetASTContext(), params, range);
 }
 
 VCL::TemplateArgumentList* VCL::Sema::ActOnTemplateArgumentList(llvm::ArrayRef<TemplateArgument> args, SourceRange range, bool canonicalize) {
@@ -1089,7 +1113,7 @@ VCL::TemplateArgumentList* VCL::Sema::ActOnTemplateArgumentList(llvm::ArrayRef<T
                 break;
             }
             case TemplateArgument::Expression: {
-                ExprEvaluator eval{ astContext };
+                ExprEvaluator eval{ GetASTContext() };
                 ConstantValue* value = eval.Visit(arg.GetExpr());
                 arg.GetExpr()->SetConstantValue(value);
                 if (!canonicalize) {
@@ -1111,21 +1135,21 @@ VCL::TemplateArgumentList* VCL::Sema::ActOnTemplateArgumentList(llvm::ArrayRef<T
         }
     }
 
-    return TemplateArgumentList::Create(astContext, argsEval, range);
+    return TemplateArgumentList::Create(GetASTContext(), argsEval, range);
 }
 
 VCL::TemplateTypeParamDecl* VCL::Sema::ActOnTemplateTypeParamDecl(IdentifierInfo* identifier, SourceRange range) {
-    return TemplateTypeParamDecl::Create(astContext, identifier, range);
+    return TemplateTypeParamDecl::Create(GetASTContext(), identifier, range);
 }
 
 VCL::NonTypeTemplateParamDecl* VCL::Sema::ActOnNonTypeTemplateParamDecl(BuiltinType* type, IdentifierInfo* identifier, SourceRange range) {
-    return NonTypeTemplateParamDecl::Create(astContext, type, identifier, range);
+    return NonTypeTemplateParamDecl::Create(GetASTContext(), type, identifier, range);
 }
 
 VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op) {
     if (lhs->GetResultType().GetType()->IsDependent() || rhs->GetResultType().GetType()->IsDependent()) {
-        Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
-        expr->SetResultType(astContext.GetTypeCache().GetOrCreateDependentType());
+        Expr* expr = BinaryExpr::Create(GetASTContext(), lhs, rhs, op);
+        expr->SetResultType(GetASTContext().GetTypeCache().GetOrCreateDependentType());
         switch (op) {
             case BinaryOperator::Assignment:
             case BinaryOperator::AssignmentAdd:
@@ -1165,7 +1189,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                     .Report();
                 return nullptr;
             }
-            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            Expr* expr = BinaryExpr::Create(GetASTContext(), lhs, rhs, op);
             expr->SetValueCategory(Expr::RValue);
             return expr;
         }
@@ -1184,7 +1208,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                     .Report();
                 return nullptr;
             }
-            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            Expr* expr = BinaryExpr::Create(GetASTContext(), lhs, rhs, op);
             expr->SetValueCategory(Expr::RValue);
             return expr;
         }
@@ -1210,10 +1234,10 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                 return nullptr;
             }
             Type* trueType = Type::GetCanonicalType(lhs->GetResultType().GetType());
-            Type* resultType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
+            Type* resultType = GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
             if (trueType->GetTypeClass() == Type::VectorTypeClass)
-                resultType = astContext.GetTypeCache().GetOrCreateVectorType(resultType);
-            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+                resultType = GetASTContext().GetTypeCache().GetOrCreateVectorType(resultType);
+            Expr* expr = BinaryExpr::Create(GetASTContext(), lhs, rhs, op);
             expr->SetValueCategory(Expr::RValue);
             expr->SetResultType(resultType);
             return expr;
@@ -1223,14 +1247,14 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
             lhs = ActOnLoad(lhs);
             rhs = ActOnLoad(rhs);
             Type* trueType = Type::GetCanonicalType(lhs->GetResultType().GetType());
-            Type* resultType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
+            Type* resultType = GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Bool);
             if (trueType->GetTypeClass() == Type::VectorTypeClass)
-                resultType = astContext.GetTypeCache().GetOrCreateVectorType(resultType);
+                resultType = GetASTContext().GetTypeCache().GetOrCreateVectorType(resultType);
             lhs = ActOnCast(lhs, resultType, lhs->GetSourceRange());
             rhs = ActOnCast(rhs, resultType, rhs->GetSourceRange());
             if (!lhs || !rhs)
                 return nullptr;
-            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            Expr* expr = BinaryExpr::Create(GetASTContext(), lhs, rhs, op);
             expr->SetValueCategory(Expr::RValue);
             expr->SetResultType(resultType);
             return expr;
@@ -1255,7 +1279,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                 return nullptr;
             }
 
-            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            Expr* expr = BinaryExpr::Create(GetASTContext(), lhs, rhs, op);
             expr->SetValueCategory(Expr::RValue);
             return expr;
         }
@@ -1266,7 +1290,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
                 return nullptr;
             rhs = ActOnCast(rhs, lhs->GetResultType(), SourceRange{ lhs->GetSourceRange().start, rhs->GetSourceRange().end });
             if (!rhs) return nullptr;
-            Expr* expr = BinaryExpr::Create(astContext, lhs, rhs, op);
+            Expr* expr = BinaryExpr::Create(GetASTContext(), lhs, rhs, op);
             expr->SetValueCategory(Expr::LValue);
             return expr;
         }
@@ -1321,7 +1345,7 @@ VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind
 
 VCL::Expr* VCL::Sema::ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange range) {
     if (expr->GetResultType().GetType()->IsDependent())
-        return UnaryExpr::Create(astContext, expr, op, range);
+        return UnaryExpr::Create(GetASTContext(), expr, op, range);
 
     switch (op) {
         case UnaryOperator::PrefixIncrement:
@@ -1337,7 +1361,7 @@ VCL::Expr* VCL::Sema::ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange r
                     .Report();
                 return nullptr;
             }
-            return UnaryExpr::Create(astContext, expr, op, range);
+            return UnaryExpr::Create(GetASTContext(), expr, op, range);
         }
         case UnaryOperator::Plus:
         case UnaryOperator::Minus: {
@@ -1349,7 +1373,7 @@ VCL::Expr* VCL::Sema::ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange r
                     .Report();
                 return nullptr;
             }
-            return UnaryExpr::Create(astContext, expr, op, range);
+            return UnaryExpr::Create(GetASTContext(), expr, op, range);
         }
         case UnaryOperator::BitwiseNot:
         case UnaryOperator::LogicalNot: {
@@ -1361,7 +1385,7 @@ VCL::Expr* VCL::Sema::ActOnUnaryExpr(Expr* expr, UnaryOperator op, SourceRange r
                     .Report();
                 return nullptr;
             }
-            return UnaryExpr::Create(astContext, expr, op, range);
+            return UnaryExpr::Create(GetASTContext(), expr, op, range);
         }
         default: {
             diagnosticReporter.Error(Diagnostic::MissingImplementation)
@@ -1419,7 +1443,7 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
 
     Type* type = lhs->GetResultType().GetType();
     if (type->IsDependent())
-        return DependentFieldAccessExpr::Create(astContext, lhs, field, range);
+        return DependentFieldAccessExpr::Create(GetASTContext(), lhs, field, range);
 
     type = Type::GetCanonicalType(type);
     if (type->GetTypeClass() != Type::RecordTypeClass) {
@@ -1460,7 +1484,7 @@ VCL::Expr* VCL::Sema::ActOnFieldAccessExpr(Expr* lhs, IdentifierInfo* field, Sou
     if (lhs->GetResultType().HasQualifier(Qualifier::Const))
         returnedFieldType.AddQualifier(Qualifier::Const);
 
-    return FieldAccessExpr::Create(astContext, lhs, (RecordType*)type, fieldIdx, returnedFieldType, range);
+    return FieldAccessExpr::Create(GetASTContext(), lhs, (RecordType*)type, fieldIdx, returnedFieldType, range);
 }
 #include <iostream>
 VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange range) {
@@ -1477,8 +1501,8 @@ VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange ra
     }
 
     if (expr->GetResultType().GetType()->IsDependent()) {
-        QualType resultType = astContext.GetTypeCache().GetOrCreateDependentType();
-        return SubscriptExpr::Create(astContext, expr, index, resultType, range);
+        QualType resultType = GetASTContext().GetTypeCache().GetOrCreateDependentType();
+        return SubscriptExpr::Create(GetASTContext(), expr, index, resultType, range);
     }
 
     Type* type = Type::GetDesugaredType(expr->GetResultType().GetType());
@@ -1492,17 +1516,17 @@ VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange ra
         case Type::LanesTypeClass: {
             if (resultType.GetAsOpaquePtr() == 0)
                 resultType = ((LanesType*)exprTrueType)->GetElementType();
-            return SubscriptExpr::Create(astContext, expr, index, resultType, range);
+            return SubscriptExpr::Create(GetASTContext(), expr, index, resultType, range);
         }
         case Type::ArrayTypeClass: {
             if (resultType.GetAsOpaquePtr() == 0)
                 resultType = ((ArrayType*)exprTrueType)->GetElementType();
-            return SubscriptExpr::Create(astContext, expr, index, resultType, range);
+            return SubscriptExpr::Create(GetASTContext(), expr, index, resultType, range);
         }
         case Type::SpanTypeClass: {
             if (resultType.GetAsOpaquePtr() == 0)
                 resultType = ((SpanType*)exprTrueType)->GetElementType();
-            return SubscriptExpr::Create(astContext, expr, index, resultType, range);
+            return SubscriptExpr::Create(GetASTContext(), expr, index, resultType, range);
         }
         default:
             diagnosticReporter.Error(Diagnostic::MustBeSubscriptable)
@@ -1516,7 +1540,7 @@ VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange ra
 VCL::Expr* VCL::Sema::ActOnLoad(Expr* expr) {
     if (expr->GetValueCategory() != Expr::LValue)
         return expr;
-    return LoadExpr::Create(astContext, expr, expr->GetSourceRange());
+    return LoadExpr::Create(GetASTContext(), expr, expr->GetSourceRange());
 }
 
 std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs) {
@@ -1573,9 +1597,9 @@ std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(E
             if (lhsCategory == rhsCategory && rhsBitWidth > lhsBitWidth) { // both signed or unsigned so lesser to greater rank
                 toType = rhsType;
             } else if (lhsCategory == rhsCategory && rhsBitWidth == lhsBitWidth && lhsBitWidth == 1) { // is both are boolean then cast to int8
-                toType = astContext.GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int8);
+                toType = GetASTContext().GetTypeCache().GetOrCreateBuiltinType(BuiltinType::Int8);
                 if (lhsVec)
-                    toType = astContext.GetTypeCache().GetOrCreateVectorType(toType);
+                    toType = GetASTContext().GetTypeCache().GetOrCreateVectorType(toType);
             } else { // unsigned/signed conversion
                 if (rhsCategory == BuiltinType::UnsignedKind && rhsBitWidth >= lhsBitWidth) { // if U is greater or equal than S then cast to U
                     toType = rhsType;
@@ -1710,7 +1734,7 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
         }
     }
 
-    Expr* castExpr = CastExpr::Create(astContext, ActOnLoad(expr), kind, toType, range);
+    Expr* castExpr = CastExpr::Create(GetASTContext(), ActOnLoad(expr), kind, toType, range);
     return castExpr;
 }
 
@@ -1734,25 +1758,25 @@ VCL::Expr* VCL::Sema::ActOnSplat(Expr* expr, SourceRange range) {
             .Report();
         return nullptr;
     }
-    return SplatExpr::Create(astContext, ActOnLoad(expr), range);
+    return SplatExpr::Create(GetASTContext(), ActOnLoad(expr), range);
 }
 
 VCL::Expr* VCL::Sema::ActOnNumericConstant(Token* value) {
     llvm::StringRef valueStr{ value->range.start.GetPtr(), (size_t)(value->range.end.GetPtr() - value->range.start.GetPtr()) };
     if (value->isFloatingPoint) {
         double v = std::stod(valueStr.str());
-        return NumericLiteralExpr::Create(astContext, ConstantScalar{ v }, value->range);
+        return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ v }, value->range);
     } else {
         int64_t v = std::stoll(valueStr.str());
 
         if (v < std::numeric_limits<int8_t>::max())
-            return NumericLiteralExpr::Create(astContext, ConstantScalar{ (int8_t)v }, value->range);
+            return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ (int8_t)v }, value->range);
         if (v < std::numeric_limits<int16_t>::max())
-            return NumericLiteralExpr::Create(astContext, ConstantScalar{ (int16_t)v }, value->range);
+            return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ (int16_t)v }, value->range);
         if (v < std::numeric_limits<int32_t>::max())
-            return NumericLiteralExpr::Create(astContext, ConstantScalar{ (int32_t)v }, value->range);
+            return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ (int32_t)v }, value->range);
 
-        return NumericLiteralExpr::Create(astContext, ConstantScalar{ v }, value->range);
+        return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ v }, value->range);
     }
 }
 
@@ -1765,7 +1789,7 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(SymbolRef symbolRef, SourceRange range
             .Report();
         return nullptr;
     }
-    DeclRefExpr* expr = DeclRefExpr::Create(astContext, (ValueDecl*)decl, range);
+    DeclRefExpr* expr = DeclRefExpr::Create(GetASTContext(), (ValueDecl*)decl, range);
     expr->SetValueCategory(Expr::LValue);
     return expr;
 }
@@ -1774,7 +1798,7 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
     FunctionDecl* decl = nullptr;
     for (Expr* arg : args)
         if (arg->GetExprClass() != Expr::AggregateExprClass && arg->GetResultType().GetType()->IsDependent())
-            return DependentCallExpr::Create(astContext, symbolRef, args, templateArgs, range);
+            return DependentCallExpr::Create(GetASTContext(), symbolRef, args, templateArgs, range);
     if (TemplateDecl* templateDecl = LookupTemplateDecl(symbolRef)) {
         FunctionDecl* templatedFunctionDecl = (FunctionDecl*)templateDecl->GetTemplatedNamedDecl();
 
@@ -1800,28 +1824,22 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
             return nullptr;
 
         if (templateArgs->IsDependent())
-            return DependentCallExpr::Create(astContext, symbolRef, args, templateArgs, range);
+            return DependentCallExpr::Create(GetASTContext(), symbolRef, args, templateArgs, range);
 
         for (auto it = templateDecl->Begin(); it != templateDecl->End(); ++it) {
             if (it->GetDeclClass() != Decl::TemplateSpecializationDeclClass)
                 continue;
             TemplateSpecializationDecl* specializationDecl = (TemplateSpecializationDecl*)it.Get();
-            if (MatchTemplateArgumentList(specializationDecl->GetTemplateArgumentList(), templateArgs)) {
+            if (specializationDecl->GetTemplateArgumentListHash() == templateArgs->GetHash()) {
                 decl = (FunctionDecl*)specializationDecl->GetNamedDecl();
                 break;
             }
         }
 
         if (!decl) {
-            TemplateInstantiator instantiator{ *this };
-            if (!instantiator.AddTemplateArgumentListAndDecl(templateArgs, templateDecl))
-                return nullptr;
-            decl = instantiator.InstantiateTemplatedFunctionDecl(templateDecl);
+            decl = InstantiateFunctionTemplateSpecialization(templateArgs, templateDecl);
             if (!decl)
                 return nullptr;
-
-            TemplateSpecializationDecl* specializationDecl = TemplateSpecializationDecl::Create(astContext, templateArgs, decl);
-            templateDecl->InsertBack(specializationDecl);
         }
     } else if (NamedDecl* namedDecl = LookupNamedDecl(symbolRef)) {
         if (namedDecl->GetDeclClass() == Decl::FunctionDeclClass) {
@@ -1903,11 +1921,11 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
         return nullptr;
     }
 
-    return CallExpr::Create(astContext, decl, trueArgs, type->GetReturnType(), range);
+    return CallExpr::Create(GetASTContext(), decl, trueArgs, type->GetReturnType(), range);
 }
 
 VCL::Expr* VCL::Sema::ActOnAggregateExpr(llvm::ArrayRef<Expr*> elems, SourceRange range) {
-    return AggregateExpr::Create(astContext, elems, range);
+    return AggregateExpr::Create(GetASTContext(), elems, range);
 }
 
 bool VCL::Sema::ActOnAggregateExpr(AggregateExpr* aggregate) {
@@ -1935,7 +1953,7 @@ bool VCL::Sema::ActOnAggregateExpr(AggregateExpr* aggregate) {
                 if (expr == nullptr)
                     return false;
             } else {
-                aggregate->AddElement(NullExpr::Create(astContext, ofType, aggregate->GetSourceRange()));
+                aggregate->AddElement(NullExpr::Create(GetASTContext(), ofType, aggregate->GetSourceRange()));
             }
         }
         aggregate->SetResultType(trueType);
@@ -1951,7 +1969,7 @@ bool VCL::Sema::ActOnAggregateExpr(AggregateExpr* aggregate) {
             FieldDecl* fieldDecl = (FieldDecl*)it.Get();
             QualType ofType = fieldDecl->GetType();
             if (elementCount <= i) {
-                aggregate->AddElement(NullExpr::Create(astContext, ofType, aggregate->GetSourceRange()));
+                aggregate->AddElement(NullExpr::Create(GetASTContext(), ofType, aggregate->GetSourceRange()));
             } else {
                 Expr* expr = ActOnLoad(aggregate->GetElements()[i]);
                 aggregate->SetElement(ActOnCast(expr, ofType, expr->GetSourceRange()), i);
@@ -2056,7 +2074,7 @@ std::variant<VCL::Type*, VCL::ConstantScalar> VCL::Sema::RecursivelyDeduceTempla
                 case TemplateArgument::Integral:
                     return bTemplateArg.GetIntegral();
                 case TemplateArgument::Expression: {
-                    ExprEvaluator eval{ astContext };
+                    ExprEvaluator eval{ GetASTContext() };
                     ConstantValue* value = eval.Visit(bTemplateArg.GetExpr());
                     if (!value)
                         return { nullptr };
@@ -2167,7 +2185,7 @@ VCL::TemplateArgumentList* VCL::Sema::DeduceTemplateArgumentFromCall(
         }
     }
 
-    return TemplateArgumentList::Create(astContext, newTemplateArgs, SourceRange{});
+    return TemplateArgumentList::Create(GetASTContext(), newTemplateArgs, SourceRange{});
 }
 
 bool VCL::Sema::MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateArgumentList* args2) {
@@ -2197,4 +2215,22 @@ bool VCL::Sema::MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateA
     }
 
     return true;
+}
+
+VCL::FunctionDecl* VCL::Sema::InstantiateFunctionTemplateSpecialization(TemplateArgumentList* templateArgs, TemplateDecl* templateDecl) {
+    
+    FunctionDecl* decl = nullptr;
+
+    SemaContextGuard guard{ *this, templateDecl->GetASTContext() };
+    TemplateInstantiator instantiator{ *this };
+    if (!instantiator.AddTemplateArgumentListAndDecl(templateArgs, templateDecl))
+        return nullptr;
+    decl = instantiator.InstantiateTemplatedFunctionDecl(templateDecl);
+    if (!decl)
+        return nullptr;
+
+    TemplateSpecializationDecl* specializationDecl = TemplateSpecializationDecl::Create(GetASTContext(), templateArgs, decl);
+    templateDecl->InsertBack(specializationDecl);
+
+    return decl;
 }

@@ -82,7 +82,7 @@ T* VCL::TypeCache::GetOrCreate(Args&&... args) {
     if (type != nullptr)
         return type;
 
-    void* ptr = typeAllocator.Allocate(sizeof(T), 4);
+    void* ptr = typeAllocator.Allocate(sizeof(T), alignof(T));
     type = new(ptr) T{ std::forward<Args>(args)... };
     GetSet<T>()->InsertNode(type, insertPos);
     return type;
@@ -99,7 +99,7 @@ T* VCL::TypeCache::GetOrCreateTrailing(size_t totalSizeToAlloc, Args&&... args) 
     if (type != nullptr)
         return type;
 
-    void* ptr = typeAllocator.Allocate(totalSizeToAlloc, 4);
+    void* ptr = typeAllocator.Allocate(totalSizeToAlloc, 8);
     type = new(ptr) T{ std::forward<Args>(args)... };
     GetSet<T>()->InsertNode(type, insertPos);
     return type;

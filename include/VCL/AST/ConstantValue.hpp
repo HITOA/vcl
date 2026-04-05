@@ -131,7 +131,7 @@ namespace VCL {
         }
 
     private:
-        uint8_t data[8]{};
+        alignas(8) uint8_t data[8]{};
         BuiltinType::Kind kind = BuiltinType::Void;
     };
 

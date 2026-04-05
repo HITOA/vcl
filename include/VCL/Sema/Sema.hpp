@@ -20,6 +20,7 @@
 #include <llvm/ADT/SmallSet.h>
 
 #include <variant>
+#include <stack>
 
 
 namespace VCL {
@@ -48,6 +49,20 @@ namespace VCL {
             DeclContext* context;
         };
 
+        class SemaContextGuard {
+        public:
+            SemaContextGuard(Sema& sema, ASTContext& context);
+            SemaContextGuard(const SemaContextGuard& other) = delete;
+            SemaContextGuard(SemaContextGuard&& other) = delete;
+            ~SemaContextGuard();
+
+            inline void Release();
+
+        private:
+            Sema& sema;
+            ASTContext* context;
+        };
+
     public:
         Sema() = delete;
         Sema(CompilerContext& cc, ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
@@ -61,7 +76,7 @@ namespace VCL {
 
     public:
         inline CompilerContext& GetCompilerContext() { return cc; }
-        inline ASTContext& GetASTContext() { return astContext; }
+        inline ASTContext& GetASTContext() { return *astContextStack.top(); }
         inline DiagnosticReporter& GetDiagnosticReporter() { return diagnosticReporter; }
         inline IdentifierTable& GetIdentifierTable() { return identifierTable; }
         inline SymbolTable& GetExportedSymbols() { return exportedSymbols; }
@@ -75,6 +90,9 @@ namespace VCL {
         void AddIntrinsicFunction(FunctionDecl::IntrinsicID intrinsicID, llvm::StringRef name);
         void AddIntrinsicTemplateDecl();
         
+        void PushASTContext(ASTContext& astContext);
+        void PopASTContext(ASTContext& astContext);
+
         SemaScopeGuard PushScope(DeclContext* context, bool loopScope = false);
 
         bool PushDeclContextScope(DeclContext* context, bool loopScope = false);
@@ -163,10 +181,11 @@ namespace VCL {
         TemplateArgumentList* DeduceTemplateArgumentFromCall(
             FunctionDecl* functionDecl, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, TemplateParameterList* parameters);
         bool MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateArgumentList* args2);
+        FunctionDecl* InstantiateFunctionTemplateSpecialization(TemplateArgumentList* templateArgs, TemplateDecl* templateDecl);
 
     private:
         CompilerContext& cc;
-        ASTContext& astContext;
+        std::stack<ASTContext*> astContextStack;
         DiagnosticReporter& diagnosticReporter;
         IdentifierTable& identifierTable;
         DirectiveRegistry& directiveRegistry;

@@ -26,6 +26,7 @@ bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
 }
 
 bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSpecializationType* type) {
+    Sema::SemaContextGuard guard{ sema, type->GetTemplateDecl()->GetASTContext() };
     if (!type->GetTemplateArgumentList()->IsCanonical()) {
         TemplateArgumentList* args = sema.ActOnTemplateArgumentList(
             type->GetTemplateArgumentList()->GetArgs(), 

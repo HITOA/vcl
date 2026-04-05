@@ -1,6 +1,7 @@
 #pragma once
 
 #include <VCL/AST/Decl.hpp>
+#include <VCL/AST/Template.hpp>
 
 #include <llvm/Support/TrailingObjects.h>
 #include <llvm/ADT/PointerUnion.h>
@@ -70,42 +71,44 @@ namespace VCL {
 
     class TemplateSpecializationDecl : public Decl {
     public:
-        TemplateSpecializationDecl(TemplateArgumentList* arguments, NamedDecl* decl)
-                : arguments{ arguments }, decl{ decl }, Decl{ Decl::TemplateSpecializationDeclClass } {}
+        TemplateSpecializationDecl(uint64_t argsHash, NamedDecl* decl)
+                : argsHash{ argsHash }, decl{ decl }, Decl{ Decl::TemplateSpecializationDeclClass } {}
         ~TemplateSpecializationDecl() = default;
 
-        inline TemplateArgumentList* GetTemplateArgumentList() { return arguments; }
+        inline uint64_t GetTemplateArgumentListHash() { return argsHash; }
         inline NamedDecl* GetNamedDecl() { return decl; }
 
         static inline TemplateSpecializationDecl* Create(ASTContext& context, TemplateArgumentList* arguments, NamedDecl* decl) {
-            TemplateSpecializationDecl* instance = context.AllocateNode<TemplateSpecializationDecl>(arguments, decl);
+            TemplateSpecializationDecl* instance = context.AllocateNode<TemplateSpecializationDecl>(arguments->GetHash(), decl);
             return instance;
         }
 
     private:
-        TemplateArgumentList* arguments;
+        uint64_t argsHash;
         NamedDecl* decl;
     };
 
     class TemplateDecl : public Decl, public DeclContext {
     public:
-        TemplateDecl(TemplateParameterList* params)
-                : params{ params }, decl{ nullptr }, Decl{ Decl::TemplateDeclClass }, DeclContext{ DeclContext::TemplateDeclContextClass } {
+        TemplateDecl(ASTContext* context, TemplateParameterList* params)
+                : context{ context }, params{ params }, decl{ nullptr }, Decl{ Decl::TemplateDeclClass }, DeclContext{ DeclContext::TemplateDeclContextClass } {
             SetTemplateDecl(true);
         }
         ~TemplateDecl() = default;
 
+        inline ASTContext& GetASTContext() { return *context; }
         inline TemplateParameterList* GetTemplateParametersList() { return params; }
         inline void SetTemplatedNamedDecl(NamedDecl* decl) { this->decl = decl; }
         inline NamedDecl* GetTemplatedNamedDecl() { return decl; }
 
         static inline TemplateDecl* Create(ASTContext& context, TemplateParameterList* params, SourceRange range) {
-            TemplateDecl* instance = context.AllocateNode<TemplateDecl>(params);
+            TemplateDecl* instance = context.AllocateNode<TemplateDecl>(&context, params);
             instance->SetSourceRange(range);
             return instance;
         }
 
     private:
+        ASTContext* context;
         TemplateParameterList* params;
         NamedDecl* decl;
     };

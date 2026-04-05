@@ -29,12 +29,12 @@ namespace VCL {
 
         template<typename T, typename... Args>
         inline T* AllocateNode(Args&&... args) {
-            void* ptr = nodeAllocator.Allocate(sizeof(T), 4);
+            void* ptr = nodeAllocator.Allocate(sizeof(T), alignof(T));
             return new (ptr) T{ std::forward<Args>(args)... };
         }
 
         inline void* Allocate(size_t size) {
-            return nodeAllocator.Allocate(size, 4);
+            return nodeAllocator.Allocate(size, 8);
         }
 
         inline TranslationUnitDecl* GetTranslationUnitDecl() { return root; }
