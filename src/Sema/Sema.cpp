@@ -236,7 +236,6 @@ void VCL::Sema::AddIntrinsicTemplateDecl() {
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::ASin, "asin", 1);
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::ACos, "acos", 1);
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::ATan, "atan", 1);
-    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::ATan2, "atan2", 1);
 
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Sqrt, "sqrt", 1);
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Log, "log", 1);
@@ -250,6 +249,7 @@ void VCL::Sema::AddIntrinsicTemplateDecl() {
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Round, "round", 1);
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Abs, "abs", 1);
     
+    AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::ATan2, "atan2", 2);
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Pow, "pow", 2);
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Min, "min", 2);
     AddIntrinsicMathFunction(FunctionDecl::IntrinsicID::Max, "max", 2);
@@ -1802,6 +1802,23 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
     if (TemplateDecl* templateDecl = LookupTemplateDecl(symbolRef)) {
         FunctionDecl* templatedFunctionDecl = (FunctionDecl*)templateDecl->GetTemplatedNamedDecl();
 
+        FunctionType* type = templatedFunctionDecl->GetType();
+        if (type->GetParamsType().size() < args.size()) {
+            diagnosticReporter.Error(Diagnostic::TooManyArgument)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ range })
+                .Report();
+            return nullptr;
+        }
+
+        if (args.size() < type->GetParamsType().size()) {
+            diagnosticReporter.Error(Diagnostic::MissingArgument)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ range })
+                .Report();
+            return nullptr;
+        }
+
         TemplateParameterList* parameters = templateDecl->GetTemplateParametersList();
 
         TemplateArgumentDeducer deducer{ *this, parameters };
@@ -1868,6 +1885,14 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
         return nullptr;
     }
 
+    if (args.size() < type->GetParamsType().size()) {
+        diagnosticReporter.Error(Diagnostic::MissingArgument)
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ range })
+            .Report();
+        return nullptr;
+    }
+
     llvm::SmallVector<Expr*> trueArgs{};
     for (size_t i = 0; i < args.size(); ++i) {
         Expr* arg = args[i];
@@ -1880,18 +1905,17 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
             trueArgs.push_back(arg);
             continue;
         }
-        
-        if (!Type::IsCanonicallyEqual(arg->GetResultType().GetType(), paramType.GetType())) {
-            diagnosticReporter.Error(Diagnostic::IncorrectType, TypePrinter::Print(arg->GetResultType()), TypePrinter::Print(paramType))
-                .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .AddHint(DiagnosticHint{ arg->GetSourceRange() })
-                .Report();
-            return nullptr;
-        }
 
         if (paramType.GetType()->GetTypeClass() == Type::ReferenceTypeClass) {
             if (arg->GetValueCategory() != Expr::LValue) {
                 diagnosticReporter.Error(Diagnostic::MustBeLValue)
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .AddHint(DiagnosticHint{ arg->GetSourceRange() })
+                    .Report();
+                return nullptr;
+            }
+            if (!Type::IsCanonicallyEqual(arg->GetResultType().GetType(), paramType.GetType())) {
+                diagnosticReporter.Error(Diagnostic::IncorrectType, TypePrinter::Print(arg->GetResultType()), TypePrinter::Print(paramType))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ arg->GetSourceRange() })
                     .Report();
@@ -1911,14 +1935,6 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
                 return nullptr;
             trueArgs.push_back(castedArg);
         }
-    }
-
-    if (trueArgs.size() < type->GetParamsType().size()) {
-        diagnosticReporter.Error(Diagnostic::MissingArgument)
-            .SetCompilerInfo(__FILE__, __func__, __LINE__)
-            .AddHint(DiagnosticHint{ range })
-            .Report();
-        return nullptr;
     }
 
     return CallExpr::Create(GetASTContext(), decl, trueArgs, type->GetReturnType(), range);

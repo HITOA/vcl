@@ -89,6 +89,8 @@ namespace VCL {
 
         llvm::SmallVector<llvm::BasicBlock*, 16> breakBBStack;
         llvm::SmallVector<llvm::BasicBlock*, 16> continueBBStack;
+
+        bool strictIEEE;
     };
     
 }

@@ -13,7 +13,7 @@ template<VCL::Diagnostic::DiagnosticMsg Message>
 void CheckForError(const char* src) {
     ExpectedDiagnostic<Message> consumer{};
     VCL::CompilerContext cc{};
-    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
     cc.CreateAttributeTable();
@@ -21,7 +21,7 @@ void CheckForError(const char* src) {
     cc.CreateTypeCache();
     cc.CreateSourceManager();
     
-    VCL::Source* source = cc.GetSourceManager().LoadFromMemory(src);
+    VCL::Source* source = cc.GetSourceManager().LoadFromMemory(src, "buff");
     REQUIRE(source != nullptr);
 
     VCL::ParseSyntaxOnlyAction act{};

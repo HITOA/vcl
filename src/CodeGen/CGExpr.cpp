@@ -305,6 +305,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateCallExpr(CallExpr* expr) {
     llvm::Value* value = GetDeclValue(expr->GetFunctionDecl());
     if (!value) {
         cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            .AddHint(DiagnosticHint{ expr->GetSourceRange() })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return nullptr;
@@ -340,7 +341,6 @@ llvm::Value* VCL::CodeGenFunction::GenerateIntrinsicCallExpr(CallExpr* expr) {
         case FunctionDecl::IntrinsicID::ASin: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::asin, argsValue[0]);
         case FunctionDecl::IntrinsicID::ACos: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::acos, argsValue[0]);
         case FunctionDecl::IntrinsicID::ATan: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::atan, argsValue[0]);
-        case FunctionDecl::IntrinsicID::ATan2: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::atan2, argsValue[0]);
         case FunctionDecl::IntrinsicID::Sqrt: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::sqrt, argsValue[0]);
         case FunctionDecl::IntrinsicID::Log: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::log, argsValue[0]);
         case FunctionDecl::IntrinsicID::Log2: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::log2, argsValue[0]);
@@ -352,6 +352,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateIntrinsicCallExpr(CallExpr* expr) {
         case FunctionDecl::IntrinsicID::Round: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::round, argsValue[0]);
         case FunctionDecl::IntrinsicID::Abs: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::abs, argsValue[0]);
         // Binary Math
+        case FunctionDecl::IntrinsicID::ATan2: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::atan2, argsValue[0], argsValue[1]);
         case FunctionDecl::IntrinsicID::Pow: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::pow, argsValue[0], argsValue[1]);
         case FunctionDecl::IntrinsicID::Min: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::minimum, argsValue[0], argsValue[1]);
         case FunctionDecl::IntrinsicID::Max: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::maximum, argsValue[0], argsValue[1]);

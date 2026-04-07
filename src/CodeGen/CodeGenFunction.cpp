@@ -7,7 +7,8 @@
 #include <llvm/IR/Verifier.h>
 
 
-VCL::CodeGenFunction::CodeGenFunction(CodeGenModule& cgm) : cgm{ cgm }, builder{ cgm.GetLLVMContext() }, locals{}, breakBBStack{}, continueBBStack{} {
+VCL::CodeGenFunction::CodeGenFunction(CodeGenModule& cgm) 
+    : cgm{ cgm }, builder{ cgm.GetLLVMContext() }, locals{}, breakBBStack{}, continueBBStack{}, strictIEEE{ false } {
     
 }
 
@@ -18,6 +19,14 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
         cgm.GetIdentifierTable().Get("EntryPoint"));
     AttributeDefinition* noMangleAD = cgm.GetAttributeTable().GetDefinition(
         cgm.GetIdentifierTable().Get("NoMangle"));
+
+    AttributeDefinition* strictIEEEAD = cgm.GetAttributeTable().GetDefinition(
+        cgm.GetIdentifierTable().Get("StrictIEEE"));
+    AttributeDefinition* allowApproxFuncAD = cgm.GetAttributeTable().GetDefinition(
+        cgm.GetIdentifierTable().Get("AllowApproxFunctions"));
+
+    strictIEEE = decl->HasAttribute(strictIEEEAD) != nullptr;
+    bool allowApproxFunc = decl->HasAttribute(allowApproxFuncAD) != nullptr;
 
     ASTContext& context = imported ? cgm.GetImportedDeclModule(decl)->GetCompilerInstance()->GetASTContext() : cgm.GetASTContext();
     std::string functionName = decl->GetIdentifierInfo()->GetName().str();
@@ -33,6 +42,19 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
         function->setDSOLocal(true);
     } else if (imported) {
         function->setLinkage(llvm::GlobalValue::LinkOnceAnyLinkage);
+    }
+
+    if (!strictIEEE) {
+        function->addFnAttr("denormal-fp-math", "positive-zero");
+        function->addFnAttr("denormal-fp-math-f32", "positive-zero");
+        function->addFnAttr("unsafe-fp-math", "true");
+        function->addFnAttr("no-infs-fp-math", "true");
+        function->addFnAttr("no-nans-fp-math", "true");
+        function->addFnAttr("no-signed-zeros-fp-math", "true");
+    }
+
+    if (allowApproxFunc) {
+        function->addFnAttr("approx-func-fp-math", "true");
     }
 
     int i = 0;

@@ -15,7 +15,7 @@
 inline llvm::orc::ThreadSafeModule MakeModule(llvm::StringRef path) {
     ExpectedNoDiagnostic consumer{};
     VCL::CompilerContext cc{};
-    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
     cc.CreateAttributeTable();

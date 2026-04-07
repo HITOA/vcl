@@ -87,8 +87,7 @@ bool VCL::TemplateArgumentDeducer::IsDeductionComplete() {
     }
     return true;
 }
-#include <VCL/AST/TypePrinter.hpp>
-#include <iostream>
+
 bool VCL::TemplateArgumentDeducer::DeduceForType(Type* baseType, Type* substitutedType) {
     switch (baseType->GetTypeClass())
     {
@@ -121,8 +120,6 @@ bool VCL::TemplateArgumentDeducer::DeduceForType(Type* baseType, Type* substitut
         }
         case Type::TemplateSpecializationTypeClass: {
             if (substitutedType->GetTypeClass() != Type::TemplateSpecializationTypeClass) {
-                std::cout << TypePrinter::Print(substitutedType) << std::endl;
-                std::cout << substitutedType->GetTypeClass() << std::endl;
                 sema.GetDiagnosticReporter().Error(Diagnostic::InternalError)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .Report();

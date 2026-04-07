@@ -11,7 +11,7 @@
 void LexerTokenKindTest(VCL::TokenKind kind, llvm::StringRef value) {
     ExpectedNoDiagnostic consumer{};
     VCL::CompilerContext cc{};
-    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
     cc.CreateSourceManager();

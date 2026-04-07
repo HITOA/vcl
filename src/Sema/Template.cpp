@@ -297,6 +297,7 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedTypeAliasDecl(Template
 }
 
 VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(TemplateDecl* decl) {
+    Sema::SemaContextGuard guard{ sema, decl->GetASTContext() };
     FunctionDecl* functionDecl = (FunctionDecl*)decl->GetTemplatedNamedDecl();
 
     FunctionDecl* newFunctionDecl = FunctionDecl::Create(sema.GetASTContext(), functionDecl->GetIdentifierInfo());

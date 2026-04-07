@@ -102,7 +102,7 @@ TEST_CASE("Template Structs", "[Template][Struct]") {
 
     ExpectedNoDiagnostic consumer{};
     VCL::CompilerContext cc{};
-    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
     cc.CreateAttributeTable();
@@ -298,7 +298,7 @@ template<VCL::Diagnostic::DiagnosticMsg Message>
 void CheckForError(const char* src) {
     ExpectedDiagnostic<Message> consumer{};
     VCL::CompilerContext cc{};
-    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
     cc.CreateAttributeTable();
@@ -395,7 +395,7 @@ TEST_CASE("Template Error - Template parameter redeclaration", "[Template][Error
 }
 
 TEST_CASE("Template Error - Non-constant template argument", "[Template][Error]") {
-    CheckForError<VCL::Diagnostic::ExprDoesNotEvaluate>(R"(
+    CheckForError<VCL::Diagnostic::ExprDoesNotEvaluateScalar>(R"(
         float32 GetSize();
 
         template<typename T, uint64 Size>

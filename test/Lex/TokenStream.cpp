@@ -21,7 +21,7 @@ void AssertTokenKindAndNoError(VCL::TokenStream& stream, VCL::TokenKind kind) {
 TEST_CASE("Token Stream A Bunch Of Token", "[Lex][TokenStream]") {
     ExpectedNoDiagnostic consumer{};
     VCL::CompilerContext cc{};
-    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
     cc.CreateSourceManager();
@@ -49,7 +49,7 @@ TEST_CASE("Token Stream A Bunch Of Token", "[Lex][TokenStream]") {
 TEST_CASE("Token Stream Save & Restore", "[Lex][TokenStream]") {
     ExpectedNoDiagnostic consumer{};
     VCL::CompilerContext cc{};
-    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
     cc.CreateSourceManager();
@@ -87,7 +87,7 @@ TEST_CASE("Token Stream Save & Restore", "[Lex][TokenStream]") {
 TEST_CASE("Token Stream Save & Commit", "[Lex][TokenStream]") {
     ExpectedNoDiagnostic consumer{};
     VCL::CompilerContext cc{};
-    cc.GetInvocation().GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
     cc.CreateDiagnosticEngine();
     cc.CreateIdentifierTable();
     cc.CreateSourceManager();
