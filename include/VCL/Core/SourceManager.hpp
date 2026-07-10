@@ -38,6 +38,8 @@ namespace VCL {
          * a name can also be given and will be the Source's buffer identifier.
          */
         Source* LoadFromMemory(llvm::StringRef buffer, llvm::StringRef name = "");
+
+        Source* GetSourceFromName(llvm::StringRef name);
         
         Source* GetSourceFromLocation(SourceLocation location);
         inline Source* GetSourceFromRange(SourceRange range) { return GetSourceFromLocation(range.start); }

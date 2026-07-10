@@ -43,6 +43,12 @@ VCL::Source* VCL::SourceManager::LoadFromMemory(llvm::StringRef buffer, llvm::St
     return source;
 }
 
+VCL::Source* VCL::SourceManager::GetSourceFromName(llvm::StringRef name) {
+    if (sources.count(name))
+        return sources[name];
+    return nullptr;
+}
+
 VCL::Source* VCL::SourceManager::GetSourceFromLocation(SourceLocation location) {
     if (location.GetID() == 0)
         return nullptr;
