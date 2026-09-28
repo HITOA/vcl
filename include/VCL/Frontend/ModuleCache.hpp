@@ -39,7 +39,15 @@ namespace VCL {
         ModuleCache() = default;
         ModuleCache(const ModuleCache& other) = delete;
         ModuleCache(ModuleCache&& other) = delete;
-        ~ModuleCache() = default;
+        ~ModuleCache() {
+            // Modules are constructed in memory from the map's allocator, which runs no destructors.
+            // Each one owns its CompilerInstance (AST) and its llvm::Module (and a reference to its
+            // LLVMContext). Same cleanup as Invalidate.
+            for (auto& entry : modules) {
+                entry.second->~Module();
+                modules.getAllocator().Deallocate(entry.second);
+            }
+        }
 
         ModuleCache& operator=(const ModuleCache& other) = delete;
         ModuleCache& operator=(ModuleCache&& other) = delete;

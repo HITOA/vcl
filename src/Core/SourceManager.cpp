@@ -5,6 +5,15 @@
 #include <llvm/Support/Path.h>
 
 #include <iostream>
+
+
+VCL::SourceManager::~SourceManager() {
+    // Sources live in the map's bump allocator, which frees memory without running destructors;
+    // each Source owns a heap MemoryBuffer and its line offsets.
+    for (auto& entry : sources)
+        entry.second->~Source();
+}
+
 VCL::Source* VCL::SourceManager::LoadFromDisk(llvm::StringRef filename) {
     llvm::SmallString<128> realPath{};
     if (std::error_code code = llvm::sys::fs::real_path(filename, realPath)) {

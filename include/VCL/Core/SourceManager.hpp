@@ -23,7 +23,7 @@ namespace VCL {
         SourceManager(DiagnosticReporter& reporter) : reporter{ reporter } {}
         SourceManager(const SourceManager& other) = delete;
         SourceManager(SourceManager&& other) = delete;
-        ~SourceManager() = default;
+        ~SourceManager();
 
         SourceManager& operator=(const SourceManager& other) = delete;
         SourceManager& operator=(SourceManager&& other) = delete;
