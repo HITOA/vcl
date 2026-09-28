@@ -39,6 +39,21 @@ namespace VCL {
          */
         Source* LoadFromMemory(llvm::StringRef buffer, llvm::StringRef name = "");
 
+        /**
+         * Remove a previously loaded Source, identified by its buffer identifier (the `name`
+         * for in-memory sources, the resolved real path for on-disk ones), releasing its
+         * backing buffer. Returns true if a Source was removed.
+         * Any Source* previously handed out for that identifier, and any SourceLocation that
+         * points into it, become dangling afterwards.
+         */
+        bool RemoveSource(llvm::StringRef name);
+        /**
+         * Replace an in-memory Source in place: removes any Source currently registered under
+         * `name`, then loads `buffer` under the same name. Handy to refresh generated sources
+         * without leaking the previous buffer nor changing the identifier importers rely on.
+         */
+        Source* ReplaceFromMemory(llvm::StringRef buffer, llvm::StringRef name = "");
+
         Source* GetSourceFromName(llvm::StringRef name);
         
         Source* GetSourceFromLocation(SourceLocation location);

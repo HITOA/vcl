@@ -43,6 +43,36 @@ VCL::Source* VCL::SourceManager::LoadFromMemory(llvm::StringRef buffer, llvm::St
     return source;
 }
 
+bool VCL::SourceManager::RemoveSource(llvm::StringRef name) {
+    auto it = sources.find(name);
+    if (it == sources.end())
+        return false;
+    // The Source struct lives in the map's bump allocator, but its MemoryBuffer is heap
+    // owned, so run the destructor to release it before dropping the entry.
+    it->second->~Source();
+    sources.erase(it);
+    return true;
+}
+
+VCL::Source* VCL::SourceManager::ReplaceFromMemory(llvm::StringRef buffer, llvm::StringRef name) {
+    auto it = sources.find(name);
+    if (it == sources.end())
+        return LoadFromMemory(buffer, name);
+
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> r = llvm::MemoryBuffer::getMemBuffer(buffer, name, true);
+    if (!r) {
+        reporter.Error(Diagnostic::MemoryBufferCreationFailed).SetCompilerInfo(__FILE__, __func__, __LINE__).Report();
+        return nullptr;
+    }
+
+    // The map's bump allocator can't reclaim an erased slot, so reconstruct the Source in
+    // place: the old buffer is released and the Source* stays stable across replacements.
+    Source* source = it->second;
+    source->~Source();
+    new (source) Source{ std::move(r.get()) };
+    return source;
+}
+
 VCL::Source* VCL::SourceManager::GetSourceFromName(llvm::StringRef name) {
     if (sources.count(name))
         return sources[name];

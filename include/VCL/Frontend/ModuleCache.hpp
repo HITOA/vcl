@@ -59,6 +59,23 @@ namespace VCL {
             return m;
         }
 
+        // Drop the cached module for a buffer identifier, releasing its LLVM module and the
+        // CompilerInstance that produced it. Returns true if an entry was removed. The next
+        // Get() for that identifier misses, forcing a recompile against the current source.
+        inline bool Invalidate(llvm::StringRef bufferIdentifier) {
+            auto it = modules.find(bufferIdentifier);
+            if (it == modules.end())
+                return false;
+            it->second->~Module();
+            modules.getAllocator().Deallocate(it->second);
+            modules.erase(it);
+            return true;
+        }
+
+        inline bool Invalidate(Source* source) {
+            return Invalidate(source->GetBufferIdentifier());
+        }
+
     private:
         llvm::StringMap<Module*> modules{};
     };
