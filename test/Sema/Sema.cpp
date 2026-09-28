@@ -201,3 +201,25 @@ TEST_CASE("Function With Undefined Return Type", "[Sema]") {
 TEST_CASE("Variable Declaration With Undefined Type In Template", "[Sema]") {
     CheckForError<VCL::Diagnostic::IdentifierUndefined>("UndefinedStruct<float32> var;");
 }
+TEST_CASE("Integer Literal Too Large", "[Sema]") {
+    CheckForError<VCL::Diagnostic::IntegerLiteralTooLarge>("int64 v = 99999999999999999999999;");
+}
+
+TEST_CASE("Template Argument Deduction Conflict", "[Sema]") {
+    CheckForError<VCL::Diagnostic::TemplateArgumentDeductionConflict>(
+        "template<typename T> T First(T a, T b) { return a; }"
+        "void Main() { float32 a = 1.0; float64 b = 2.0; float32 c = First(a, b); }");
+}
+
+TEST_CASE("Error Inside Template Instantiation", "[Sema]") {
+    // Used to trip an assertion on the error path instead of just reporting the error.
+    CheckForError<VCL::Diagnostic::IdentifierUndefined>(
+        "template<typename T> T F(T x) { return Missing(x); }"
+        "float32 G() { return F<float32>(1.0); }");
+}
+
+TEST_CASE("Template Argument Type Mismatch", "[Sema]") {
+    // Lanes where unpack expects a Vec: used to be reported as an internal compiler error.
+    CheckForError<VCL::Diagnostic::TemplateArgumentTypeMismatch>(
+        "void Main() { Lanes<float32> l; Lanes<float32> r = unpack(l); }");
+}

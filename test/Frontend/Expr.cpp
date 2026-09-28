@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <catch2/generators/catch_generators_random.hpp>
 #include <catch2/generators/catch_generators_adapters.hpp>
@@ -972,7 +973,8 @@ TEST_CASE("Vec Binary Expressions", "[Frontend]") {
             REQUIRE(o_vf32_add[i] == (vf32a[i] + vf32b[i]));
             REQUIRE(o_vf32_sub[i] == (vf32a[i] - vf32b[i]));
             REQUIRE(o_vf32_mul[i] == (vf32a[i] * vf32b[i]));
-            REQUIRE(o_vf32_div[i] == (vf32a[i] / vf32b[i]));
+            // Functions are fast-math unless [StrictIEEE]: division may go through a reciprocal.
+            REQUIRE_THAT(o_vf32_div[i], Catch::Matchers::WithinRel(vf32a[i] / vf32b[i], 1e-5f));
             REQUIRE(o_vf32_greater.Get(i) == (vf32a[i] > vf32b[i]));
             REQUIRE(o_vf32_lesser.Get(i) == (vf32a[i] < vf32b[i]));
             REQUIRE(o_vf32_greater_eq.Get(i) == (vf32a[i] >= vf32b[i]));
@@ -983,7 +985,7 @@ TEST_CASE("Vec Binary Expressions", "[Frontend]") {
             REQUIRE(o_vf32_add_assign[i] == (vf32a[i] + vf32b[i]));
             REQUIRE(o_vf32_sub_assign[i] == (vf32a[i] - vf32b[i]));
             REQUIRE(o_vf32_mul_assign[i] == (vf32a[i] * vf32b[i]));
-            REQUIRE(o_vf32_div_assign[i] == (vf32a[i] / vf32b[i]));
+            REQUIRE_THAT(o_vf32_div_assign[i], Catch::Matchers::WithinRel(vf32a[i] / vf32b[i], 1e-5f));
         }
 
         // Verify float64 vector operations (element-wise)
@@ -992,7 +994,7 @@ TEST_CASE("Vec Binary Expressions", "[Frontend]") {
             REQUIRE(o_vf64_add[i] == (vf64a[i] + vf64b[i]));
             REQUIRE(o_vf64_sub[i] == (vf64a[i] - vf64b[i]));
             REQUIRE(o_vf64_mul[i] == (vf64a[i] * vf64b[i]));
-            REQUIRE(o_vf64_div[i] == (vf64a[i] / vf64b[i]));
+            REQUIRE_THAT(o_vf64_div[i], Catch::Matchers::WithinRel(vf64a[i] / vf64b[i], 1e-12));
             REQUIRE(o_vf64_greater.Get(i) == (vf64a[i] > vf64b[i]));
             REQUIRE(o_vf64_lesser.Get(i) == (vf64a[i] < vf64b[i]));
             REQUIRE(o_vf64_greater_eq.Get(i) == (vf64a[i] >= vf64b[i]));
@@ -1003,7 +1005,7 @@ TEST_CASE("Vec Binary Expressions", "[Frontend]") {
             REQUIRE(o_vf64_add_assign[i] == (vf64a[i] + vf64b[i]));
             REQUIRE(o_vf64_sub_assign[i] == (vf64a[i] - vf64b[i]));
             REQUIRE(o_vf64_mul_assign[i] == (vf64a[i] * vf64b[i]));
-            REQUIRE(o_vf64_div_assign[i] == (vf64a[i] / vf64b[i]));
+            REQUIRE_THAT(o_vf64_div_assign[i], Catch::Matchers::WithinRel(vf64a[i] / vf64b[i], 1e-12));
         }
 
         // Verify int32 vector operations (element-wise)

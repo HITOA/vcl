@@ -26,7 +26,7 @@ bool VCL::TemplateInstantiator::MakeTypeComplete(Type* type) {
 }
 
 bool VCL::TemplateInstantiator::InstantiateTemplateSpecializationType(TemplateSpecializationType* type) {
-    Sema::SemaContextGuard guard{ sema, type->GetTemplateDecl()->GetASTContext() };
+    Sema::SemaContextGuard guard{ sema, sema.GetInstantiationContext(type->GetTemplateDecl(), type->GetTemplateArgumentList()) };
     if (!type->GetTemplateArgumentList()->IsCanonical()) {
         TemplateArgumentList* args = sema.ActOnTemplateArgumentList(
             type->GetTemplateArgumentList()->GetArgs(), 
@@ -297,7 +297,7 @@ VCL::Type* VCL::TemplateInstantiator::InstantiateTemplatedTypeAliasDecl(Template
 }
 
 VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(TemplateDecl* decl) {
-    Sema::SemaContextGuard guard{ sema, decl->GetASTContext() };
+    // Allocated in the caller's current ASTContext: see Sema::GetInstantiationContext.
     FunctionDecl* functionDecl = (FunctionDecl*)decl->GetTemplatedNamedDecl();
 
     FunctionDecl* newFunctionDecl = FunctionDecl::Create(sema.GetASTContext(), functionDecl->GetIdentifierInfo());
@@ -569,15 +569,28 @@ VCL::Decl* VCL::TemplateInstantiator::TransformFieldDecl(FieldDecl* decl) {
 
 VCL::Decl* VCL::TemplateInstantiator::TransformVarDecl(VarDecl* decl) {
     QualType type = TransformType(decl->GetValueType());
+    if (!type.GetAsOpaquePtr())
+        return nullptr;
     Expr* initializer = nullptr;
-    if (decl->GetInitializer())
+    if (decl->GetInitializer()) {
         initializer = TransformExpr(decl->GetInitializer());
-    return sema.ActOnVarDecl(type, decl->GetIdentifierInfo(), decl->GetVarAttrBitfield(), initializer, decl->GetSourceRange());
+        if (!initializer)
+            return nullptr;
+    }
+    VarDecl* newDecl = sema.ActOnVarDecl(type, decl->GetIdentifierInfo(), decl->GetVarAttrBitfield(), initializer, decl->GetSourceRange());
+    if (newDecl)
+        instantiatedDecls[decl] = newDecl;
+    return newDecl;
 }
 
 VCL::Decl* VCL::TemplateInstantiator::TransformParamDecl(ParamDecl* decl) {
     QualType type = TransformType(decl->GetValueType());
-    return sema.ActOnParamDecl(decl->GetVarAttrBitfield(), type, decl->GetIdentifierInfo(), decl->GetSourceRange());
+    if (!type.GetAsOpaquePtr())
+        return nullptr;
+    ParamDecl* newDecl = sema.ActOnParamDecl(decl->GetVarAttrBitfield(), type, decl->GetIdentifierInfo(), decl->GetSourceRange());
+    if (newDecl)
+        instantiatedDecls[decl] = newDecl;
+    return newDecl;
 }
 
 VCL::Expr* VCL::TemplateInstantiator::TransformLoadExpr(LoadExpr* expr) {
@@ -587,10 +600,14 @@ VCL::Expr* VCL::TemplateInstantiator::TransformLoadExpr(LoadExpr* expr) {
 
 VCL::Expr* VCL::TemplateInstantiator::TransformDeclRefExpr(DeclRefExpr* expr) {
     TemplateArgument* arg = Lookup(expr->GetValueDecl());
-    if (!arg && expr->GetValueDecl()->IsExported())
-        return expr;
-    else if (!arg)
-        return sema.ActOnIdentifierExpr(expr->GetValueDecl()->GetIdentifierInfo(), expr->GetSourceRange());
+    if (!arg) {
+        // A parameter or local of the template: refer to its instantiated copy. Anything else was
+        // bound where the template was written; looking the name up again here would resolve it
+        // in the scope of whoever instantiates the template.
+        auto it = instantiatedDecls.find(expr->GetValueDecl());
+        ValueDecl* decl = it != instantiatedDecls.end() ? (ValueDecl*)it->second : expr->GetValueDecl();
+        return sema.ActOnDeclRefExpr(decl, expr->GetSourceRange());
+    }
     switch (arg->GetKind()) {
         case TemplateArgument::Type: {
             sema.GetDiagnosticReporter().Error(Diagnostic::WrongTemplateArgument)
@@ -617,10 +634,15 @@ VCL::Expr* VCL::TemplateInstantiator::TransformDeclRefExpr(DeclRefExpr* expr) {
 
 VCL::Expr* VCL::TemplateInstantiator::TransformCastExpr(CastExpr* expr) {
     Expr* arg = TransformExpr(expr->GetExpr());
+    if (!arg)
+        return nullptr;
     QualType toType = TransformType(expr->GetResultType());
-    if (arg == expr->GetExpr())
+    if (!toType.GetAsOpaquePtr())
+        return nullptr;
+    // A cast is rebuilt even when its operand didn't change: the target type may have.
+    if (arg == expr->GetExpr() && expr->GetCastKind() != CastExpr::Dependent && toType == expr->GetResultType())
         return expr;
-    return sema.ActOnCast(arg, toType, expr->GetSourceRange());
+    return sema.ActOnExplicitCast(arg, toType, expr->GetSourceRange());
 }
 
 VCL::Expr* VCL::TemplateInstantiator::TransformSplatExpr(SplatExpr* expr) {
@@ -652,7 +674,8 @@ VCL::Expr* VCL::TemplateInstantiator::TransformCallExpr(CallExpr* expr) {
         args.push_back(newArg);
     }
 
-    return sema.ActOnCallExpr(expr->GetFunctionDecl()->GetIdentifierInfo(), args, nullptr, expr->GetSourceRange());
+    // The callee was bound where the template was written; don't look its name up again.
+    return sema.ActOnResolvedCallExpr(expr->GetFunctionDecl(), expr->GetFunctionDecl()->GetIdentifierInfo(), args, nullptr, expr->GetSourceRange());
 }
 
 VCL::Expr* VCL::TemplateInstantiator::TransformDependentCallExpr(DependentCallExpr* expr) {
@@ -669,6 +692,8 @@ VCL::Expr* VCL::TemplateInstantiator::TransformDependentCallExpr(DependentCallEx
         if (!templateArgs)
             return nullptr;
     }
+    if (Decl* callee = expr->GetResolvedCallee())
+        return sema.ActOnResolvedCallExpr(callee, expr->GetSymbolRef(), args, templateArgs, expr->GetSourceRange());
     return sema.ActOnCallExpr(expr->GetSymbolRef(), args, templateArgs, expr->GetSourceRange());
 }
 

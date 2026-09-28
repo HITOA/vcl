@@ -1093,7 +1093,7 @@ VCL::Expr* VCL::Parser::ParsePrefixExpression() {
                 if (!expr)
                     return nullptr;
                 range.end = expr->GetSourceRange().end;
-                return sema.ActOnCast(expr, QualType{ type.value }, range);
+                return sema.ActOnExplicitCast(expr, QualType{ type.value }, range);
             } else {
                 return ParsePostfixExpression();
             }
@@ -1262,8 +1262,13 @@ VCL::Expr* VCL::Parser::ParseIdentifierExpr() {
         EXPECT_TOKEN_N(token, TokenKind::Identifier, 2);
         o = 3;
     }
-    if (TryParseTemplateArgumentList(o) != 0)
-        return ParseCallExpr();
+    // In an expression, a template argument list is only valid before a call's '('. Without that
+    // check, `t < 0 || t > T` would be taken for `t<0 || t>` followed by garbage.
+    if (int templateArgumentsLength = TryParseTemplateArgumentList(o); templateArgumentsLength != 0) {
+        GET_TOKEN_N(token, o + templateArgumentsLength);
+        if (token->kind == TokenKind::LeftPar)
+            return ParseCallExpr();
+    }
     GET_TOKEN_N(token, o);
     if (token->kind == TokenKind::LeftPar)
         return ParseCallExpr();

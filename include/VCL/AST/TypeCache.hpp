@@ -62,8 +62,21 @@ namespace VCL {
         template<typename T, typename... Args>
         T* GetOrCreate(Args&&... args);
 
+        // Get or create the type in `owner` only. Structural types are always looked up and
+        // created in the same cache (see PickOwner), which keeps them unique without searching
+        // other ASTContexts' caches.
         template<typename T, typename... Args>
-        T* GetOrCreateTrailing(size_t totalSizeToAlloc, Args&&... args);
+        T* GetOrCreateIn(TypeCache* owner, Args&&... args);
+
+        template<typename T, typename... Args>
+        T* GetOrCreateTrailingIn(TypeCache* owner, size_t totalSizeToAlloc, Args&&... args);
+
+        /**
+         * The cache a structural type built from these components lives in: the first component
+         * cache that isn't the root (the type can't outlive that component), or the root.
+         */
+        TypeCache* PickOwner(llvm::ArrayRef<TypeCache*> componentOwners);
+        TypeCache* OwnerOf(Type* type);
 
         template<typename T, typename... Args>
         T* FindType(llvm::FoldingSetNodeID& id, Args&&... args);

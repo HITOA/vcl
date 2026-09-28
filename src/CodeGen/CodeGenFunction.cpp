@@ -35,13 +35,36 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
         functionName = Mangler::MangleFunctionDecl(context, decl);
 
     function = llvm::cast<llvm::Function>(cgm.GetLLVMModule().getOrInsertFunction(functionName, functionType).getCallee());
+
+    // Several CodeGenModules can emit into the same llvm::Module (vcl-graph compiles every node
+    // into one module), so an imported template specialization may already have a body.
+    if (!function->empty()) {
+        Decl* existing = CodeGenModule::GetSymbolDecl(function);
+        if (function->getFunctionType() != functionType || (existing != nullptr && existing != decl)) {
+            cgm.GetDiagnosticReporter().Error(Diagnostic::SymbolNameCollision, functionName)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return nullptr;
+        }
+        return function;
+    }
+    CodeGenModule::SetSymbolDecl(function, decl);
+
     function->setLinkage(llvm::GlobalValue::InternalLinkage);
 
+    bool isSpecialization = decl->HasFunctionFlag(FunctionDecl::IsTemplateSpecialization);
     if (decl->HasAttribute(entryPointAD)) {
         function->setLinkage(llvm::GlobalValue::ExternalLinkage);
         function->setDSOLocal(true);
-    } else if (imported) {
+    } else if (imported && isSpecialization) {
+        // Instantiated here from an imported template: every importer emits its own copy.
         function->setLinkage(llvm::GlobalValue::LinkOnceAnyLinkage);
+    } else if (imported) {
+        // Defined in the imported module, which is linked in later.
+        function->setLinkage(llvm::GlobalValue::ExternalLinkage);
+    } else if (decl->IsExported() && !isSpecialization) {
+        // Importers reference it by name, so it must survive linking.
+        function->setLinkage(llvm::GlobalValue::ExternalLinkage);
     }
 
     if (!strictIEEE) {
@@ -56,6 +79,15 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
     if (allowApproxFunc) {
         function->addFnAttr("approx-func-fp-math", "true");
     }
+
+    // The function attributes above only reach the backend. The IR optimizers (InstCombine,
+    // reassociation, FMA contraction, vectorizers) read the per-instruction flags.
+    llvm::FastMathFlags fmf{};
+    if (!strictIEEE) {
+        fmf.setFast();
+        fmf.setApproxFunc(allowApproxFunc);
+    }
+    builder.setFastMathFlags(fmf);
 
     int i = 0;
     for (auto it = decl->Begin(); it != decl->End(); ++it) {
@@ -121,7 +153,10 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
 
 llvm::AllocaInst* VCL::CodeGenFunction::GenerateAllocaInst(llvm::Type* type, llvm::StringRef name) {
     llvm::IRBuilder<>::InsertPointGuard ipGuard{ builder };
-    builder.SetInsertPoint(builder.GetInsertBlock()->getFirstInsertionPt());
+    // Always in the entry block: SROA and mem2reg only promote entry-block allocas, and an alloca
+    // anywhere else (e.g. a local declared in a loop body) becomes a dynamic stack allocation.
+    llvm::BasicBlock& entryBB = function->getEntryBlock();
+    builder.SetInsertPoint(&entryBB, entryBB.getFirstInsertionPt());
     builder.SetCurrentDebugLocation(llvm::DebugLoc());
     llvm::AllocaInst* alloca = builder.CreateAlloca(type, nullptr, name);
     return alloca;

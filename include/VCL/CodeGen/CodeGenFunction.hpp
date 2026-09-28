@@ -68,6 +68,9 @@ namespace VCL {
         llvm::Value* GenerateSubscriptExpr(SubscriptExpr* expr);
         llvm::Value* GenerateAggregateExpr(AggregateExpr* expr);
         llvm::Value* GenerateNullExpr(NullExpr* expr);
+        llvm::Value* GenerateShortCircuitExpr(Expr* lhs, Expr* rhs, bool isAnd);
+
+        static BuiltinType::Category GetScalarCategory(QualType type);
 
         llvm::Value* DispatchBinaryArithmeticOp(Expr* lhs, Expr* rhs, llvm::Instruction::BinaryOps signedop, 
             llvm::Instruction::BinaryOps unsignedop, llvm::Instruction::BinaryOps floatop);

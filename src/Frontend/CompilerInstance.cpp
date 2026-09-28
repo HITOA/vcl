@@ -1,6 +1,7 @@
 #include <VCL/Frontend/CompilerInstance.hpp>
 
 #include <VCL/AST/ASTContext.hpp>
+#include <VCL/Core/Source.hpp>
 #include <VCL/Frontend/CompilerContext.hpp>
 #include <VCL/Frontend/FrontendAction.hpp>
 #include <VCL/Sema/SymbolTable.hpp>
@@ -35,6 +36,12 @@ bool VCL::CompilerInstance::HasASTContext() {
 void VCL::CompilerInstance::CreateASTContext() {
     assert(compilerCtx.HasTypeCache() && "missing type cache");
     astCtx = llvm::makeIntrusiveRefCnt<ASTContext>(compilerCtx.GetTypeCache());
+    if (!manglingPrefix.empty())
+        astCtx->SetManglingPrefix(manglingPrefix);
+    else if (source)
+        astCtx->SetManglingPrefix(source->GetBufferIdentifier().str());
+    else
+        astCtx->SetManglingPrefix("anonymous");
 }
 
 VCL::SymbolTable& VCL::CompilerInstance::GetExportSymbolTable() {

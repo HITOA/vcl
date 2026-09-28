@@ -21,6 +21,10 @@ namespace VCL {
 
     class CodeGenModule {
     public:
+        /** The declaration a function or global was emitted for (to detect symbol name collisions). */
+        static void SetSymbolDecl(llvm::GlobalObject* symbol, Decl* decl);
+        static Decl* GetSymbolDecl(llvm::GlobalObject* symbol);
+
         CodeGenModule() = delete;
         CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target, 
             ModuleTable& importedModules, AttributeTable& attributeTable, IdentifierTable& identifierTable);

@@ -4,11 +4,16 @@
 
 #include <llvm/Support/Allocator.h>
 #include <llvm/ADT/IntrusiveRefCntPtr.h>
+#include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/StringMap.h>
+
+#include <string>
 
 
 namespace VCL {
 
     class TranslationUnitDecl;
+    class NamedDecl;
 
     /**
      * This is the AST Context, it hold all the nodes, allocate them, and free them all at once on destruction.
@@ -38,6 +43,20 @@ namespace VCL {
         }
 
         inline TranslationUnitDecl* GetTranslationUnitDecl() { return root; }
+
+        /**
+         * Prefix of every symbol name mangled from this AST. It must be unique among the ASTs
+         * emitted into the same llvm::Module: e.g. the module's path, or for vcl-graph the path of
+         * the node instance in the graph (the same subgraph can be emitted several times).
+         */
+        inline const std::string& GetManglingPrefix() const { return manglingPrefix; }
+        inline void SetManglingPrefix(std::string prefix) { manglingPrefix = std::move(prefix); }
+
+        /**
+         * `<prefix>.<name>`, then `<prefix>.<name>.1`, `.2`... for further declarations with the
+         * same name (template specializations). Stable for a given declaration once assigned.
+         */
+        const std::string& GetMangledName(NamedDecl* decl);
         
     private:
         llvm::BumpPtrAllocator nodeAllocator;
@@ -45,6 +64,10 @@ namespace VCL {
 
         // Root translation unit decl of this AST
         TranslationUnitDecl* root;
+
+        std::string manglingPrefix{};
+        llvm::DenseMap<NamedDecl*, std::string> mangledNames{};
+        llvm::StringMap<uint32_t> mangledNameUses{};
     };
 
 }

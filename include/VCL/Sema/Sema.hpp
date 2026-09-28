@@ -159,11 +159,18 @@ namespace VCL {
 
         std::pair<Expr*, Expr*> ActOnImplicitBinaryArithmeticCast(Expr* lhs, Expr* rhs);
         Expr* ActOnCast(Expr* expr, QualType toType, SourceRange range);
+        Expr* ActOnExplicitCast(Expr* expr, QualType toType, SourceRange range);
         Expr* ActOnSplat(Expr* expr, SourceRange range);
         
         Expr* ActOnNumericConstant(Token* value);
         Expr* ActOnIdentifierExpr(SymbolRef symbolRef, SourceRange range);
+        Expr* ActOnDeclRefExpr(ValueDecl* decl, SourceRange range);
         Expr* ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range);
+        /** Call to an already resolved callee (a TemplateDecl or a FunctionDecl). */
+        Expr* ActOnResolvedCallExpr(Decl* callee, SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, 
+            TemplateArgumentList* templateArgs, SourceRange range);
+        /** Resolve a callee name without reporting anything if it isn't visible. */
+        Decl* LookupCalleeQuietly(SymbolRef symbolRef);
 
         Expr* ActOnAggregateExpr(llvm::ArrayRef<Expr*> elems, SourceRange range);
         bool ActOnAggregateExpr(AggregateExpr* aggregate);
@@ -183,6 +190,14 @@ namespace VCL {
         bool MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateArgumentList* args2);
         FunctionDecl* InstantiateFunctionTemplateSpecialization(TemplateArgumentList* templateArgs, TemplateDecl* templateDecl);
 
+        /**
+         * The ASTContext an instantiation of `templateDecl` for `args` belongs in: the template's
+         * own, unless an argument type is owned by another ASTContext's cache (e.g. a struct of the
+         * importing node). The instantiation must not outlive that type, so it then stays in the
+         * current compilation instead of being stored with a (possibly cached) library.
+         */
+        ASTContext& GetInstantiationContext(TemplateDecl* templateDecl, TemplateArgumentList* args);
+
     private:
         CompilerContext& cc;
         std::stack<ASTContext*> astContextStack;
@@ -194,6 +209,8 @@ namespace VCL {
         DefineTable& definedValues;
         ScopeManager sm{};
         Scope* translationUnitScope;
+        // Function template specializations kept in this compilation (see GetInstantiationContext).
+        llvm::SmallVector<std::pair<TemplateDecl*, TemplateSpecializationDecl*>> localSpecializations{};
     };
 
 }

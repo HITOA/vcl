@@ -422,7 +422,7 @@ bool VCL::Sema::ValidateIntrinsicFunctionDeclSpecialization(FunctionDecl* decl) 
             if (type->GetTypeClass() == Type::BuiltinTypeClass) {
                 BuiltinType* builtinType = (BuiltinType*)type;
                 BuiltinType::Kind kind = builtinType->GetKind();
-                if (kind != BuiltinType::Void || kind != BuiltinType::Bool)
+                if (kind != BuiltinType::Void && kind != BuiltinType::Bool)
                     return true;
             }
             
@@ -700,12 +700,17 @@ VCL::FunctionDecl* VCL::Sema::ActOnFunctionDecl(FunctionDecl* decl, QualType ret
         TemplateInstantiator instantiator{ *this };
         if (!instantiator.CheckTemplateArgumentsParametersMatch(args, templateDecl->GetTemplateParametersList()))
             return nullptr;
+        if (!args->IsDependent()) {
+            args = ActOnTemplateArgumentList(args->GetArgs(), args->GetSourceRange(), true);
+            if (!args)
+                return nullptr;
+        }
 
         for (auto it = templateDecl->Begin(); it != templateDecl->End(); ++it) {
             if (it->GetDeclClass() != Decl::TemplateSpecializationDeclClass)
                 continue;
             TemplateSpecializationDecl* specializationDecl = (TemplateSpecializationDecl*)it.Get();
-            if (specializationDecl->GetTemplateArgumentListHash() == args->GetHash()) {
+            if (specializationDecl->Matches(args)) {
                 diagnosticReporter.Error(Diagnostic::SpecializationAlreadyExist)
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .AddHint(DiagnosticHint{ range })
@@ -1738,6 +1743,19 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
     return castExpr;
 }
 
+VCL::Expr* VCL::Sema::ActOnExplicitCast(Expr* expr, QualType toType, SourceRange range) {
+    // ActOnCast leaves dependent expressions untouched, which is fine for implicit conversions:
+    // the declaration or call that required them is checked again at instantiation. An explicit
+    // cast has nothing to re-create it, so keep it in the AST until the types are known.
+    if (expr->GetExprClass() != Expr::AggregateExprClass &&
+            (expr->GetResultType().GetType()->IsDependent() || toType.GetType()->IsDependent())) {
+        CastExpr* castExpr = CastExpr::Create(GetASTContext(), expr, CastExpr::Dependent, toType, range);
+        castExpr->SetDependent(true);
+        return castExpr;
+    }
+    return ActOnCast(expr, toType, range);
+}
+
 VCL::Expr* VCL::Sema::ActOnSplat(Expr* expr, SourceRange range) {
     Type* type = expr->GetResultType().GetType();
     if (type->IsDependent())
@@ -1767,14 +1785,23 @@ VCL::Expr* VCL::Sema::ActOnNumericConstant(Token* value) {
         double v = std::stod(valueStr.str());
         return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ v }, value->range);
     } else {
-        int64_t v = std::stoll(valueStr.str());
+        // Like C: an integer literal is at least int32, so `100 * 3` isn't computed in int8.
+        // Literals are lexed without their sign, so they are never negative here.
+        uint64_t v = 0;
+        try {
+            v = std::stoull(valueStr.str());
+        } catch (const std::out_of_range&) {
+            diagnosticReporter.Error(Diagnostic::IntegerLiteralTooLarge, valueStr.str())
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .AddHint(DiagnosticHint{ value->range })
+                .Report();
+            return nullptr;
+        }
 
-        if (v < std::numeric_limits<int8_t>::max())
-            return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ (int8_t)v }, value->range);
-        if (v < std::numeric_limits<int16_t>::max())
-            return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ (int16_t)v }, value->range);
-        if (v < std::numeric_limits<int32_t>::max())
+        if (v <= (uint64_t)std::numeric_limits<int32_t>::max())
             return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ (int32_t)v }, value->range);
+        if (v <= (uint64_t)std::numeric_limits<int64_t>::max())
+            return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ (int64_t)v }, value->range);
 
         return NumericLiteralExpr::Create(GetASTContext(), ConstantScalar{ v }, value->range);
     }
@@ -1789,17 +1816,66 @@ VCL::Expr* VCL::Sema::ActOnIdentifierExpr(SymbolRef symbolRef, SourceRange range
             .Report();
         return nullptr;
     }
-    DeclRefExpr* expr = DeclRefExpr::Create(GetASTContext(), (ValueDecl*)decl, range);
+    return ActOnDeclRefExpr((ValueDecl*)decl, range);
+}
+
+VCL::Expr* VCL::Sema::ActOnDeclRefExpr(ValueDecl* decl, SourceRange range) {
+    DeclRefExpr* expr = DeclRefExpr::Create(GetASTContext(), decl, range);
     expr->SetValueCategory(Expr::LValue);
     return expr;
 }
 
+static bool HasDependentArgument(llvm::ArrayRef<VCL::Expr*> args) {
+    for (VCL::Expr* arg : args)
+        if (arg->GetExprClass() != VCL::Expr::AggregateExprClass && arg->GetResultType().GetType()->IsDependent())
+            return true;
+    return false;
+}
+
+VCL::Decl* VCL::Sema::LookupCalleeQuietly(SymbolRef symbolRef) {
+    if (!symbolRef.IsLocal() && !importedModules.Get(symbolRef.GetModuleName()))
+        return nullptr;
+    if (TemplateDecl* templateDecl = LookupTemplateDecl(symbolRef))
+        return templateDecl;
+    NamedDecl* namedDecl = LookupNamedDecl(symbolRef);
+    if (namedDecl && namedDecl->GetDeclClass() == Decl::FunctionDeclClass)
+        return namedDecl;
+    return nullptr;
+}
+
 VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
+    if (HasDependentArgument(args)) {
+        // Bind the name now, where the template is written, so that instantiating it from another
+        // module doesn't look it up (or capture a same-named declaration) there.
+        DependentCallExpr* expr = DependentCallExpr::Create(GetASTContext(), symbolRef, args, templateArgs, range);
+        expr->SetResolvedCallee(LookupCalleeQuietly(symbolRef));
+        return expr;
+    }
+
+    Decl* callee = LookupTemplateDecl(symbolRef);
+    if (!callee)
+        callee = LookupNamedDecl(symbolRef);
+    if (!callee) {
+        diagnosticReporter.Error(Diagnostic::IdentifierUndefined, symbolRef.GetSymbolName()->GetName().str())
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .AddHint(DiagnosticHint{ range })
+            .Report();
+        return nullptr;
+    }
+    return ActOnResolvedCallExpr(callee, symbolRef, args, templateArgs, range);
+}
+
+VCL::Expr* VCL::Sema::ActOnResolvedCallExpr(Decl* callee, SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, 
+        TemplateArgumentList* templateArgs, SourceRange range) {
+    if (HasDependentArgument(args)) {
+        DependentCallExpr* expr = DependentCallExpr::Create(GetASTContext(), symbolRef, args, templateArgs, range);
+        expr->SetResolvedCallee(callee);
+        return expr;
+    }
+
     FunctionDecl* decl = nullptr;
-    for (Expr* arg : args)
-        if (arg->GetExprClass() != Expr::AggregateExprClass && arg->GetResultType().GetType()->IsDependent())
-            return DependentCallExpr::Create(GetASTContext(), symbolRef, args, templateArgs, range);
-    if (TemplateDecl* templateDecl = LookupTemplateDecl(symbolRef)) {
+    if (callee->GetDeclClass() == Decl::TemplateDeclClass) {
+        TemplateDecl* templateDecl = (TemplateDecl*)callee;
         FunctionDecl* templatedFunctionDecl = (FunctionDecl*)templateDecl->GetTemplatedNamedDecl();
 
         FunctionType* type = templatedFunctionDecl->GetType();
@@ -1840,17 +1916,25 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
         if (!templateArgs)
             return nullptr;
 
-        if (templateArgs->IsDependent())
-            return DependentCallExpr::Create(GetASTContext(), symbolRef, args, templateArgs, range);
+        if (templateArgs->IsDependent()) {
+            DependentCallExpr* expr = DependentCallExpr::Create(GetASTContext(), symbolRef, args, templateArgs, range);
+            expr->SetResolvedCallee(templateDecl);
+            return expr;
+        }
 
         for (auto it = templateDecl->Begin(); it != templateDecl->End(); ++it) {
             if (it->GetDeclClass() != Decl::TemplateSpecializationDeclClass)
                 continue;
             TemplateSpecializationDecl* specializationDecl = (TemplateSpecializationDecl*)it.Get();
-            if (specializationDecl->GetTemplateArgumentListHash() == templateArgs->GetHash()) {
+            if (specializationDecl->Matches(templateArgs)) {
                 decl = (FunctionDecl*)specializationDecl->GetNamedDecl();
                 break;
             }
+        }
+
+        for (size_t i = 0; !decl && i < localSpecializations.size(); ++i) {
+            if (localSpecializations[i].first == templateDecl && localSpecializations[i].second->Matches(templateArgs))
+                decl = (FunctionDecl*)localSpecializations[i].second->GetNamedDecl();
         }
 
         if (!decl) {
@@ -1858,16 +1942,8 @@ VCL::Expr* VCL::Sema::ActOnCallExpr(SymbolRef symbolRef, llvm::ArrayRef<Expr*> a
             if (!decl)
                 return nullptr;
         }
-    } else if (NamedDecl* namedDecl = LookupNamedDecl(symbolRef)) {
-        if (namedDecl->GetDeclClass() == Decl::FunctionDeclClass) {
-            decl = (FunctionDecl*)namedDecl;
-        } else {
-            diagnosticReporter.Error(Diagnostic::IdentifierUndefined, symbolRef.GetSymbolName()->GetName().str())
-                .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                .AddHint(DiagnosticHint{ range })
-                .Report();
-            return nullptr;
-        }
+    } else if (callee->GetDeclClass() == Decl::FunctionDeclClass) {
+        decl = (FunctionDecl*)callee;
     } else {
         diagnosticReporter.Error(Diagnostic::IdentifierUndefined, symbolRef.GetSymbolName()->GetName().str())
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -2233,20 +2309,39 @@ bool VCL::Sema::MatchTemplateArgumentList(TemplateArgumentList* args1, TemplateA
     return true;
 }
 
-VCL::FunctionDecl* VCL::Sema::InstantiateFunctionTemplateSpecialization(TemplateArgumentList* templateArgs, TemplateDecl* templateDecl) {
-    
-    FunctionDecl* decl = nullptr;
+VCL::ASTContext& VCL::Sema::GetInstantiationContext(TemplateDecl* templateDecl, TemplateArgumentList* args) {
+    TypeCache* root = &cc.GetTypeCache();
+    TypeCache* templateCache = &templateDecl->GetASTContext().GetTypeCache();
+    for (const TemplateArgument& arg : args->GetArgs()) {
+        if (arg.GetKind() != TemplateArgument::Type)
+            continue;
+        Type* type = arg.GetType().GetType();
+        if (Type* canonicalType = Type::GetCanonicalType(type))
+            type = canonicalType;
+        TypeCache* owner = type->GetOwner();
+        if (owner && owner != root && owner != templateCache)
+            return GetASTContext();
+    }
+    return templateDecl->GetASTContext();
+}
 
-    SemaContextGuard guard{ *this, templateDecl->GetASTContext() };
+VCL::FunctionDecl* VCL::Sema::InstantiateFunctionTemplateSpecialization(TemplateArgumentList* templateArgs, TemplateDecl* templateDecl) {
+    ASTContext& instantiationContext = GetInstantiationContext(templateDecl, templateArgs);
+    bool keepWithTemplate = &instantiationContext == &templateDecl->GetASTContext();
+
+    SemaContextGuard guard{ *this, instantiationContext };
     TemplateInstantiator instantiator{ *this };
     if (!instantiator.AddTemplateArgumentListAndDecl(templateArgs, templateDecl))
         return nullptr;
-    decl = instantiator.InstantiateTemplatedFunctionDecl(templateDecl);
+    FunctionDecl* decl = instantiator.InstantiateTemplatedFunctionDecl(templateDecl);
     if (!decl)
         return nullptr;
 
     TemplateSpecializationDecl* specializationDecl = TemplateSpecializationDecl::Create(GetASTContext(), templateArgs, decl);
-    templateDecl->InsertBack(specializationDecl);
+    if (keepWithTemplate)
+        templateDecl->InsertBack(specializationDecl);
+    else
+        localSpecializations.push_back({ templateDecl, specializationDecl }); // emitted on first use, see CodeGenModule::GetGlobalDeclValue
 
     return decl;
 }

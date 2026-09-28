@@ -96,12 +96,14 @@ namespace VCL {
             return true;
         }
 
+        /** Only a pre-filter: compare with IsCanonicallyEqual before trusting a match. */
         inline uint64_t GetHash() const {
             Hasher hasher{};
             for (TemplateArgument arg : GetArgs()) {
                 switch (arg.GetKind()) {
                     case TemplateArgument::Type:
-                        hasher.Hash((uint64_t)arg.GetType().GetAsOpaquePtr());
+                        // Canonical, so an alias and the type it names hash the same.
+                        hasher.Hash((uint64_t)Type::GetCanonicalType(arg.GetType().GetType()));
                         break;
                     case TemplateArgument::Integral:
                         hasher.Hash(arg.GetIntegral().Get<uint64_t>());
@@ -112,6 +114,39 @@ namespace VCL {
                 }
             }
             return hasher.Get();
+        }
+
+        inline bool IsCanonicallyEqual(const TemplateArgumentList* other) const {
+            if (!other || other->GetCount() != GetCount())
+                return false;
+            for (size_t i = 0; i < GetCount(); ++i) {
+                const TemplateArgument& a = GetArgs()[i];
+                const TemplateArgument& b = other->GetArgs()[i];
+                if (a.GetKind() != b.GetKind())
+                    return false;
+                switch (a.GetKind()) {
+                    case TemplateArgument::Type:
+                        if (!Type::IsCanonicallyEqual(a.GetType().GetType(), b.GetType().GetType()))
+                            return false;
+                        break;
+                    case TemplateArgument::Integral:
+                        if (a.GetIntegral().Get<uint64_t>() != b.GetIntegral().Get<uint64_t>())
+                            return false;
+                        break;
+                    default:
+                        if (a.GetExpr() != b.GetExpr())
+                            return false;
+                        break;
+                }
+            }
+            return true;
+        }
+
+        /** Copy into a TypeCache's allocator, for a type that must not depend on the caller's ASTContext. */
+        static inline TemplateArgumentList* Create(llvm::BumpPtrAllocator& allocator, llvm::ArrayRef<TemplateArgument> args, SourceRange range) {
+            size_t size = additionalSizeToAlloc<TemplateArgument>(args.size());
+            void* ptr = allocator.Allocate(sizeof(TemplateArgumentList) + size, alignof(TemplateArgumentList));
+            return new(ptr) TemplateArgumentList{ args, range };
         }
 
         static inline TemplateArgumentList* Create(ASTContext& context, llvm::ArrayRef<TemplateArgument> args, SourceRange range) {

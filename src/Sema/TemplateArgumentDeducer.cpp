@@ -2,6 +2,7 @@
 
 #include <VCL/AST/Type.hpp>
 #include <VCL/AST/Expr.hpp>
+#include <VCL/AST/TypePrinter.hpp>
 #include <VCL/Sema/Sema.hpp>
 #include <VCL/Core/Diagnostic.hpp>
 
@@ -92,7 +93,7 @@ bool VCL::TemplateArgumentDeducer::DeduceForType(Type* baseType, Type* substitut
     switch (baseType->GetTypeClass())
     {
         case Type::ReferenceTypeClass:
-            DeduceForType(((ReferenceType*)baseType)->GetType().GetType(), substitutedType);
+            return DeduceForType(((ReferenceType*)baseType)->GetType().GetType(), substitutedType);
         case Type::TemplateTypeParamTypeClass: {
             TemplateTypeParamType* type = (TemplateTypeParamType*)baseType;
             if (!substitutionMap.count(type->GetTemplateTypeParamDecl())) {
@@ -109,7 +110,9 @@ bool VCL::TemplateArgumentDeducer::DeduceForType(Type* baseType, Type* substitut
                 return false;
             }
             if (arg.GetType().GetAsOpaquePtr() != 0 && !Type::IsCanonicallyEqual(arg.GetType().GetType(), substitutedType)) {
-                sema.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+                // A user error (e.g. `min(x, 0.25)` with a float32 x), not an internal one.
+                sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentDeductionConflict,
+                        TypePrinter::Print(arg.GetType()), TypePrinter::Print(substitutedType))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .Report();
                 return false;
@@ -119,20 +122,17 @@ bool VCL::TemplateArgumentDeducer::DeduceForType(Type* baseType, Type* substitut
             return true;
         }
         case Type::TemplateSpecializationTypeClass: {
-            if (substitutedType->GetTypeClass() != Type::TemplateSpecializationTypeClass) {
-                sema.GetDiagnosticReporter().Error(Diagnostic::InternalError)
+            // e.g. passing a Lanes<float32> to unpack(Vec<T>): a user error, not an internal one.
+            if (substitutedType->GetTypeClass() != Type::TemplateSpecializationTypeClass ||
+                    ((TemplateSpecializationType*)baseType)->GetTemplateDecl() != ((TemplateSpecializationType*)substitutedType)->GetTemplateDecl()) {
+                sema.GetDiagnosticReporter().Error(Diagnostic::TemplateArgumentTypeMismatch,
+                        TypePrinter::Print(QualType{ substitutedType }), TypePrinter::Print(QualType{ baseType }))
                     .SetCompilerInfo(__FILE__, __func__, __LINE__)
                     .Report();
                 return false;
             }
             TemplateSpecializationType* baseTypeSpe = (TemplateSpecializationType*)baseType;
             TemplateSpecializationType* substitutedTypeSpe = (TemplateSpecializationType*)substitutedType;
-            if (baseTypeSpe->GetTemplateDecl() != substitutedTypeSpe->GetTemplateDecl()) {
-                sema.GetDiagnosticReporter().Error(Diagnostic::InternalError)
-                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
-                    .Report();
-                return false;
-            }
 
             TemplateArgumentList* baseArgs = baseTypeSpe->GetTemplateArgumentList();
             TemplateArgumentList* substitutedArgs = substitutedTypeSpe->GetTemplateArgumentList();

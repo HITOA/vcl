@@ -71,19 +71,26 @@ namespace VCL {
 
     class TemplateSpecializationDecl : public Decl {
     public:
-        TemplateSpecializationDecl(uint64_t argsHash, NamedDecl* decl)
-                : argsHash{ argsHash }, decl{ decl }, Decl{ Decl::TemplateSpecializationDeclClass } {}
+        TemplateSpecializationDecl(TemplateArgumentList* args, NamedDecl* decl)
+                : args{ args }, argsHash{ args->GetHash() }, decl{ decl }, Decl{ Decl::TemplateSpecializationDeclClass } {}
         ~TemplateSpecializationDecl() = default;
 
         inline uint64_t GetTemplateArgumentListHash() { return argsHash; }
+        inline TemplateArgumentList* GetTemplateArgumentList() { return args; }
         inline NamedDecl* GetNamedDecl() { return decl; }
 
+        /** Whether this specializes the template for `other`. */
+        inline bool Matches(TemplateArgumentList* other) {
+            return other->GetHash() == argsHash && args->IsCanonicallyEqual(other);
+        }
+
         static inline TemplateSpecializationDecl* Create(ASTContext& context, TemplateArgumentList* arguments, NamedDecl* decl) {
-            TemplateSpecializationDecl* instance = context.AllocateNode<TemplateSpecializationDecl>(arguments->GetHash(), decl);
+            TemplateSpecializationDecl* instance = context.AllocateNode<TemplateSpecializationDecl>(arguments, decl);
             return instance;
         }
 
     private:
+        TemplateArgumentList* args;
         uint64_t argsHash;
         NamedDecl* decl;
     };

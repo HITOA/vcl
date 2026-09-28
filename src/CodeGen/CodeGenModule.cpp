@@ -8,6 +8,8 @@
 #include <llvm/Linker/Linker.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/IR/Constants.h>
 
 
 VCL::CodeGenModule::CodeGenModule(llvm::Module& module, ASTContext& ast, DiagnosticReporter& diagnosticReporter, Target& target, 
@@ -107,19 +109,25 @@ bool VCL::CodeGenModule::EmitGlobalVarDecl(VarDecl* decl, bool imported) {
     else if (imported)
         linkageType = llvm::GlobalVariable::LinkageTypes::ExternalLinkage;
 
-    std::string globalName = decl->GetIdentifierInfo()->GetName().str();
-    if (linkageType != llvm::GlobalVariable::LinkageTypes::ExternalLinkage) {
-        if (imported) {
-            Module* module = GetImportedDeclModule(decl);
-            globalName = Mangler::MangleVarDecl(module->GetCompilerInstance()->GetASTContext(), decl);
-        } else {
-            globalName = Mangler::MangleVarDecl(astContext, decl);
-        }
-    }
+    // Named after the module that declares it, so an importer refers to the same symbol.
+    ASTContext& owningContext = imported ? GetImportedDeclModule(decl)->GetCompilerInstance()->GetASTContext() : astContext;
+    std::string globalName = Mangler::MangleVarDecl(owningContext, decl);
     
     llvm::Constant* entry = GetLLVMModule().getOrInsertGlobal(globalName, type);
 
     llvm::GlobalVariable* gv = (llvm::GlobalVariable*)entry;
+
+    // Every AST emitted into one llvm::Module must have its own mangling prefix; two different
+    // declarations landing on one symbol would silently share state.
+    if (!imported && !decl->HasInAttribute() && !decl->HasOutAttribute()) {
+        if (Decl* existing = GetSymbolDecl(gv); existing != nullptr && existing != decl) {
+            diagnosticReporter.Error(Diagnostic::SymbolNameCollision, globalName)
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return false;
+        }
+        SetSymbolDecl(gv, decl);
+    }
 
     if (!decl->HasInAttribute() && !imported)
         gv->setInitializer(initializerValue);
@@ -142,7 +150,8 @@ bool VCL::CodeGenModule::EmitFunctionDecl(FunctionDecl* decl, bool imported) {
     if (function == nullptr)
         return false;
     auto insertResult = globals.insert(std::make_pair(decl, function));
-    return insertResult.second;
+    // Already there when it was emitted on demand (GetGlobalDeclValue) before being reached here.
+    return insertResult.second || insertResult.first->second == function;
 }
 
 bool VCL::CodeGenModule::EmitTemplateDecl(TemplateDecl* decl) {
@@ -155,10 +164,13 @@ bool VCL::CodeGenModule::EmitTemplateDecl(TemplateDecl* decl) {
         switch (specializedDecl->GetDeclClass()) {
             case Decl::FunctionDeclClass: {
                 if (((FunctionDecl*)specializedDecl)->HasFunctionFlag(FunctionDecl::IsIntrinsic))
-                    return true;
+                    continue;
                 if (!EmitFunctionDecl((FunctionDecl*)specializedDecl))
                     return false;
+                break;
             }
+            default:
+                break;
         }
     }
     return true;
@@ -213,5 +225,26 @@ llvm::GlobalValue* VCL::CodeGenModule::GetGlobalDeclValue(Decl* decl) {
         return globals.at(decl);
     }
 
+    // A specialization instantiated in this compilation but not stored with its template (see
+    // Sema::GetInstantiationContext): emit it the first time it's referenced.
+    if (decl->GetDeclClass() == Decl::FunctionDeclClass && ((FunctionDecl*)decl)->HasFunctionFlag(FunctionDecl::IsTemplateSpecialization)) {
+        if (!EmitFunctionDecl((FunctionDecl*)decl))
+            return nullptr;
+        return globals.at(decl);
+    }
+
     return nullptr;
+}
+void VCL::CodeGenModule::SetSymbolDecl(llvm::GlobalObject* symbol, Decl* decl) {
+    llvm::LLVMContext& context = symbol->getContext();
+    llvm::Constant* address = llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), (uint64_t)(uintptr_t)decl);
+    symbol->setMetadata("vcl.decl", llvm::MDNode::get(context, { llvm::ConstantAsMetadata::get(address) }));
+}
+
+VCL::Decl* VCL::CodeGenModule::GetSymbolDecl(llvm::GlobalObject* symbol) {
+    llvm::MDNode* node = symbol->getMetadata("vcl.decl");
+    if (!node || node->getNumOperands() != 1)
+        return nullptr;
+    auto* address = llvm::mdconst::dyn_extract<llvm::ConstantInt>(node->getOperand(0));
+    return address ? (Decl*)(uintptr_t)address->getZExtValue() : nullptr;
 }

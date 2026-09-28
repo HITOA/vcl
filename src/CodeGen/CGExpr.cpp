@@ -127,22 +127,10 @@ llvm::Value* VCL::CodeGenFunction::GenerateBinaryExpr(BinaryExpr* expr) {
             return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_EQ, llvm::CmpInst::FCMP_OEQ);
         case BinaryOperator::NotEqual:
             return DispatchBinaryComparisonOp(lhsExpr, rhsExpr, llvm::CmpInst::ICMP_NE, llvm::CmpInst::FCMP_ONE);
-        case BinaryOperator::LogicalAnd: {
-            llvm::Value* lhsExprValue = GenerateExpr(lhsExpr);
-            llvm::Value* rhsExprValue = GenerateExpr(rhsExpr);
-
-            if (!lhsExprValue || !rhsExprValue)
-                return nullptr;
-            return builder.CreateLogicalAnd(lhsExprValue, rhsExprValue);
-        }
-        case BinaryOperator::LogicalOr: {
-            llvm::Value* lhsExprValue = GenerateExpr(lhsExpr);
-            llvm::Value* rhsExprValue = GenerateExpr(rhsExpr);
-
-            if (!lhsExprValue || !rhsExprValue)
-                return nullptr;
-            return builder.CreateLogicalOr(lhsExprValue, rhsExprValue);
-        }
+        case BinaryOperator::LogicalAnd:
+            return GenerateShortCircuitExpr(lhsExpr, rhsExpr, true);
+        case BinaryOperator::LogicalOr:
+            return GenerateShortCircuitExpr(lhsExpr, rhsExpr, false);
         case BinaryOperator::BitwiseAnd:
             return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::And, llvm::Instruction::And);
         case BinaryOperator::BitwiseXor:
@@ -152,7 +140,7 @@ llvm::Value* VCL::CodeGenFunction::GenerateBinaryExpr(BinaryExpr* expr) {
         case BinaryOperator::LeftShift:
             return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::Shl, llvm::Instruction::Shl);
         case BinaryOperator::RightShift:
-            return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::AShr, llvm::Instruction::AShr);
+            return DispatchBinaryArithmeticOp(lhsExpr, rhsExpr, llvm::Instruction::AShr, llvm::Instruction::LShr, llvm::Instruction::AShr);
         case BinaryOperator::Assignment: {
             llvm::Value* lhsExprValue = GenerateExpr(lhsExpr);
             llvm::Value* rhsExprValue = GenerateExpr(rhsExpr);
@@ -248,11 +236,10 @@ llvm::Value* VCL::CodeGenFunction::GenerateUnaryExpr(UnaryExpr* expr) {
 
 llvm::Value* VCL::CodeGenFunction::DispatchBinaryArithmeticOp(Expr* lhs, Expr* rhs, llvm::Instruction::BinaryOps signedop, 
         llvm::Instruction::BinaryOps unsignedop, llvm::Instruction::BinaryOps floatop) {
-    Type* type = lhs->GetResultType().GetType();
-    if (type->GetTypeClass() == Type::TemplateSpecializationTypeClass)
-        type = ((TemplateSpecializationType*)type)->GetInstantiatedType();
+    // Canonical: the operand may be declared through an alias (`using Real = float32;`).
+    Type* type = Type::GetCanonicalType(lhs->GetResultType().GetType());
     if (type->GetTypeClass() == Type::VectorTypeClass)
-        type = ((VectorType*)type)->GetElementType().GetType();
+        type = Type::GetCanonicalType(((VectorType*)type)->GetElementType().GetType());
     if (type->GetTypeClass() != Type::BuiltinTypeClass) {
         cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -350,12 +337,30 @@ llvm::Value* VCL::CodeGenFunction::GenerateIntrinsicCallExpr(CallExpr* expr) {
         case FunctionDecl::IntrinsicID::Floor: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::floor, argsValue[0]);
         case FunctionDecl::IntrinsicID::Ceil: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::ceil, argsValue[0]);
         case FunctionDecl::IntrinsicID::Round: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::round, argsValue[0]);
-        case FunctionDecl::IntrinsicID::Abs: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::abs, argsValue[0]);
+        case FunctionDecl::IntrinsicID::Abs: {
+            // llvm.abs is integer-only and takes an extra "is INT_MIN poison" flag.
+            switch (GetScalarCategory(expr->GetArgs()[0]->GetResultType())) {
+                case BuiltinType::FloatingPointKind: return builder.CreateUnaryIntrinsic(llvm::Intrinsic::fabs, argsValue[0]);
+                case BuiltinType::SignedKind:
+                    return builder.CreateBinaryIntrinsic(llvm::Intrinsic::abs, argsValue[0], builder.getFalse());
+                default: return argsValue[0];
+            }
+        }
         // Binary Math
         case FunctionDecl::IntrinsicID::ATan2: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::atan2, argsValue[0], argsValue[1]);
         case FunctionDecl::IntrinsicID::Pow: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::pow, argsValue[0], argsValue[1]);
-        case FunctionDecl::IntrinsicID::Min: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::minimum, argsValue[0], argsValue[1]);
-        case FunctionDecl::IntrinsicID::Max: return builder.CreateBinaryIntrinsic(llvm::Intrinsic::maximum, argsValue[0], argsValue[1]);
+        case FunctionDecl::IntrinsicID::Min:
+        case FunctionDecl::IntrinsicID::Max: {
+            bool isMin = expr->GetFunctionDecl()->GetIntrinsicID() == FunctionDecl::IntrinsicID::Min;
+            llvm::Intrinsic::ID id{};
+            switch (GetScalarCategory(expr->GetArgs()[0]->GetResultType())) {
+                // minnum/maxnum lower to a single minps/maxps under no-NaNs, unlike minimum/maximum.
+                case BuiltinType::FloatingPointKind: id = isMin ? llvm::Intrinsic::minnum : llvm::Intrinsic::maxnum; break;
+                case BuiltinType::SignedKind: id = isMin ? llvm::Intrinsic::smin : llvm::Intrinsic::smax; break;
+                default: id = isMin ? llvm::Intrinsic::umin : llvm::Intrinsic::umax; break;
+            }
+            return builder.CreateBinaryIntrinsic(id, argsValue[0], argsValue[1]);
+        }
         case FunctionDecl::IntrinsicID::FMod: return builder.CreateFRem(argsValue[0], argsValue[1]);
         // Ternary Math
         case FunctionDecl::IntrinsicID::Fma: return builder.CreateFMA(argsValue[0], argsValue[1], argsValue[2]);
@@ -363,15 +368,20 @@ llvm::Value* VCL::CodeGenFunction::GenerateIntrinsicCallExpr(CallExpr* expr) {
         case FunctionDecl::IntrinsicID::Unpack:
         case FunctionDecl::IntrinsicID::Pack: {
             llvm::Type* returnType = cgm.GetCGT().ConvertType(expr->GetFunctionDecl()->GetType()->GetReturnType());
-            llvm::Align align{ (uint64_t)cgm.GetTarget().GetVectorWidthInByte() };
             llvm::Value* value = argsValue[0];
             if (!value->getType()->isPointerTy()) {
+                llvm::Align align{ (uint64_t)cgm.GetTarget().GetVectorWidthInByte() };
                 llvm::AllocaInst* alloca = GenerateAllocaInst(value->getType(), "tmp");
                 alloca->setAlignment(align);
                 builder.CreateAlignedStore(value, alloca, align);
                 value = alloca;
             }
-            return builder.CreateAlignedLoad(returnType, value, align);
+            // The source may be a Lanes field inside a struct, which is only aligned to its
+            // element type. Unaligned vector loads are as fast as aligned ones on aligned data.
+            llvm::Type* elementType = returnType->isVectorTy() ?
+                llvm::cast<llvm::VectorType>(returnType)->getElementType() : returnType->getArrayElementType();
+            llvm::Align elementAlign = cgm.GetLLVMModule().getDataLayout().getABITypeAlign(elementType);
+            return builder.CreateAlignedLoad(returnType, value, elementAlign);
         }
         // Length
         case FunctionDecl::IntrinsicID::Length: {
@@ -451,11 +461,10 @@ llvm::Value* VCL::CodeGenFunction::GenerateNullExpr(NullExpr* expr) {
 
 llvm::Value* VCL::CodeGenFunction::DispatchBinaryComparisonOp(Expr* lhs, Expr* rhs, llvm::CmpInst::Predicate signedPredicate,
         llvm::CmpInst::Predicate unsignedPredicate, llvm::CmpInst::Predicate floatPredicate) {
-    Type* type = lhs->GetResultType().GetType();
-    if (type->GetTypeClass() == Type::TemplateSpecializationTypeClass)
-        type = ((TemplateSpecializationType*)type)->GetInstantiatedType();
+    // Canonical: the operand may be declared through an alias (`using Real = float32;`).
+    Type* type = Type::GetCanonicalType(lhs->GetResultType().GetType());
     if (type->GetTypeClass() == Type::VectorTypeClass)
-        type = ((VectorType*)type)->GetElementType().GetType();
+        type = Type::GetCanonicalType(((VectorType*)type)->GetElementType().GetType());
     if (type->GetTypeClass() != Type::BuiltinTypeClass) {
         cgm.GetDiagnosticReporter().Error(Diagnostic::InternalError)
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
@@ -499,4 +508,51 @@ llvm::Value* VCL::CodeGenFunction::DispatchBinaryComparisonOp(Expr* lhs, Expr* r
 llvm::Value* VCL::CodeGenFunction::DispatchBinaryComparisonOp(Expr* lhs, Expr* rhs, llvm::CmpInst::Predicate signedPredicate,
         llvm::CmpInst::Predicate floatPredicate) {
     return DispatchBinaryComparisonOp(lhs, rhs, signedPredicate, signedPredicate, floatPredicate);
+}
+llvm::Value* VCL::CodeGenFunction::GenerateShortCircuitExpr(Expr* lhs, Expr* rhs, bool isAnd) {
+    llvm::Value* lhsValue = GenerateExpr(lhs);
+    if (!lhsValue)
+        return nullptr;
+
+    // A vector condition is evaluated per lane, so there is nothing to skip.
+    if (lhsValue->getType()->isVectorTy()) {
+        llvm::Value* rhsValue = GenerateExpr(rhs);
+        if (!rhsValue)
+            return nullptr;
+        return isAnd ? builder.CreateAnd(lhsValue, rhsValue) : builder.CreateOr(lhsValue, rhsValue);
+    }
+
+    llvm::BasicBlock* lhsBB = builder.GetInsertBlock();
+    llvm::BasicBlock* rhsBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), isAnd ? "and.rhs" : "or.rhs", function);
+    llvm::BasicBlock* endBB = llvm::BasicBlock::Create(cgm.GetLLVMContext(), isAnd ? "and.end" : "or.end", function);
+
+    // `a && b` only evaluates b when a is true; `a || b` only when a is false.
+    if (isAnd)
+        builder.CreateCondBr(lhsValue, rhsBB, endBB);
+    else
+        builder.CreateCondBr(lhsValue, endBB, rhsBB);
+
+    builder.SetInsertPoint(rhsBB);
+    llvm::Value* rhsValue = GenerateExpr(rhs);
+    if (!rhsValue)
+        return nullptr;
+    llvm::BasicBlock* rhsEndBB = builder.GetInsertBlock();
+    builder.CreateBr(endBB);
+
+    builder.SetInsertPoint(endBB);
+    llvm::PHINode* phi = builder.CreatePHI(builder.getInt1Ty(), 2);
+    phi->addIncoming(builder.getInt1(!isAnd), lhsBB);
+    phi->addIncoming(rhsValue, rhsEndBB);
+    return phi;
+}
+
+VCL::BuiltinType::Category VCL::CodeGenFunction::GetScalarCategory(QualType type) {
+    Type* t = Type::GetCanonicalType(type.GetType());
+    while (t->GetTypeClass() == Type::ReferenceTypeClass)
+        t = Type::GetCanonicalType(((ReferenceType*)t)->GetType().GetType());
+    if (t->GetTypeClass() == Type::VectorTypeClass)
+        t = Type::GetCanonicalType(((VectorType*)t)->GetElementType().GetType());
+    if (t->GetTypeClass() != Type::BuiltinTypeClass)
+        return BuiltinType::VoidKind;
+    return BuiltinType::GetKindCategory(((BuiltinType*)t)->GetKind());
 }

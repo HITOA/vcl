@@ -169,7 +169,9 @@ namespace VCL {
             UnsignedCastExt,
             UnsignedCastTrunc,
             UnsignedToFloating,
-            UnsignedToSigned
+            UnsignedToSigned,
+            // Explicit cast to/from a template-dependent type, resolved at instantiation.
+            Dependent
         }; 
 
     public:
@@ -291,6 +293,14 @@ namespace VCL {
         inline llvm::ArrayRef<Expr*> GetArgs() { return { getTrailingObjects(), argsCount }; }
         inline TemplateArgumentList* GetTemplateArgs() { return templateArgs; }
 
+        /**
+         * What the callee name resolved to where the template was written: a TemplateDecl or a
+         * FunctionDecl, or nullptr if it wasn't visible there (it is then looked up again at
+         * instantiation, e.g. a module referring to itself by its own namespace name).
+         */
+        inline Decl* GetResolvedCallee() { return resolvedCallee; }
+        inline void SetResolvedCallee(Decl* callee) { resolvedCallee = callee; }
+
         static inline DependentCallExpr* Create(
                 ASTContext& context, SymbolRef symbolRef, llvm::ArrayRef<Expr*> args, TemplateArgumentList* templateArgs, SourceRange range) {
             size_t size = additionalSizeToAlloc<Expr*>(args.size());
@@ -305,6 +315,7 @@ namespace VCL {
         SymbolRef symbolRef;
         TemplateArgumentList* templateArgs;
         size_t argsCount;
+        Decl* resolvedCallee = nullptr;
     };
 
     class FieldAccessExpr : public Expr {

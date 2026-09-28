@@ -15,6 +15,7 @@ namespace VCL {
     class FunctionDecl;
     class TypeAliasDecl;
     class QualType;
+    class TypeCache;
 
     /**
      * Represent any kind of VCL Type in the AST and provide an interface to work with it.
@@ -57,12 +58,17 @@ namespace VCL {
         static bool IsCanonicallyEqual(Type* typeA, Type* typeB);
 
         static Type* GetDesugaredType(Type* type);
+
+        /** The TypeCache whose allocator holds this type. It lives exactly as long as that cache. */
+        inline TypeCache* GetOwner() const { return owner; }
+        inline void SetOwner(TypeCache* owner) { this->owner = owner; }
         
     protected:
         inline void SetDependent(bool isDependent) { bitfield.isDependent = isDependent; }
 
     protected:
         TypeClass typeClass;
+        TypeCache* owner = nullptr;
 
         struct TypeBitfield {
             unsigned isDependent : 1 = 0;

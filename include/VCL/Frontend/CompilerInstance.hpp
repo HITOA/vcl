@@ -33,6 +33,9 @@ namespace VCL {
         bool HasASTContext();
         void CreateASTContext();
 
+        /** Mangling prefix given to the ASTContext when it's created (default: the source's name). */
+        inline void SetManglingPrefix(std::string prefix) { manglingPrefix = std::move(prefix); }
+
         SymbolTable& GetExportSymbolTable();
         bool HasExportSymbolTable();
         void CreateExportSymbolTable();
@@ -61,6 +64,7 @@ namespace VCL {
         llvm::IntrusiveRefCntPtr<SymbolTable> exportedSymbols;
         llvm::IntrusiveRefCntPtr<ModuleTable> importedModules;
         llvm::IntrusiveRefCntPtr<DefineTable> definedValues;
+        std::string manglingPrefix{};
     };
 
 }

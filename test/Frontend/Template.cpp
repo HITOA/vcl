@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <catch2/generators/catch_generators_random.hpp>
 #include <catch2/generators/catch_generators_adapters.hpp>
 
@@ -275,7 +276,8 @@ TEST_CASE("Template Dependent Expressions", "[Template][Dependent]") {
         float diff = a - b;
         float prod = a * b;
         float expected_binary = sum - prod;
-        REQUIRE(*o_binary_op == expected_binary);
+        // Fast-math may contract `sum - a * b` into one fma, which rounds once.
+        REQUIRE_THAT(*o_binary_op, Catch::Matchers::WithinRel(expected_binary, 1e-5f));
 
         REQUIRE(*o_unary_op == -a);
 

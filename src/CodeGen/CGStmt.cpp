@@ -34,6 +34,10 @@ bool VCL::CodeGenFunction::GenerateDeclStmt(DeclStmt* stmt) {
 
 bool VCL::CodeGenFunction::GenerateCompoundStmt(CompoundStmt* stmt) {
     for (Stmt* child : stmt->GetStmts()) {
+        // Code after a return/break/continue is unreachable. Emit it into a fresh block so the
+        // IR stays valid; EliminateUnreachableBlocks removes it afterwards.
+        if (builder.GetInsertBlock()->getTerminator())
+            builder.SetInsertPoint(llvm::BasicBlock::Create(cgm.GetLLVMContext(), "dead", function));
         if (!GenerateStmt(child))
             return false;
     }

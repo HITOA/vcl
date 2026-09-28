@@ -81,6 +81,9 @@ namespace VCL {
     private:
         Sema& sema;
         llvm::DenseMap<NamedDecl*, TemplateArgument*> substitutionTable;
+        // Declarations created inside the template (parameters, locals) -> their instantiated copy.
+        // Anything not in here was bound where the template was written and is kept as is.
+        llvm::DenseMap<Decl*, Decl*> instantiatedDecls;
     };
 
 }
