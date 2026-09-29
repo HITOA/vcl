@@ -19,6 +19,7 @@
 
 DIAGNOSTIC_HINT(PreviouslyDeclared,              "previously declared here")
 DIAGNOSTIC_HINT(Declared,                        "declared here")
+DIAGNOSTIC_HINT(ShadowedHere,                    "shadowed declaration is here")
 
 DIAGNOSTIC(MissingImplementation,                "missing implementation")
 DIAGNOSTIC(InternalError,                        "internal compiler error")
@@ -60,7 +61,7 @@ SEMA_DIAGNOSTIC(ExprDoesNotEvaluateScalar,       "expression does not evaluate a
 SEMA_DIAGNOSTIC(AttrInvalidUse,                  "invalid use of global variable attributes on a local variable")
 SEMA_DIAGNOSTIC(InitializerInputVarDecl,         "external input variable declaration cannot have a initializer")
 SEMA_DIAGNOSTIC(AssignmentNotLValue,             "left-hand side of assignment must be a variable or a memory location (l-value)")
-SEMA_DIAGNOSTIC(AssignmentConstValue,            "cannot assign to a variable that is const")
+SEMA_DIAGNOSTIC(AssignmentConstValue,            "'%0' is read-only; %1")
 SEMA_DIAGNOSTIC(AssignmentInputValue,            "cannot assign to an input variable")
 SEMA_DIAGNOSTIC(ReturnStmtOutsideOfBody,         "return statement cannot be outside of a function's body")
 SEMA_DIAGNOSTIC(MissingReturnStmt,               "missing return statement for non-void function")
@@ -102,6 +103,7 @@ SEMA_DIAGNOSTIC(LengthIntrinsicBadSpecialization,"length intrinsic cannot take a
 SEMA_DIAGNOSTIC(TypeAliasCannotBeTemplated,      "type alias cannot alias a dependent type")
 SEMA_DIAGNOSTIC(MissingTemplateDecl,             "specialization is missing a template decl")
 SEMA_DIAGNOSTIC(SpecializationAlreadyExist,      "this specialization already exist")
+SEMA_DIAGNOSTIC(Shadowing,                       "'%0' shadows a declaration of an enclosing scope; rename it")
 
 #undef DIAGNOSTIC_HINT
 #undef SEMA_DIAGNOSTIC

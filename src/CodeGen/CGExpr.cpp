@@ -434,10 +434,22 @@ llvm::Value* VCL::CodeGenFunction::GenerateSubscriptExpr(SubscriptExpr* expr) {
         return result;
     } else {
         llvm::Type* type = cgm.GetCGT().ConvertType(Type::GetCanonicalType(expr->GetExpr()->GetResultType().GetType()));
+        if (cgm.GetOptions().GetEmitArrayBoundAssumptions() && type->isArrayTy())
+            GenerateIndexBoundAssumption(index, type->getArrayNumElements());
         llvm::Value* zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(cgm.GetLLVMContext()), 0);
         llvm::Value* result = builder.CreateGEP(type, lhs, { zero, index });
         return result;
     }
+}
+
+void VCL::CodeGenFunction::GenerateIndexBoundAssumption(llvm::Value* index, uint64_t count) {
+    if (llvm::isa<llvm::Constant>(index) || !index->getType()->isIntegerTy())
+        return;
+    // Unsigned: a negative signed index is out of bounds too.
+    unsigned bitWidth = index->getType()->getIntegerBitWidth();
+    if (bitWidth < 64 && count >= (uint64_t{ 1 } << bitWidth))
+        return; // every value of the index type is in bounds
+    builder.CreateAssumption(builder.CreateICmpULT(index, llvm::ConstantInt::get(index->getType(), count)));
 }
 
 llvm::Value* VCL::CodeGenFunction::GenerateAggregateExpr(AggregateExpr* expr) {

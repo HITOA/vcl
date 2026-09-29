@@ -107,6 +107,11 @@ namespace VCL {
         bool ValidateIntrinsicFunctionDeclSpecialization(FunctionDecl* decl);
 
         NamedDecl* LookupNamedDecl(SymbolRef symbolRef, int depth = -1);
+        /**
+         * Reports `Shadowing` when `identifier` names a variable or a parameter visible from an
+         * enclosing scope. Call after the current scope's `Redeclaration` check.
+         */
+        bool CheckShadowing(IdentifierInfo* identifier, SourceRange range);
         TemplateDecl* LookupTemplateDecl(SymbolRef symbolRef, int depth = -1);
 
         CompoundStmt* ActOnCompoundStmt(llvm::ArrayRef<Stmt*> stmts, SourceRange range);
@@ -209,6 +214,9 @@ namespace VCL {
         DefineTable& definedValues;
         ScopeManager sm{};
         Scope* translationUnitScope;
+        // Nesting of function template instantiations. Their scopes hang off the call site, and
+        // their declarations were checked for shadowing with the template.
+        int instantiationDepth = 0;
         // Function template specializations kept in this compilation (see GetInstantiationContext).
         llvm::SmallVector<std::pair<TemplateDecl*, TemplateSpecializationDecl*>> localSpecializations{};
     };

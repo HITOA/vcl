@@ -8,6 +8,7 @@
 #include <VCL/AST/Expr.hpp>
 #include <VCL/AST/ConstantValue.hpp>
 #include <VCL/Sema/ModuleTable.hpp>
+#include <VCL/CodeGen/CodeGenOptions.hpp>
 #include <VCL/CodeGen/CodeGenTypes.hpp>
 #include <VCL/CodeGen/CodeGenFunction.hpp>
 
@@ -43,6 +44,8 @@ namespace VCL {
         inline CodeGenTypes& GetCGT() { return cgt; }
         inline AttributeTable& GetAttributeTable() { return attributeTable; }
         inline IdentifierTable& GetIdentifierTable() { return identifierTable; }
+        inline const CodeGenOptions& GetOptions() const { return options; }
+        inline void SetOptions(const CodeGenOptions& options) { this->options = options; }
 
         bool LinkNow();
 
@@ -73,6 +76,7 @@ namespace VCL {
         ModuleTable& importedModules;
         AttributeTable& attributeTable;
         IdentifierTable& identifierTable;
+        CodeGenOptions options{};
 
         llvm::DenseMap<Decl*, llvm::GlobalValue*> globals;
         

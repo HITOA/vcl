@@ -3,5 +3,6 @@
 
 VCL::CompilerInvocation::CompilerInvocation() 
     :   diagnosticOptions{ std::make_shared<DiagnosticOptions>() },
-        targetOptions{ std::make_shared<TargetOptions>() }
+        targetOptions{ std::make_shared<TargetOptions>() },
+        codeGenOptions{ std::make_shared<CodeGenOptions>() }
     {}

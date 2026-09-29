@@ -114,3 +114,67 @@ TEST_CASE("Builtin Passthrough", "[Frontend]") {
         REQUIRE(ib == *ob);
     }
 }
+
+// D1 (Grog docs/vcl-review.md): an aggregate parameter without a direction qualifier is a
+// read-only reference; `inout` (or `out`) makes it writable.
+TEST_CASE("Aggregate Parameters Are Read-Only By Default", "[Frontend]") {
+    SECTION("Reading, and writing through inout") {
+        VCL::ExecutionSession session{};
+        REQUIRE(session.SubmitModule(MakeModuleFromSource(
+            "out float32 o_sum;\n"
+            "out float32 o_after;\n"
+            "out float32 o_first;\n"
+            "out float32 o_table;\n"
+            "const Array<float32, 2> table = { 7.0, 8.0 };\n"
+            "struct S { float32 v; }\n"
+            "float32 Sum(Array<float32, 4> a) { return a[0] + a[1] + a[2] + a[3]; }\n"
+            "float32 Second(Array<float32, 2> a) { return a[1]; }\n"
+            "void Fill(inout Array<float32, 4> a) { a[1] = 10.0; }\n"
+            "void Bump(inout S s) { s.v = s.v + 1.0; }\n"
+            "template<typename T> float32 First(T a) { return a[0]; }\n"
+            "[EntryPoint] void Main() {\n"
+            "    Array<float32, 4> arr = { 1.0, 2.0, 3.0, 4.0 };\n"
+            "    o_sum = Sum(arr);\n"
+            "    Fill(arr);\n"
+            "    S s = { 5.0 };\n"
+            "    Bump(s);\n"
+            "    o_after = arr[1] + s.v;\n"
+            "    o_first = First(arr);\n"
+            "    o_table = Second(table);\n"
+            "}\n")));
+
+        auto* o_sum = (float*)session.Lookup("o_sum");
+        auto* o_after = (float*)session.Lookup("o_after");
+        auto* o_first = (float*)session.Lookup("o_first");
+        auto* o_table = (float*)session.Lookup("o_table");
+        void* main = session.Lookup("Main");
+        REQUIRE(main != nullptr);
+        ((void(*)())main)();
+
+        REQUIRE(*o_sum == 10.0f);
+        REQUIRE(*o_after == 16.0f);
+        REQUIRE(*o_first == 1.0f);
+        REQUIRE(*o_table == 8.0f); // a const array can be passed to a default parameter
+    }
+    SECTION("Writing an array element is an error") {
+        RequireDiagnosticFromSource<VCL::Diagnostic::AssignmentConstValue>(
+            "void F(Array<float32, 4> a) { a[0] = 1.0; }");
+    }
+    SECTION("Writing a field is an error") {
+        RequireDiagnosticFromSource<VCL::Diagnostic::AssignmentConstValue>(
+            "struct S { float32 v; } void F(S s) { s.v = 1.0; }");
+    }
+    SECTION("Passing it on to an inout parameter is an error") {
+        RequireDiagnosticFromSource<VCL::Diagnostic::QualifierDropped>(
+            "void G(inout Array<float32, 4> a); void F(Array<float32, 4> a) { G(a); }");
+    }
+    SECTION("Passing an element on to an out parameter is an error") {
+        RequireDiagnosticFromSource<VCL::Diagnostic::QualifierDropped>(
+            "void G(out float32 v); void F(Array<float32, 4> a) { G(a[0]); }");
+    }
+    SECTION("A dependent parameter that becomes an aggregate") {
+        RequireDiagnosticFromSource<VCL::Diagnostic::AssignmentConstValue>(
+            "template<typename T> void F(T a) { a[0] = 1.0; }"
+            "[EntryPoint] void Main() { Array<float32, 4> arr; F(arr); }");
+    }
+}

@@ -29,7 +29,11 @@ namespace VCL {
         DirectiveRegistry() = default;
         DirectiveRegistry(const DirectiveRegistry& other) = delete;
         DirectiveRegistry(DirectiveRegistry&& other) = delete;
-        ~DirectiveRegistry() = default;
+        ~DirectiveRegistry() {
+            // The bump allocator frees memory without running destructors (handlers hold strings).
+            for (auto [handler, destroy] : handlers)
+                destroy(handler);
+        }
 
         DirectiveRegistry& operator=(const DirectiveRegistry& other) = delete;
         DirectiveRegistry& operator=(DirectiveRegistry&& other) = delete;
@@ -38,6 +42,7 @@ namespace VCL {
         inline T* CreateDirectiveHandler(IdentifierInfo* identifierInfo, Args&&... args) {
             T* handler = directiveAllocator.Allocate<T>();
             new (handler) T{ std::forward<Args>(args)... };
+            handlers.push_back({ handler, [](void* p) { ((T*)p)->~T(); } });
             directives.insert({ identifierInfo, handler });
             return handler;
         }
@@ -51,5 +56,6 @@ namespace VCL {
     private:
         llvm::BumpPtrAllocator directiveAllocator{};
         llvm::DenseMap<IdentifierInfo*, DirectiveHandler*> directives{};
+        llvm::SmallVector<std::pair<void*, void(*)(void*)>> handlers{};
     };
 }

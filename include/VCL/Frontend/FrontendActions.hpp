@@ -6,9 +6,17 @@
 
 namespace VCL {
 
+    class ASTConsumer;
+
     class ParseSyntaxOnlyAction : public FrontendAction {
     public:
         bool Execute() override;
+
+        /** Sees each top-level declaration as it's parsed (and may adjust it, as vcl-graph does). */
+        inline void SetASTConsumer(ASTConsumer* consumer) { this->consumer = consumer; }
+
+    private:
+        ASTConsumer* consumer = nullptr;
     };
     
     class EmitLLVMAction : public FrontendAction, public CodeGenAction {

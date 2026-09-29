@@ -16,6 +16,8 @@
 #include "../Common/ExpectedDiagnostic.hpp"
 #include "../Common/MakeModule.hpp"
 
+#include <vector>
+
 #include <format>
 
 
@@ -1064,8 +1066,9 @@ TEST_CASE("Subscript Expressions", "[Frontend]") {
     SECTION("Value Check") {
         constexpr uint32_t arraySize = 32;
 
-		int32_t* array = new int32_t[arraySize]{};
-		SpanTest span{ new int32_t[arraySize]{}, arraySize };
+		std::vector<int32_t> arrayStorage(arraySize), spanStorage(arraySize);
+		int32_t* array = arrayStorage.data();
+		SpanTest span{ spanStorage.data(), arraySize };
 		
 		uint32_t index = GENERATE(Catch::Generators::take(1,
                 Catch::Generators::random(0u, arraySize - 1)));

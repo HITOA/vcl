@@ -1,5 +1,7 @@
 #include <VCL/Sema/Template.hpp>
 
+#include <optional>
+
 #include <VCL/Core/Diagnostic.hpp>
 #include <VCL/AST/ExprEvaluator.hpp>
 #include <VCL/Sema/Sema.hpp>
@@ -337,6 +339,7 @@ VCL::FunctionDecl* VCL::TemplateInstantiator::InstantiateTemplatedFunctionDecl(T
     }
 
     if (!functionDecl->HasFunctionFlag(FunctionDecl::IsIntrinsic)) {
+        functionBody = functionDecl->GetBody();
         Stmt* body = TransformStmt(functionDecl->GetBody());
         if (!body) {
             sema.PopDeclContextScope(newFunctionDecl);
@@ -479,6 +482,9 @@ VCL::Stmt* VCL::TemplateInstantiator::TransformDeclStmt(DeclStmt* stmt) {
 }
 
 VCL::Stmt* VCL::TemplateInstantiator::TransformCompoundStmt(CompoundStmt* stmt) {
+    std::optional<Sema::SemaScopeGuard> guard{};
+    if (stmt != functionBody)
+        guard.emplace(sema.PushScope(nullptr, false));
     llvm::SmallVector<Stmt*> stmts{};
     for (Stmt* stmt : stmt->GetStmts()) {
         Stmt* newStmt = TransformStmt(stmt);

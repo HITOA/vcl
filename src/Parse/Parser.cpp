@@ -1,5 +1,7 @@
 #include <VCL/Parse/Parser.hpp>
 
+#include <optional>
+
 #include <VCL/Core/Diagnostic.hpp>
 #include <VCL/AST/Operator.hpp>
 #include <VCL/AST/ExprEvaluator.hpp>
@@ -347,11 +349,14 @@ VCL::Stmt* VCL::Parser::ParseStmt(bool parseCompound) {
     }
 }
 
-VCL::CompoundStmt* VCL::Parser::ParseCompoundStmt() {
+VCL::CompoundStmt* VCL::Parser::ParseCompoundStmt(bool newScope) {
     llvm::SmallVector<Stmt*> stmts{};
     
     Token* token;
     EXPECT_TOKEN(token, TokenKind::LeftBrace);
+    std::optional<Sema::SemaScopeGuard> guard{};
+    if (newScope)
+        guard.emplace(sema.PushScope(nullptr, false));
     SourceRange range = token->range;
     NEXT_TOKEN();
     GET_TOKEN(token);
@@ -598,7 +603,7 @@ VCL::ParamDecl* VCL::Parser::ParseParamDecl() {
 }
 
 VCL::CompoundStmt* VCL::Parser::ParseFunctionBody(FunctionDecl* function) {
-    CompoundStmt* body = ParseCompoundStmt();
+    CompoundStmt* body = ParseCompoundStmt(false);
     if (!body)
         return nullptr;
     return sema.ActOnFunctionBody(function, body);

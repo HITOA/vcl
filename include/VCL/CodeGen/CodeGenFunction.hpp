@@ -66,6 +66,8 @@ namespace VCL {
         llvm::Value* GenerateIntrinsicCallExpr(CallExpr* expr);
         llvm::Value* GenerateFieldAccessExpr(FieldAccessExpr* expr);
         llvm::Value* GenerateSubscriptExpr(SubscriptExpr* expr);
+        /** `llvm.assume(index <u count)`, unless `index` is a constant (see CodeGenOptions). */
+        void GenerateIndexBoundAssumption(llvm::Value* index, uint64_t count);
         llvm::Value* GenerateAggregateExpr(AggregateExpr* expr);
         llvm::Value* GenerateNullExpr(NullExpr* expr);
         llvm::Value* GenerateShortCircuitExpr(Expr* lhs, Expr* rhs, bool isAnd);

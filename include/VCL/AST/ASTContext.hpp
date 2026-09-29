@@ -1,5 +1,8 @@
 #pragma once
 
+#include <type_traits>
+#include <vector>
+
 #include <VCL/AST/TypeCache.hpp>
 
 #include <llvm/Support/Allocator.h>
@@ -35,7 +38,12 @@ namespace VCL {
         template<typename T, typename... Args>
         inline T* AllocateNode(Args&&... args) {
             void* ptr = nodeAllocator.Allocate(sizeof(T), alignof(T));
-            return new (ptr) T{ std::forward<Args>(args)... };
+            T* node = new (ptr) T{ std::forward<Args>(args)... };
+            // The allocator frees memory without running destructors: remember the nodes that own
+            // memory (strings, vectors) and destroy them with the context.
+            if constexpr (!std::is_trivially_destructible_v<T>)
+                destructors.push_back({ node, [](void* p) { ((T*)p)->~T(); } });
+            return node;
         }
 
         inline void* Allocate(size_t size) {
@@ -60,6 +68,9 @@ namespace VCL {
         
     private:
         llvm::BumpPtrAllocator nodeAllocator;
+        // Nodes to destroy with the context (see AllocateNode), in allocation order. Declared
+        // before `root`, which the constructor allocates.
+        std::vector<std::pair<void*, void(*)(void*)>> destructors{};
         TypeCache typeCache;
 
         // Root translation unit decl of this AST

@@ -45,8 +45,8 @@ T GetFirst(Pair<T> p) {
 
 // Function returning template struct
 template<typename T>
-Pair<T> MakePair(T a, T b) {
-    Pair<T> result = { a, b };
+Pair<T> MakePair(T x, T y) {
+    Pair<T> result = { x, y };
     return result;
 }
 

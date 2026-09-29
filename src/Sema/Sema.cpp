@@ -509,6 +509,27 @@ VCL::NamedDecl* VCL::Sema::LookupNamedDecl(SymbolRef symbolRef, int depth) {
     return nullptr;
 }
 
+bool VCL::Sema::CheckShadowing(IdentifierInfo* identifier, SourceRange range) {
+    if (instantiationDepth > 0)
+        return true;
+    // Skip the current scope: the caller checked it for redeclarations.
+    for (Scope* scope = sm.GetScopeFront()->GetParentScope(); scope != nullptr; scope = scope->GetParentScope()) {
+        for (Decl* decl : *scope) {
+            if (decl->GetDeclClass() != Decl::VarDeclClass && decl->GetDeclClass() != Decl::ParamDeclClass)
+                continue;
+            if (((NamedDecl*)decl)->GetIdentifierInfo() != identifier)
+                continue;
+            diagnosticReporter.Error(Diagnostic::Shadowing, identifier->GetName().str())
+                .AddHint(DiagnosticHint{ range })
+                .AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::ShadowedHere })
+                .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                .Report();
+            return false;
+        }
+    }
+    return true;
+}
+
 VCL::TemplateDecl* VCL::Sema::LookupTemplateDecl(SymbolRef symbolRef, int depth) {
     Scope* currentScope = sm.GetScopeFront();
 
@@ -738,6 +759,8 @@ VCL::ParamDecl* VCL::Sema::ActOnParamDecl(Decl::VarAttrBitfield attr, QualType t
             .Report();
         return nullptr;
     }
+    if (!CheckShadowing(identifier, range))
+        return nullptr;
 
     if (!type.GetType()->IsDependent()) {
         TemplateInstantiator instantiator{ *this };
@@ -748,6 +771,10 @@ VCL::ParamDecl* VCL::Sema::ActOnParamDecl(Decl::VarAttrBitfield attr, QualType t
         if (isPassedByReference) {
             Type* refType = GetASTContext().GetTypeCache().GetOrCreateReferenceType(type);
             type = QualType{ refType, type.GetQualifiers() };
+            // An aggregate without a direction qualifier is read-only: a function that modifies
+            // it says `inout` (or `out`).
+            if (!attr.hasOutAttribute)
+                type.AddQualifier(Qualifier::Const);
         }
     }
 
@@ -900,6 +927,8 @@ VCL::VarDecl* VCL::Sema::ActOnVarDecl(QualType type, IdentifierInfo* identifier,
             .Report();
         return nullptr;
     }
+    if (!IsCurrentScopeGlobal() && !CheckShadowing(identifier, range))
+        return nullptr;
 
     if ((varAttrBitfield.hasInAttribute || varAttrBitfield.hasOutAttribute) && !IsCurrentScopeGlobal()) {
         diagnosticReporter.Error(Diagnostic::AttrInvalidUse)
@@ -1411,10 +1440,20 @@ bool VCL::Sema::IsExprAssignable(Expr* expr) {
     }
 
     if (expr->GetResultType().HasQualifier(Qualifier::Const)) {
-        diagnosticReporter.Error(Diagnostic::AssignmentConstValue)
-            .SetCompilerInfo(__FILE__, __func__, __LINE__)
-            .AddHint(DiagnosticHint{ expr->GetSourceRange() })
-            .Report();
+        // The variable the write goes to, through field accesses and subscripts: that's where the
+        // const comes from.
+        Expr* root = expr;
+        while (root->GetExprClass() == Expr::FieldAccessExprClass || root->GetExprClass() == Expr::SubscriptExprClass)
+            root = root->GetExprClass() == Expr::FieldAccessExprClass ? ((FieldAccessExpr*)root)->GetExpr() : ((SubscriptExpr*)root)->GetExpr();
+        ValueDecl* decl = root->GetExprClass() == Expr::DeclRefExprClass ? ((DeclRefExpr*)root)->GetValueDecl() : nullptr;
+        std::string name = decl ? decl->GetIdentifierInfo()->GetName().str() : std::string{ "value" };
+        const char* advice = decl && decl->GetDeclClass() == Decl::ParamDeclClass ?
+            "declare the parameter 'inout' to modify it" : "copy it to a local variable to modify it";
+        auto report = diagnosticReporter.Error(Diagnostic::AssignmentConstValue, name, advice);
+        report.SetCompilerInfo(__FILE__, __func__, __LINE__).AddHint(DiagnosticHint{ expr->GetSourceRange() });
+        if (decl)
+            report.AddHint(DiagnosticHint{ decl->GetSourceRange(), DiagnosticHint::Declared });
+        report.Report();
         return false;
     }
 
@@ -1517,15 +1556,21 @@ VCL::Expr* VCL::Sema::ActOnSubscriptExpr(Expr* expr, Expr* index, SourceRange ra
         resultType = spe->GetTemplateArgumentList()->GetArgs()[0].GetType();
     }
     Type* exprTrueType = Type::GetCanonicalType(type);
+    // The elements of a const array are const. A span is a view: its elements aren't part of it.
+    bool isConst = expr->GetResultType().HasQualifier(Qualifier::Const);
     switch (exprTrueType->GetTypeClass()) {
         case Type::LanesTypeClass: {
             if (resultType.GetAsOpaquePtr() == 0)
                 resultType = ((LanesType*)exprTrueType)->GetElementType();
+            if (isConst)
+                resultType.AddQualifier(Qualifier::Const);
             return SubscriptExpr::Create(GetASTContext(), expr, index, resultType, range);
         }
         case Type::ArrayTypeClass: {
             if (resultType.GetAsOpaquePtr() == 0)
                 resultType = ((ArrayType*)exprTrueType)->GetElementType();
+            if (isConst)
+                resultType.AddQualifier(Qualifier::Const);
             return SubscriptExpr::Create(GetASTContext(), expr, index, resultType, range);
         }
         case Type::SpanTypeClass: {
@@ -2333,7 +2378,9 @@ VCL::FunctionDecl* VCL::Sema::InstantiateFunctionTemplateSpecialization(Template
     TemplateInstantiator instantiator{ *this };
     if (!instantiator.AddTemplateArgumentListAndDecl(templateArgs, templateDecl))
         return nullptr;
+    ++instantiationDepth;
     FunctionDecl* decl = instantiator.InstantiateTemplatedFunctionDecl(templateDecl);
+    --instantiationDepth;
     if (!decl)
         return nullptr;
 

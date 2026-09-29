@@ -60,7 +60,8 @@ namespace VCL {
         ConstantValue* ParseConstantValue();
 
         Stmt* ParseStmt(bool parseCompound = true);
-        CompoundStmt* ParseCompoundStmt();
+        /** A block opens a scope, except a function body: its locals share the parameters' scope. */
+        CompoundStmt* ParseCompoundStmt(bool newScope = true);
 
         TemplateDecl* ParseTemplateDecl();
         NamedDecl* ParseSpecialization();

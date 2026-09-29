@@ -44,6 +44,8 @@ bool VCL::ParseSyntaxOnlyAction::Execute() {
         instance->GetImportModuleTable(),
         instance->GetDefineTable() };
     Parser parser{ stream, sema, instance->GetCompilerContext().GetAttributeTable() };
+    if (consumer)
+        parser.SetASTConsumer(consumer);
     
     return parser.Parse();
 }
@@ -99,6 +101,7 @@ bool VCL::EmitLLVMAction::Execute() {
             instance->GetImportModuleTable(),
             instance->GetCompilerContext().GetAttributeTable(),
             instance->GetCompilerContext().GetIdentifierTable() };
+        cgm.SetOptions(instance->GetCompilerContext().GetInvocation()->GetCodeGenOptions());
         if (!cgm.Emit())
             return false;
         if (runOptimization) {

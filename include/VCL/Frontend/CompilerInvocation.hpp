@@ -2,6 +2,7 @@
 
 #include <VCL/Core/DiagnosticOptions.hpp>
 #include <VCL/Core/TargetOptions.hpp>
+#include <VCL/CodeGen/CodeGenOptions.hpp>
 
 #include <memory>
 
@@ -20,10 +21,12 @@ namespace VCL {
         
         inline DiagnosticOptions& GetDiagnosticOptions() { return *diagnosticOptions; }
         inline TargetOptions& GetTargetOptions() { return *targetOptions; }
- 
+        inline CodeGenOptions& GetCodeGenOptions() { return *codeGenOptions; }
+
     private:
         std::shared_ptr<DiagnosticOptions> diagnosticOptions;
         std::shared_ptr<TargetOptions> targetOptions;
+        std::shared_ptr<CodeGenOptions> codeGenOptions;
     };
 
 }

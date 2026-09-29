@@ -34,6 +34,28 @@ void CheckForError(const char* src) {
     consumer.Require();
 }
 
+void CheckNoError(const char* src) {
+    ExpectedNoDiagnostic consumer{};
+    VCL::CompilerContext cc{};
+    cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
+    cc.CreateDiagnosticEngine();
+    cc.CreateIdentifierTable();
+    cc.CreateAttributeTable();
+    cc.CreateDirectiveRegistry();
+    cc.CreateTypeCache();
+    cc.CreateSourceManager();
+    
+    VCL::Source* source = cc.GetSourceManager().LoadFromMemory(src, "buff");
+    REQUIRE(source != nullptr);
+
+    VCL::ParseSyntaxOnlyAction act{};
+
+    std::shared_ptr<VCL::CompilerInstance> instance = cc.CreateInstance();
+    instance->BeginSource(source);
+    instance->ExecuteAction(act);
+    instance->EndSource();
+}
+
 TEST_CASE("Redeclaration", "[Sema]") { 
     CheckForError<VCL::Diagnostic::Redeclaration>("float32 var; float32 var;");
 }
@@ -222,4 +244,51 @@ TEST_CASE("Template Argument Type Mismatch", "[Sema]") {
     // Lanes where unpack expects a Vec: used to be reported as an internal compiler error.
     CheckForError<VCL::Diagnostic::TemplateArgumentTypeMismatch>(
         "void Main() { Lanes<float32> l; Lanes<float32> r = unpack(l); }");
+}
+
+TEST_CASE("Shadowing", "[Sema]") {
+    SECTION("Local shadows a global") {
+        CheckForError<VCL::Diagnostic::Shadowing>("float32 v; void MyFunc() { float32 v = 1.0; }");
+    }
+    SECTION("Parameter shadows a global") {
+        CheckForError<VCL::Diagnostic::Shadowing>("float32 v; void MyFunc(float32 v) { }");
+    }
+    SECTION("Inner local shadows an outer local") {
+        CheckForError<VCL::Diagnostic::Shadowing>("void MyFunc() { float32 v = 1.0; if (v > 0.0) { float32 v = 2.0; } }");
+    }
+    SECTION("Local shadows a parameter") {
+        CheckForError<VCL::Diagnostic::Shadowing>("void MyFunc(float32 v) { if (v > 0.0) { float32 v = 2.0; } }");
+    }
+    SECTION("Loop variable shadows a local") {
+        CheckForError<VCL::Diagnostic::Shadowing>("void MyFunc() { int32 i = 0; for (int32 i = 0; i < 4; i += 1) { } }");
+    }
+    SECTION("Template function local shadows a global") {
+        CheckForError<VCL::Diagnostic::Shadowing>("float32 v; template<typename T> T F(T x) { T v = x; return v; }");
+    }
+}
+
+TEST_CASE("No Shadowing", "[Sema]") {
+    SECTION("Sibling blocks reuse a name") {
+        CheckNoError("void MyFunc(float32 a) { if (a > 0.0) { float32 v = 1.0; } else { float32 v = 2.0; } }");
+    }
+    SECTION("Sibling loops reuse their variable") {
+        CheckNoError("void MyFunc() { for (int32 i = 0; i < 4; i += 1) { } for (int32 i = 0; i < 4; i += 1) { } }");
+    }
+    SECTION("Parameters of different functions") {
+        CheckNoError("void F(float32 v) { } void G(float32 v) { }");
+    }
+    SECTION("Local named like a function") {
+        CheckNoError("float32 Gain() { return 1.0; } void MyFunc() { float32 Gain = 2.0; }");
+    }
+    SECTION("Local named like a field") {
+        CheckNoError("struct S { float32 v; } void MyFunc() { float32 v = 1.0; }");
+    }
+    SECTION("Sibling blocks reuse a name in an instantiated template") {
+        CheckNoError("template<typename T> T F(T x) { T r = x; if (x > 0.0) { T v = x; r = v; } else { T v = x; r = v; } return r; }"
+            "float32 G() { return F<float32>(1.0); }");
+    }
+    SECTION("Template instantiated where its names are in scope") {
+        CheckNoError("template<typename T> T F(T x) { T v = x; return v; }"
+            "void MyFunc() { float32 x = 1.0; float32 v = F<float32>(x); }");
+    }
 }

@@ -4,11 +4,13 @@
 
 
 VCL::ASTContext::ASTContext(TypeCache& typecache) 
-        : nodeAllocator{}, typeCache{}, root{ AllocateNode<TranslationUnitDecl>() } {
+        : nodeAllocator{}, destructors{}, typeCache{}, root{ AllocateNode<TranslationUnitDecl>() } {
     typecache.InsertTypeCacheChild(&this->typeCache);
 }
 
 VCL::ASTContext::~ASTContext() {
+    for (auto it = destructors.rbegin(); it != destructors.rend(); ++it)
+        it->second(it->first);
 	typeCache.GetParent()->RemoveTypecacheChild(&typeCache);
 }
 const std::string& VCL::ASTContext::GetMangledName(NamedDecl* decl) {

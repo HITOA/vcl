@@ -84,6 +84,8 @@ namespace VCL {
         // Declarations created inside the template (parameters, locals) -> their instantiated copy.
         // Anything not in here was bound where the template was written and is kept as is.
         llvm::DenseMap<Decl*, Decl*> instantiatedDecls;
+        // The body of the function being instantiated: unlike other blocks, it has no scope of its own.
+        Stmt* functionBody = nullptr;
     };
 
 }
