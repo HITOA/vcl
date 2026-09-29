@@ -25,6 +25,9 @@ namespace VCL {
 
         /** 
          * Return the nth lexed token from the current position or a LexerError. 
+         * The pointer is to a slot of the buffer: lexing ahead (n > 0, or a tentative parse)
+         * may reallocate the buffer and invalidate it, so read what you need from the token
+         * before looking ahead, or get it again after.
          * n = 0 will return the current lexed token.
          * n = 1 will return the next token after the current one.
          * There is no limit to n and it is expected to return the last token even if it goes past it.

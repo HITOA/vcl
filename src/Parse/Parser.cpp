@@ -1082,8 +1082,10 @@ VCL::Expr* VCL::Parser::ParsePrefixExpression() {
     GET_TOKEN(token);
     switch (token->kind) {
         case TokenKind::LeftPar: {
+            // Read before the lookahead: lexing ahead may grow the token buffer, which moves the
+            // token `token` points to.
+            SourceRange range = token->range;
             if (TryParseQualType(1)) {
-                SourceRange range = token->range;
                 NEXT_TOKEN();
                 WithFullLoc<Type*> type = ParseType();
                 EXPECT_TOKEN(token, TokenKind::RightPar);
