@@ -15,8 +15,8 @@ namespace VCL {
     class Module {
     public:
         Module() = delete;
-        Module(std::shared_ptr<CompilerInstance> instance, llvm::orc::ThreadSafeModule&& module) 
-            : instance{ instance }, module{ std::move(module) } {}
+        Module(std::shared_ptr<CompilerInstance> instance, llvm::orc::ThreadSafeModule&& module, std::string sourceName = {})
+            : instance{ instance }, module{ std::move(module) }, sourceName{ std::move(sourceName) } {}
         Module(const Module& other) = default;
         Module(Module&& other) = default;
         ~Module() = default;
@@ -29,9 +29,13 @@ namespace VCL {
         inline llvm::orc::ThreadSafeModule& GetModule() { return module; }
         inline llvm::orc::ThreadSafeModule MoveModule() { return std::move(module); }
 
+        /** Buffer identifier of the source the module was compiled from (its key in the ModuleCache). */
+        inline const std::string& GetSourceName() const { return sourceName; }
+
     private:
         std::shared_ptr<CompilerInstance> instance = nullptr;
         llvm::orc::ThreadSafeModule module;
+        std::string sourceName{};
     };
 
     class ModuleCache : public llvm::RefCountedBase<ModuleCache> {
@@ -62,7 +66,7 @@ namespace VCL {
             if (modules.count(source->GetBufferIdentifier()))
                 return nullptr;
             Module* m = modules.getAllocator().Allocate<Module>();
-            new (m) Module{ instance, std::move(module) };
+            new (m) Module{ instance, std::move(module), source->GetBufferIdentifier().str() };
             modules.insert({ source->GetBufferIdentifier(), m });
             return m;
         }
