@@ -45,6 +45,18 @@ namespace VCL {
         }
 
         inline Scope* GetScopeFront() { return currentFrontScope; }
+        inline void SetScopeFront(Scope* scope) { currentFrontScope = scope; }
+
+        /**
+         * Makes `context`'s scope the front scope, with no parent: nothing declared outside it is
+         * visible from it. Returns the previous front scope, to restore with SetScopeFront.
+         */
+        inline Scope* EmplaceRootScopeFront(DeclContext* context) {
+            Scope* previous = currentFrontScope;
+            currentFrontScope = nullptr;
+            EmplaceScopeFront(context);
+            return previous;
+        }
     
     private:
         inline Scope* CreateScope(DeclContext* context) {

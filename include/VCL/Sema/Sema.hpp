@@ -63,6 +63,22 @@ namespace VCL {
             ASTContext* context;
         };
 
+        /** Restores the scope that was current before Sema::EnterTranslationUnit. */
+        class TranslationUnitScopeGuard {
+        public:
+            TranslationUnitScopeGuard(Sema& sema, TranslationUnitDecl* translationUnit, Scope* previous);
+            TranslationUnitScopeGuard(const TranslationUnitScopeGuard& other) = delete;
+            TranslationUnitScopeGuard(TranslationUnitScopeGuard&& other);
+            ~TranslationUnitScopeGuard();
+
+            void Release();
+
+        private:
+            Sema& sema;
+            TranslationUnitDecl* translationUnit;
+            Scope* previous;
+        };
+
     public:
         Sema() = delete;
         Sema(CompilerContext& cc, ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
@@ -94,6 +110,14 @@ namespace VCL {
         void PopASTContext(ASTContext& astContext);
 
         SemaScopeGuard PushScope(DeclContext* context, bool loopScope = false);
+        /**
+         * Makes `translationUnit` (e.g. one created with TranslationUnitDecl::Create to receive a
+         * transformed copy of the source) the current scope and context, until the guard is
+         * released. Its scope doesn't see the source's: declarations may reuse the source's names,
+         * and none of its variables are shadowed. Names aren't looked up there, so build its
+         * content from already resolved declarations (see TreeTransform).
+         */
+        TranslationUnitScopeGuard EnterTranslationUnit(TranslationUnitDecl* translationUnit);
 
         bool PushDeclContextScope(DeclContext* context, bool loopScope = false);
         bool PopDeclContextScope(DeclContext* context);

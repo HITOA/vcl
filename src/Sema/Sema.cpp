@@ -46,6 +46,26 @@ inline void VCL::Sema::SemaContextGuard::Release() {
     context = nullptr;
 }
 
+VCL::Sema::TranslationUnitScopeGuard::TranslationUnitScopeGuard(Sema& sema, TranslationUnitDecl* translationUnit, Scope* previous) 
+    : sema{ sema }, translationUnit{ translationUnit }, previous{ previous } {}
+
+VCL::Sema::TranslationUnitScopeGuard::TranslationUnitScopeGuard(TranslationUnitScopeGuard&& other) 
+    : sema{ other.sema }, translationUnit{ other.translationUnit }, previous{ other.previous } {
+    other.translationUnit = nullptr;
+}
+
+VCL::Sema::TranslationUnitScopeGuard::~TranslationUnitScopeGuard() {
+    Release();
+}
+
+void VCL::Sema::TranslationUnitScopeGuard::Release() {
+    if (!translationUnit)
+        return;
+    assert(sema.sm.GetScopeFront()->GetDeclContext() == translationUnit);
+    sema.sm.SetScopeFront(previous);
+    translationUnit = nullptr;
+}
+
 VCL::Sema::Sema(CompilerContext& cc, ASTContext& astContext, DiagnosticReporter& diagnosticReporter, IdentifierTable& identifierTable, 
         DirectiveRegistry& directiveRegistry, SymbolTable& exportedSymbols, ModuleTable& importedModules, DefineTable& definedValues) 
         : cc{ cc }, astContextStack{}, diagnosticReporter{ diagnosticReporter }, identifierTable{ identifierTable }, 
@@ -277,6 +297,11 @@ VCL::Sema::SemaScopeGuard VCL::Sema::PushScope(DeclContext* context, bool loopSc
         context = GetASTContext().AllocateNode<DeclContext>(DeclContext::TransientDeclContext);
     PushDeclContextScope(context, loopScope);
     return SemaScopeGuard{ *this, context };
+}
+
+VCL::Sema::TranslationUnitScopeGuard VCL::Sema::EnterTranslationUnit(TranslationUnitDecl* translationUnit) {
+    Scope* previous = sm.EmplaceRootScopeFront(translationUnit);
+    return TranslationUnitScopeGuard{ *this, translationUnit, previous };
 }
 
 bool VCL::Sema::PushDeclContextScope(DeclContext* context, bool loopScope) {

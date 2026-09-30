@@ -94,6 +94,7 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
         if (it->GetDeclClass() == Decl::ParamDeclClass) {
             ParamDecl* paramDecl = (ParamDecl*)it.Get();
             function->getArg(i)->setName(paramDecl->GetIdentifierInfo()->GetName());
+            GenerateParamAttributes(paramDecl, function->getArg(i));
             ++i;
         }
     }
@@ -149,6 +150,27 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
     }
 
     return function;
+}
+
+void VCL::CodeGenFunction::GenerateParamAttributes(ParamDecl* decl, llvm::Argument* arg) {
+    Type* type = decl->GetValueType().GetType();
+    if (decl->GetCodeGenFlags() == ParamDecl::NoCodeGenFlags || type->GetTypeClass() != Type::ReferenceTypeClass)
+        return;
+    llvm::LLVMContext& context = cgm.GetLLVMContext();
+    if (decl->HasCodeGenFlag(ParamDecl::NoAlias))
+        arg->addAttr(llvm::Attribute::NoAlias);
+    if (decl->HasCodeGenFlag(ParamDecl::NoCapture))
+        arg->addAttr(llvm::Attribute::getWithCaptureInfo(context, llvm::CaptureInfo::none()));
+    if (decl->HasCodeGenFlag(ParamDecl::ReadOnly))
+        arg->addAttr(llvm::Attribute::ReadOnly);
+    if (decl->HasCodeGenFlag(ParamDecl::Aligned) || decl->HasCodeGenFlag(ParamDecl::Dereferenceable)) {
+        llvm::Type* referencedType = cgm.GetCGT().ConvertType(((ReferenceType*)type)->GetType());
+        const llvm::DataLayout& layout = cgm.GetLLVMModule().getDataLayout();
+        if (decl->HasCodeGenFlag(ParamDecl::Aligned))
+            arg->addAttr(llvm::Attribute::getWithAlignment(context, layout.getABITypeAlign(referencedType)));
+        if (decl->HasCodeGenFlag(ParamDecl::Dereferenceable))
+            arg->addAttr(llvm::Attribute::getWithDereferenceableBytes(context, layout.getTypeAllocSize(referencedType)));
+    }
 }
 
 llvm::AllocaInst* VCL::CodeGenFunction::GenerateAllocaInst(llvm::Type* type, llvm::StringRef name) {

@@ -46,7 +46,10 @@ bool VCL::CodeGenModule::LinkNow() {
 }
 
 bool VCL::CodeGenModule::Emit(bool verifyModule) {
-    TranslationUnitDecl* tu = astContext.GetTranslationUnitDecl();
+    return Emit(astContext.GetTranslationUnitDecl(), verifyModule);
+}
+
+bool VCL::CodeGenModule::Emit(TranslationUnitDecl* tu, bool verifyModule) {
     for (auto it = tu->Begin(); it != tu->End(); ++it) {
         if (!EmitTopLevelDecl(it.Get()))
             return false;

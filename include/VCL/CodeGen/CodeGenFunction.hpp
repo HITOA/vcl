@@ -23,6 +23,8 @@ namespace VCL {
         CodeGenFunction& operator=(CodeGenFunction&& other) = delete;
 
         llvm::Function* Generate(FunctionDecl* decl, bool imported = false);
+        /** The LLVM attributes of a reference parameter's ParamDecl::CodeGenFlags. */
+        void GenerateParamAttributes(ParamDecl* decl, llvm::Argument* arg);
 
         llvm::AllocaInst* GenerateAllocaInst(llvm::Type* type, llvm::StringRef name);
         llvm::AllocaInst* GenerateAllocaInst(QualType type, llvm::StringRef name);

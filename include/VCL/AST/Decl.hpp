@@ -239,9 +239,27 @@ namespace VCL {
 
     class ParamDecl : public ValueDecl {
     public:
+        /**
+         * What codegen may promise LLVM about a parameter passed by reference. Not user syntax: set
+         * by a transform that knows how the function is called (vcl-graph's entry points), and
+         * ignored on a parameter passed by value.
+         */
+        enum CodeGenFlags : uint32_t {
+            NoCodeGenFlags = 0,
+            NoAlias = 1,          // `noalias`: no other pointer of the call reaches this memory while it's modified
+            NoCapture = 2,        // `captures(none)`: the pointer doesn't outlive the call
+            ReadOnly = 4,         // `readonly`: the function doesn't write through it
+            Aligned = 8,          // `align(N)`, N the ABI alignment of the referenced type
+            Dereferenceable = 16  // `dereferenceable(N)`, N the allocation size of the referenced type
+        };
+
         ParamDecl(QualType type, IdentifierInfo* identifier, VarAttrBitfield attr) 
                 : ValueDecl{ type, identifier, Decl::ParamDeclClass }, attrBitfield{ attr } {}
         ~ParamDecl() = default;
+
+        inline CodeGenFlags GetCodeGenFlags() const { return codeGenFlags; }
+        inline bool HasCodeGenFlag(CodeGenFlags flag) const { return codeGenFlags & flag; }
+        inline void SetCodeGenFlag(CodeGenFlags flag) { codeGenFlags = (CodeGenFlags)(codeGenFlags | flag); }
 
         inline bool HasInAttribute() const { return attrBitfield.hasInAttribute; }
         inline void SetInAttribute(bool b) { attrBitfield.hasInAttribute = b; }
@@ -261,6 +279,7 @@ namespace VCL {
 
     private:
         VarAttrBitfield attrBitfield;
+        CodeGenFlags codeGenFlags = NoCodeGenFlags;
     };
 
     class FunctionDecl : public NamedDecl, public DeclContext {
@@ -325,7 +344,7 @@ namespace VCL {
 
     private:
         FunctionType* type;
-        Stmt* body;
+        Stmt* body = nullptr; // stays null for a declaration without a body
 
         FunctionFlags flags = None;
         IntrinsicID intrinsicID = IntrinsicID::NotIntrinsic;

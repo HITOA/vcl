@@ -49,7 +49,10 @@ namespace VCL {
 
         bool LinkNow();
 
+        /** Emits the ASTContext's root translation unit. */
         bool Emit(bool verifyModule = true);
+        /** Emits `translationUnit`, one of the ASTContext's (e.g. a transformed copy of the root). */
+        bool Emit(TranslationUnitDecl* translationUnit, bool verifyModule = true);
         bool EmitTopLevelDecl(Decl* decl);
         bool EmitGlobalVarDecl(VarDecl* decl, bool imported = false);
         bool EmitFunctionDecl(FunctionDecl* decl, bool imported = false);

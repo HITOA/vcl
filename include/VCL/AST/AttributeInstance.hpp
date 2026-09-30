@@ -28,6 +28,7 @@ namespace VCL {
         AttributeInstance& operator=(AttributeInstance&& other) = delete;
 
         inline AttributeDefinition* GetDefinition() const { return definition; }
+        inline SourceRange GetSourceRange() const { return range; }
         inline llvm::ArrayRef<ConstantValue*> GetArgs() const { return { getTrailingObjects(), argsCount }; }
         inline ConstantValue** GetData() { return getTrailingObjects(); }
         inline size_t GetArgsCount() { return argsCount; }

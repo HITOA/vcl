@@ -3,6 +3,7 @@
 #include <VCL/AST/ASTContext.hpp>
 #include <VCL/AST/Template.hpp>
 #include <VCL/AST/DeclTemplate.hpp>
+#include <VCL/Sema/TreeTransform.hpp>
 
 #include <llvm/ADT/DenseMap.h>
 
@@ -10,13 +11,14 @@
 namespace VCL {
     class Sema;
 
-    class TemplateInstantiator {
+    /** Instantiates templates: a TreeTransform that substitutes the template's arguments for its parameters. */
+    class TemplateInstantiator : public TreeTransform {
     public:
         TemplateInstantiator() = delete;
-        TemplateInstantiator(Sema& sema) : sema{ sema }, substitutionTable{} {}
+        TemplateInstantiator(Sema& sema) : TreeTransform{ sema }, substitutionTable{} {}
         TemplateInstantiator(const TemplateInstantiator& other) = delete;
         TemplateInstantiator(TemplateInstantiator&& other) = delete;
-        ~TemplateInstantiator() = default;
+        ~TemplateInstantiator() override = default;
         
         TemplateInstantiator& operator=(const TemplateInstantiator& other) = delete;
         TemplateInstantiator& operator=(TemplateInstantiator&& other) = delete;
@@ -35,57 +37,15 @@ namespace VCL {
         void AddSubstitution(NamedDecl* param, TemplateArgument* arg);
         TemplateArgument* Lookup(NamedDecl* param);
 
-        TemplateArgumentList* TransformTemplateArgumentList(TemplateArgumentList* templateArgs);
-        QualType TransformType(QualType type);
-        Stmt* TransformStmt(Stmt* stmt);
-        Decl* TransformDecl(Decl* decl);
-        Expr* TransformExpr(Expr* expr);
+        // Substitution of the template parameters (the rest of the walk is TreeTransform's)
 
-        // Transform Type
-
-        QualType TransformTemplateTypeParamType(QualType type);
-        QualType TransformTemplateSpecializationType(QualType type);
-
-        // Transform Stmt
-
-        Stmt* TransformDeclStmt(DeclStmt* stmt);
-        Stmt* TransformCompoundStmt(CompoundStmt* stmt);
-        Stmt* TransformReturnStmt(ReturnStmt* stmt);
-        Stmt* TransformIfStmt(IfStmt* stmt);
-        Stmt* TransformWhileStmt(WhileStmt* stmt);
-        Stmt* TransformForStmt(ForStmt* stmt);
-        Stmt* TransformBreakStmt(BreakStmt* stmt);
-        Stmt* TransformContinueStmt(ContinueStmt* stmt);
-
-        // Transform Decl
-
-        Decl* TransformFieldDecl(FieldDecl* decl);
-        Decl* TransformVarDecl(VarDecl* decl);
-        Decl* TransformParamDecl(ParamDecl* decl);
-
-        // Transform Expr
-
-        Expr* TransformLoadExpr(LoadExpr* expr);
-        Expr* TransformDeclRefExpr(DeclRefExpr* expr);
-        Expr* TransformCastExpr(CastExpr* expr);
-        Expr* TransformSplatExpr(SplatExpr* expr);
-        Expr* TransformBinaryExpr(BinaryExpr* expr);
-        Expr* TransformUnaryExpr(UnaryExpr* expr);
-        Expr* TransformCallExpr(CallExpr* expr);
-        Expr* TransformDependentCallExpr(DependentCallExpr* expr);
-        Expr* TransformFieldAccessExpr(FieldAccessExpr* expr);
-        Expr* TransformDependentFieldAccessExpr(DependentFieldAccessExpr* expr);
-        Expr* TransformSubscriptExpr(SubscriptExpr* expr);
-        Expr* TransformAggregateExpr(AggregateExpr* expr);
+        QualType TransformTemplateTypeParamType(QualType type) override;
+        QualType TransformTemplateSpecializationType(QualType type) override;
+        QualType TransformTypeAliasType(QualType type) override;
+        Expr* TransformDeclRefExpr(DeclRefExpr* expr) override;
 
     private:
-        Sema& sema;
         llvm::DenseMap<NamedDecl*, TemplateArgument*> substitutionTable;
-        // Declarations created inside the template (parameters, locals) -> their instantiated copy.
-        // Anything not in here was bound where the template was written and is kept as is.
-        llvm::DenseMap<Decl*, Decl*> instantiatedDecls;
-        // The body of the function being instantiated: unlike other blocks, it has no scope of its own.
-        Stmt* functionBody = nullptr;
     };
 
 }
