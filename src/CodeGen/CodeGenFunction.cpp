@@ -168,7 +168,8 @@ void VCL::CodeGenFunction::GenerateParamAttributes(ParamDecl* decl, llvm::Argume
         const llvm::DataLayout& layout = cgm.GetLLVMModule().getDataLayout();
         if (decl->HasCodeGenFlag(ParamDecl::Aligned))
             arg->addAttr(llvm::Attribute::getWithAlignment(context, layout.getABITypeAlign(referencedType)));
-        if (decl->HasCodeGenFlag(ParamDecl::Dereferenceable))
+        // An empty type (a stateless node's state) has nothing to dereference; LLVM rejects 0.
+        if (decl->HasCodeGenFlag(ParamDecl::Dereferenceable) && layout.getTypeAllocSize(referencedType) != 0)
             arg->addAttr(llvm::Attribute::getWithDereferenceableBytes(context, layout.getTypeAllocSize(referencedType)));
     }
 }

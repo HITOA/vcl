@@ -123,9 +123,11 @@ VCL::Stmt* VCL::TreeTransform::TransformCompoundStmt(CompoundStmt* stmt) {
 }
 
 VCL::Stmt* VCL::TreeTransform::TransformReturnStmt(ReturnStmt* stmt) {
-    Expr* expr = TransformExpr(stmt->GetExpr());
-    if (!expr) {
-        return nullptr;
+    Expr* expr = nullptr;
+    if (stmt->GetExpr() != nullptr) { // `return;` has none
+        expr = TransformExpr(stmt->GetExpr());
+        if (!expr)
+            return nullptr;
     }
     return sema.ActOnReturnStmt(expr, stmt->GetSourceRange());
 }
@@ -249,12 +251,8 @@ VCL::Decl* VCL::TreeTransform::TransformFunctionDecl(FunctionDecl* decl) {
 
     {
         auto guard = sema.PushScope(newDecl, false);
-        for (auto it = decl->Begin(); it != decl->End(); ++it) {
-            if (it->GetDeclClass() != Decl::ParamDeclClass)
-                continue;
-            if (!TransformDecl(it.Get()))
-                return nullptr;
-        }
+        if (!TransformFunctionParams(decl, newDecl))
+            return nullptr;
     }
 
     // As the parser does: declared in the enclosing scope once its parameters are known.
@@ -273,6 +271,16 @@ VCL::Decl* VCL::TreeTransform::TransformFunctionDecl(FunctionDecl* decl) {
     }
 
     return newDecl;
+}
+
+bool VCL::TreeTransform::TransformFunctionParams(FunctionDecl* from, FunctionDecl* to) {
+    for (auto it = from->Begin(); it != from->End(); ++it) {
+        if (it->GetDeclClass() != Decl::ParamDeclClass)
+            continue;
+        if (!TransformDecl(it.Get()))
+            return false;
+    }
+    return true;
 }
 
 VCL::Stmt* VCL::TreeTransform::TransformFunctionBody(FunctionDecl* function) {

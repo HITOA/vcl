@@ -178,3 +178,58 @@ TEST_CASE("Aggregate Parameters Are Read-Only By Default", "[Frontend]") {
             "[EntryPoint] void Main() { Array<float32, 4> arr; F(arr); }");
     }
 }
+
+TEST_CASE("Implicit Conversion Into A Reference Parameter", "[Frontend][InOut]") {
+    // The value is converted to the referenced type, not to the reference (vcl-review.md C16).
+    VCL::ExecutionSession session{};
+    REQUIRE(session.SubmitModule(MakeModuleFromSource(
+        "out float32 o_float;\n"
+        "out int64 o_long;\n"
+        "void Set(inout float32 f, out int64 l) {\n"
+        "    f = (float64)2.5;\n"
+        "    l = (int32)-3;\n"
+        "    f += (float64)1.0;\n"
+        "}\n"
+        "[EntryPoint] void Main() { Set(o_float, o_long); }\n", false)));
+    auto* main = (void(*)())session.Lookup("Main");
+    REQUIRE(main != nullptr);
+    main();
+    REQUIRE(*(float*)session.Lookup("o_float") == 3.5f);
+    REQUIRE(*(int64_t*)session.Lookup("o_long") == -3);
+}
+
+TEST_CASE("Assigning An Aggregate", "[Frontend]") {
+    // `x = { ... }` gives the aggregate the type of what it's assigned to (vcl-review.md C17).
+    VCL::ExecutionSession session{};
+    REQUIRE(session.SubmitModule(MakeModuleFromSource(
+        "struct Pair { float32 a; int32 b; }\n"
+        "Array<float32, 3> values = { 1.0, 2.0, 3.0 };\n"
+        "Pair pair;\n"
+        "out float32 o_sum;\n"
+        "[EntryPoint] void Main() {\n"
+        "    pair = { 4.0, 5 };\n"
+        "    values = { 0.5 };\n"
+        "    o_sum = values[0] + values[1] + values[2] + pair.a + (float32)pair.b;\n"
+        "}\n", false)));
+    auto* main = (void(*)())session.Lookup("Main");
+    REQUIRE(main != nullptr);
+    main();
+    REQUIRE(*(float*)session.Lookup("o_sum") == 9.5f);
+
+    SECTION("Through a reference parameter") {
+        VCL::ExecutionSession other{};
+        REQUIRE(other.SubmitModule(MakeModuleFromSource(
+            "struct Pair { float32 a; int32 b; }\n"
+            "Pair pair;\n"
+            "out float32 o_a;\n"
+            "void Set(inout Pair p) { p = { 1.5, 2 }; }\n"
+            "[EntryPoint] void Main() { Set(pair); o_a = pair.a; }\n", false)));
+        ((void(*)())other.Lookup("Main"))();
+        REQUIRE(*(float*)other.Lookup("o_a") == 1.5f);
+    }
+    SECTION("As an operand, an error") {
+        RequireDiagnosticFromSource<VCL::Diagnostic::AggregateOperand>(
+            "Array<float32, 2> values;\n"
+            "void F() { values = values + { 1.0, 2.0 }; }\n");
+    }
+}

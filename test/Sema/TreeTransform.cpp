@@ -263,6 +263,24 @@ TEST_CASE("Tree Transform", "[Sema][TreeTransform]") {
     }
 }
 
+TEST_CASE("Template With A Bare Return", "[Sema][TreeTransform][Template]") {
+    // `return;` has no expression to rebuild (vcl-review.md C18).
+    VCL::ExecutionSession session{};
+    REQUIRE(session.SubmitModule(MakeModuleFromSource(
+        "out float32 o_value;\n"
+        "template<typename T>\n"
+        "void Store(T value) {\n"
+        "    if (value < (T)0)\n"
+        "        return;\n"
+        "    o_value = (float32)value;\n"
+        "}\n"
+        "[EntryPoint] void Main() { Store(2.5); Store(-1.0); }\n")));
+    auto* main = (void(*)())session.Lookup("Main");
+    REQUIRE(main != nullptr);
+    main();
+    REQUIRE(*(float*)session.Lookup("o_value") == 2.5f);
+}
+
 TEST_CASE("Template With Non Dependent Aggregate Parameter", "[Sema][TreeTransform][Template]") {
     // Instantiation rebuilds parameters from the type as written. An aggregate that isn't dependent
     // is already a reference in the template: it used to be wrapped a second time (which happened to

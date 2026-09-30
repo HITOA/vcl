@@ -81,6 +81,11 @@ namespace VCL {
          * scope and context. Intrinsics and bodiless declarations are rebuilt without a body.
          */
         virtual Decl* TransformFunctionDecl(FunctionDecl* decl);
+        /**
+         * Declares the parameters of `to`, the function being rebuilt from `from`, in its scope
+         * (already pushed): by default, a copy of each of `from`'s. A subclass can add parameters.
+         */
+        virtual bool TransformFunctionParams(FunctionDecl* from, FunctionDecl* to);
         /** The body of `function`, rebuilt in the scope of the function being built (already pushed). */
         virtual Stmt* TransformFunctionBody(FunctionDecl* function);
         /** Copies the attributes of `from` onto `to`. */

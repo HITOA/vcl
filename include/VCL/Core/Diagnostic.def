@@ -79,6 +79,7 @@ SEMA_DIAGNOSTIC(MustBeSubscriptable,             "expression must be subscriptab
 SEMA_DIAGNOSTIC(QualifierDropped,                "qualifiers dropped from '%0' to '%1'")
 SEMA_DIAGNOSTIC(MissingMember,                   "struct '%0' has no member '%0'")
 SEMA_DIAGNOSTIC(InvalidAggregateType,            "aggregate expression must either be of array type or record type but is '%0'")
+SEMA_DIAGNOSTIC(AggregateOperand,                "an aggregate '{ ... }' can only initialize a variable or be assigned to one")
 SEMA_DIAGNOSTIC(TooManyInitializerValue,         "too many initializer value")
 SEMA_DIAGNOSTIC(InvalidArithmeticConversion,     "type '%0' is not valid for arithmetic conversion")
 SEMA_DIAGNOSTIC(LoseOfFloatingPointPrecision,    "implicit conversion loses floating-point precision: '%0' to '%1'")

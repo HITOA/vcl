@@ -1206,7 +1206,17 @@ VCL::NonTypeTemplateParamDecl* VCL::Sema::ActOnNonTypeTemplateParamDecl(BuiltinT
 }
 
 VCL::Expr* VCL::Sema::ActOnBinaryExpr(Expr* lhs, Expr* rhs, BinaryOperator::Kind op) {
-    if (lhs->GetResultType().GetType()->IsDependent() || rhs->GetResultType().GetType()->IsDependent()) {
+    // An aggregate has no type of its own: it takes the type of what it's assigned to (ActOnCast).
+    if (lhs->GetExprClass() == Expr::AggregateExprClass || (rhs->GetExprClass() == Expr::AggregateExprClass && op != BinaryOperator::Assignment)) {
+        Expr* aggregate = lhs->GetExprClass() == Expr::AggregateExprClass ? lhs : rhs;
+        diagnosticReporter.Error(Diagnostic::AggregateOperand)
+            .AddHint(DiagnosticHint{ aggregate->GetSourceRange() })
+            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+            .Report();
+        return nullptr;
+    }
+    bool isRhsDependent = rhs->GetExprClass() != Expr::AggregateExprClass && rhs->GetResultType().GetType()->IsDependent();
+    if (lhs->GetResultType().GetType()->IsDependent() || isRhsDependent) {
         Expr* expr = BinaryExpr::Create(GetASTContext(), lhs, rhs, op);
         expr->SetResultType(GetASTContext().GetTypeCache().GetOrCreateDependentType());
         switch (op) {
@@ -1716,7 +1726,10 @@ std::pair<VCL::Expr*, VCL::Expr*> VCL::Sema::ActOnImplicitBinaryArithmeticCast(E
 VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) {
     if (expr->GetExprClass() == Expr::AggregateExprClass) {
         AggregateExpr* aggregateExpr = (AggregateExpr*)expr;
-        aggregateExpr->SetResultType(toType);
+        QualType aggregateType = toType;
+        while (aggregateType.GetType()->GetTypeClass() == Type::ReferenceTypeClass)
+            aggregateType = ((ReferenceType*)aggregateType.GetType())->GetType();
+        aggregateExpr->SetResultType(aggregateType);
         return ActOnAggregateExpr(aggregateExpr) ? aggregateExpr : nullptr;
     }
 
@@ -1809,7 +1822,12 @@ VCL::Expr* VCL::Sema::ActOnCast(Expr* expr, QualType toType, SourceRange range) 
         }
     }
 
-    Expr* castExpr = CastExpr::Create(GetASTContext(), ActOnLoad(expr), kind, toType, range);
+    // The value converted to what a reference refers to: casting to the reference itself would
+    // convert the value into a pointer (assigning to an `inout` parameter).
+    QualType resultType = toType;
+    while (resultType.GetType()->GetTypeClass() == Type::ReferenceTypeClass)
+        resultType = ((ReferenceType*)resultType.GetType())->GetType();
+    Expr* castExpr = CastExpr::Create(GetASTContext(), ActOnLoad(expr), kind, resultType, range);
     return castExpr;
 }
 
