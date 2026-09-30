@@ -54,8 +54,8 @@ namespace VCL {
 
         /**
          * Prefix of every symbol name mangled from this AST. It must be unique among the ASTs
-         * emitted into the same llvm::Module: e.g. the module's path, or for vcl-graph the path of
-         * the node instance in the graph (the same subgraph can be emitted several times).
+         * emitted into the same llvm::Module: e.g. the module's path, or, for a client emitting one
+         * source several times, a name per copy.
          */
         inline const std::string& GetManglingPrefix() const { return manglingPrefix; }
         inline void SetManglingPrefix(std::string prefix) { manglingPrefix = std::move(prefix); }

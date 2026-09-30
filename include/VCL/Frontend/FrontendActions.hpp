@@ -12,7 +12,7 @@ namespace VCL {
     public:
         bool Execute() override;
 
-        /** Sees each top-level declaration as it's parsed (and may adjust it, as vcl-graph does). */
+        /** Sees each top-level declaration as it's parsed (and may adjust it). */
         inline void SetASTConsumer(ASTConsumer* consumer) { this->consumer = consumer; }
 
     private:

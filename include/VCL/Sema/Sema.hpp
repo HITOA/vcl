@@ -222,7 +222,7 @@ namespace VCL {
         /**
          * The ASTContext an instantiation of `templateDecl` for `args` belongs in: the template's
          * own, unless an argument type is owned by another ASTContext's cache (e.g. a struct of the
-         * importing node). The instantiation must not outlive that type, so it then stays in the
+         * importing module). The instantiation must not outlive that type, so it then stays in the
          * current compilation instead of being stored with a (possibly cached) library.
          */
         ASTContext& GetInstantiationContext(TemplateDecl* templateDecl, TemplateArgumentList* args);

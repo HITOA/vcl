@@ -115,7 +115,7 @@ TEST_CASE("Builtin Passthrough", "[Frontend]") {
     }
 }
 
-// D1 (Grog docs/vcl-review.md): an aggregate parameter without a direction qualifier is a
+// An aggregate parameter without a direction qualifier is a
 // read-only reference; `inout` (or `out`) makes it writable.
 TEST_CASE("Aggregate Parameters Are Read-Only By Default", "[Frontend]") {
     SECTION("Reading, and writing through inout") {
@@ -180,7 +180,7 @@ TEST_CASE("Aggregate Parameters Are Read-Only By Default", "[Frontend]") {
 }
 
 TEST_CASE("Implicit Conversion Into A Reference Parameter", "[Frontend][InOut]") {
-    // The value is converted to the referenced type, not to the reference (vcl-review.md C16).
+    // The value is converted to the referenced type, not to the reference.
     VCL::ExecutionSession session{};
     REQUIRE(session.SubmitModule(MakeModuleFromSource(
         "out float32 o_float;\n"
@@ -199,7 +199,7 @@ TEST_CASE("Implicit Conversion Into A Reference Parameter", "[Frontend][InOut]")
 }
 
 TEST_CASE("Assigning An Aggregate", "[Frontend]") {
-    // `x = { ... }` gives the aggregate the type of what it's assigned to (vcl-review.md C17).
+    // `x = { ... }` gives the aggregate the type of what it's assigned to.
     VCL::ExecutionSession session{};
     REQUIRE(session.SubmitModule(MakeModuleFromSource(
         "struct Pair { float32 a; int32 b; }\n"

@@ -92,9 +92,9 @@ TEST_CASE("Errors inside an imported template are reported", "[Frontend][Modules
 }
 
 TEST_CASE("Library templates don't keep instantiations for an importer's types", "[Frontend][Modules]") {
-    // Grog compiles every node again on each edit while imported libraries stay cached. A library
-    // template instantiated with a node's own struct must not stay attached to the library: the
-    // node's AST, and the struct with it, is gone after the compile.
+    // A client may compile a module again on each edit while the libraries it imports stay cached.
+    // A library template instantiated with the importer's own struct must not stay attached to the
+    // library: the importer's AST, and the struct with it, is gone after the compile.
     ExpectedNoDiagnostic consumer{};
     VCL::CompilerContext cc{};
     cc.GetInvocation()->GetDiagnosticOptions().SetDiagnosticConsumer(&consumer);
@@ -109,7 +109,7 @@ TEST_CASE("Library templates don't keep instantiations for an importer's types",
     cc.CreateLLVMContext();
     cc.GetDirectiveRegistry().CreateDirectiveHandler<VCL::ImportDirective>(cc.GetIdentifierTable().Get("import"), cc, "VCL");
 
-    VCL::Source* source = cc.GetSourceManager().LoadFromDisk("VCL/modules_nodestruct.vcl");
+    VCL::Source* source = cc.GetSourceManager().LoadFromDisk("VCL/modules_importerstruct.vcl");
     REQUIRE(source != nullptr);
 
     for (int compile = 0; compile < 2; ++compile) {
@@ -122,7 +122,7 @@ TEST_CASE("Library templates don't keep instantiations for an importer's types",
             REQUIRE(instance->ExecuteAction(act));
             instance->EndSource();
             REQUIRE(session.SubmitModule(act.MoveModule()));
-        } // the node's CompilerInstance and AST die here, as after a Grog compile
+        } // the importer's CompilerInstance and AST die here, as after a client's compile
 
         float* o_sum = (float*)session.Lookup("o_sum");
         ((void(*)())session.Lookup("Main"))();

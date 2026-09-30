@@ -22,8 +22,8 @@
 #include "../Common/MakeModule.hpp"
 
 
-// TreeTransform (P2.1), emitting a transformed translation unit (P2.2) and parameter codegen flags
-// (P2.3). Each test parses a source with a live Sema, as vcl-graph does, copies its variables and
+// TreeTransform, emitting a transformed translation unit, and parameter codegen flags. Each test
+// parses a source with a live Sema, as a client driving the parser does, copies its variables and
 // functions into a new translation unit through a transform, and emits only the copy.
 
 using MakeTransform = std::function<std::unique_ptr<VCL::TreeTransform>(VCL::Sema& sema, VCL::TranslationUnitDecl* source)>;
@@ -96,7 +96,7 @@ static MakeTransform Identity() {
     return [](VCL::Sema& sema, VCL::TranslationUnitDecl*) { return std::make_unique<VCL::TreeTransform>(sema); };
 }
 
-// The P2.1 test subclass: every reference to `from` becomes a reference to `to`.
+// A minimal subclass: every reference to `from` becomes a reference to `to`.
 class RenameTransform : public VCL::TreeTransform {
 public:
     RenameTransform(VCL::Sema& sema, VCL::ValueDecl* from, VCL::ValueDecl* to) : TreeTransform{ sema }, from{ from }, to{ to } {}
@@ -264,7 +264,7 @@ TEST_CASE("Tree Transform", "[Sema][TreeTransform]") {
 }
 
 TEST_CASE("Template With A Bare Return", "[Sema][TreeTransform][Template]") {
-    // `return;` has no expression to rebuild (vcl-review.md C18).
+    // `return;` has no expression to rebuild.
     VCL::ExecutionSession session{};
     REQUIRE(session.SubmitModule(MakeModuleFromSource(
         "out float32 o_value;\n"

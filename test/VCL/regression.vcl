@@ -1,4 +1,4 @@
-// Regression tests for bugs found in the 2026-09 review (see Grog docs/vcl-review.md).
+// Regression tests for bugs found in the 2026-09 review.
 
 in int32 ri32;
 in uint32 ru32;

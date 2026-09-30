@@ -241,7 +241,7 @@ namespace VCL {
     public:
         /**
          * What codegen may promise LLVM about a parameter passed by reference. Not user syntax: set
-         * by a transform that knows how the function is called (vcl-graph's entry points), and
+         * by a transform that knows how the function is called (e.g. entry points only a host calls), and
          * ignored on a parameter passed by value.
          */
         enum CodeGenFlags : uint32_t {

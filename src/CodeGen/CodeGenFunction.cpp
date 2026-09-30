@@ -36,7 +36,7 @@ llvm::Function* VCL::CodeGenFunction::Generate(FunctionDecl* decl, bool imported
 
     function = llvm::cast<llvm::Function>(cgm.GetLLVMModule().getOrInsertFunction(functionName, functionType).getCallee());
 
-    // Several CodeGenModules can emit into the same llvm::Module (vcl-graph compiles every node
+    // Several CodeGenModules can emit into the same llvm::Module (a client compiling several ASTs
     // into one module), so an imported template specialization may already have a body.
     if (!function->empty()) {
         Decl* existing = CodeGenModule::GetSymbolDecl(function);
@@ -168,7 +168,7 @@ void VCL::CodeGenFunction::GenerateParamAttributes(ParamDecl* decl, llvm::Argume
         const llvm::DataLayout& layout = cgm.GetLLVMModule().getDataLayout();
         if (decl->HasCodeGenFlag(ParamDecl::Aligned))
             arg->addAttr(llvm::Attribute::getWithAlignment(context, layout.getABITypeAlign(referencedType)));
-        // An empty type (a stateless node's state) has nothing to dereference; LLVM rejects 0.
+        // An empty type (e.g. a record without fields) has nothing to dereference; LLVM rejects 0.
         if (decl->HasCodeGenFlag(ParamDecl::Dereferenceable) && layout.getTypeAllocSize(referencedType) != 0)
             arg->addAttr(llvm::Attribute::getWithDereferenceableBytes(context, layout.getTypeAllocSize(referencedType)));
     }

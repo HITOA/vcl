@@ -20,7 +20,7 @@ export T UseHelpers(T x) {
     return a + (T)b + (T)Scale;
 }
 
-// The workaround used by Grog's libraries: qualify calls with the module's own name.
+// The workaround: qualify calls with the module's own name.
 template<typename T>
 export T UseQualified(T x) {
     return libmath::Helper<T>(x);

@@ -78,8 +78,8 @@ VCL::TemplateTypeParamType* VCL::TypeCache::GetOrCreateTemplateTypeParamType(Tem
 }
 
 VCL::TemplateSpecializationType* VCL::TypeCache::GetOrCreateTemplateSpecializationType(TemplateDecl* decl, TemplateArgumentList* args) {
-    // Arguments first: an argument type from a short-lived AST (a node) must not end up in the
-    // template's long-lived cache (a library).
+    // Arguments first: an argument type from a short-lived AST (e.g. a module compiled again on
+    // every edit) must not end up in the template's long-lived cache (a cached library).
     llvm::SmallVector<TypeCache*, 8> owners{};
     bool hasExpression = false;
     for (const TemplateArgument& arg : args->GetArgs()) {

@@ -22,7 +22,7 @@
 #include <cstdint>
 
 
-// Regression tests for bugs found in the 2026-09 review (see Grog docs/vcl-review.md).
+// Regression tests for bugs found in the 2026-09 review.
 
 TEST_CASE("Review Regressions", "[Frontend][Regression]") {
     VCL::ExecutionSession session{};

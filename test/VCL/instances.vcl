@@ -1,4 +1,4 @@
-// Stateful code compiled more than once into one module (like a vcl-graph node used twice).
+// Stateful code compiled more than once into one module (like a client emitting one source twice).
 
 float32 state = 0.0;
 
