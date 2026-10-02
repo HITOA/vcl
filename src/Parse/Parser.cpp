@@ -270,15 +270,24 @@ VCL::ConstantValue* VCL::Parser::ParseConstantValue() {
 
     switch (token->kind)
     {
+    case TokenKind::Minus:
     case TokenKind::NumericConstant: {
+        // Constant arguments aren't expressions: a leading `-` is the only operator allowed.
+        bool negate = token->kind == TokenKind::Minus;
+        if (negate) {
+            NEXT_TOKEN();
+            EXPECT_TOKEN(token, TokenKind::NumericConstant);
+        }
         llvm::StringRef valueStr{ token->range.start.GetPtr(), (size_t)(token->range.end.GetPtr() - token->range.start.GetPtr()) };
+        // Read before advancing: the stream may lex the next token into the same slot.
+        bool isFloatingPoint = token->isFloatingPoint;
         NEXT_TOKEN();
-        if (token->isFloatingPoint) {
+        if (isFloatingPoint) {
             double v = std::stod(valueStr.str());
-            return sema.GetASTContext().AllocateNode<ConstantScalar>(v);
+            return sema.GetASTContext().AllocateNode<ConstantScalar>(negate ? -v : v);
         } else {
             int64_t v = std::stoll(valueStr.str());
-            return sema.GetASTContext().AllocateNode<ConstantScalar>(v);
+            return sema.GetASTContext().AllocateNode<ConstantScalar>(negate ? -v : v);
         }
     }
     case TokenKind::StringLiteral: {
