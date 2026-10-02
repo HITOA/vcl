@@ -187,6 +187,7 @@ VCL::AttributeInstance* VCL::Parser::ParseAttribute() {
     IdentifierInfo* identifierInfo = token->identifier;
     AttributeDefinition* definition = attributeTable.GetDefinition(identifierInfo);
     llvm::SmallVector<ConstantValue*> args{};
+    llvm::SmallVector<IdentifierInfo*> argNames{};
     if (!definition) {
         sema.GetDiagnosticReporter().Error(Diagnostic::AttributeDoesNotExist, identifierInfo->GetName().str())
             .AddHint(DiagnosticHint{ range })
@@ -199,10 +200,46 @@ VCL::AttributeInstance* VCL::Parser::ParseAttribute() {
     if (token->kind == TokenKind::LeftPar) {
         NEXT_TOKEN();
         do {
+            // `name = value`. Read the token before looking ahead: the stream may move it.
+            IdentifierInfo* argName = nullptr;
+            GET_TOKEN(token);
+            if (token->kind == TokenKind::Identifier) {
+                IdentifierInfo* identifier = token->identifier;
+                SourceRange nameRange = token->range;
+                Token* next;
+                GET_TOKEN_N(next, 1);
+                if (next->kind == TokenKind::Equal) {
+                    if (!definition->HasArgName(identifier)) {
+                        sema.GetDiagnosticReporter().Error(Diagnostic::AttributeUnknownArgument, identifierInfo->GetName().str(), identifier->GetName().str())
+                            .AddHint(DiagnosticHint{ nameRange })
+                            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                            .Report();
+                        return nullptr;
+                    }
+                    if (llvm::is_contained(argNames, identifier)) {
+                        sema.GetDiagnosticReporter().Error(Diagnostic::AttributeDuplicateArgument, identifier->GetName().str())
+                            .AddHint(DiagnosticHint{ nameRange })
+                            .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                            .Report();
+                        return nullptr;
+                    }
+                    argName = identifier;
+                    NEXT_TOKEN_N(2);
+                }
+            }
+            if (argName == nullptr && !argNames.empty() && argNames.back() != nullptr) {
+                GET_TOKEN(token);
+                sema.GetDiagnosticReporter().Error(Diagnostic::AttributePositionalAfterNamed)
+                    .AddHint(DiagnosticHint{ token->range })
+                    .SetCompilerInfo(__FILE__, __func__, __LINE__)
+                    .Report();
+                return nullptr;
+            }
             ConstantValue* arg = ParseConstantValue();
             if (!arg)
                 return nullptr;
             args.push_back(arg);
+            argNames.push_back(argName);
             GET_TOKEN(token);
             if (token->kind == TokenKind::Coma) {
                 NEXT_TOKEN();
@@ -229,14 +266,14 @@ VCL::AttributeInstance* VCL::Parser::ParseAttribute() {
         return nullptr;
     }
     if (args.size() > definition->GetMaxArgs()) {
-        sema.GetDiagnosticReporter().Error(Diagnostic::AttributeTooManyArguments, std::to_string(args.size()), std::to_string(definition->GetMinArgs()))
+        sema.GetDiagnosticReporter().Error(Diagnostic::AttributeTooManyArguments, std::to_string(args.size()), std::to_string(definition->GetMaxArgs()))
             .AddHint(DiagnosticHint{ range })
             .SetCompilerInfo(__FILE__, __func__, __LINE__)
             .Report();
         return nullptr;
     }
 
-    return AttributeInstance::Create(sema.GetASTContext(), definition, args, range);
+    return AttributeInstance::Create(sema.GetASTContext(), definition, args, range, argNames);
 }
 
 VCL::DirectiveDecl* VCL::Parser::ParseDirective() {

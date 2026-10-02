@@ -40,6 +40,9 @@ PARSER_DIAGNOSTIC(FloatTemplateArgument,         "numeric constant template argu
 PARSER_DIAGNOSTIC(AttributeDoesNotExist,         "attribute '%0' is not defined")
 PARSER_DIAGNOSTIC(AttributeMissingArguments,     "'%0' arguments were given when at least '%1' are expected")
 PARSER_DIAGNOSTIC(AttributeTooManyArguments,     "'%0' arguments were given when at most '%1' are expected")
+PARSER_DIAGNOSTIC(AttributeUnknownArgument,      "attribute '%0' has no argument named '%1'")
+PARSER_DIAGNOSTIC(AttributeDuplicateArgument,    "argument '%0' is given twice")
+PARSER_DIAGNOSTIC(AttributePositionalAfterNamed, "positional argument after a named argument")
 
 SEMA_DIAGNOSTIC(Redeclaration,                   "redeclaration of '%0'")
 SEMA_DIAGNOSTIC(ReservedIdentifier,              "'%0' is a reserved identifier")

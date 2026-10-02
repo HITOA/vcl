@@ -2,7 +2,9 @@
 
 #include <VCL/Core/Identifier.hpp>
 
+#include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Support/TrailingObjects.h>
 
@@ -11,8 +13,8 @@ namespace VCL {
 
     class AttributeDefinition {
     public: 
-        AttributeDefinition(IdentifierInfo* identifierInfo, uint32_t minArgs, uint32_t maxArgs)
-            : identifierInfo{ identifierInfo }, minArgs{ minArgs }, maxArgs{ maxArgs } {}    
+        AttributeDefinition(IdentifierInfo* identifierInfo, uint32_t minArgs, uint32_t maxArgs, llvm::ArrayRef<IdentifierInfo*> argNames = {})
+            : identifierInfo{ identifierInfo }, minArgs{ minArgs }, maxArgs{ maxArgs }, argNames{ argNames } {}    
         AttributeDefinition() = delete;
         AttributeDefinition(const AttributeDefinition& other) = delete;
         AttributeDefinition(AttributeDefinition&& other) = delete;
@@ -24,11 +26,19 @@ namespace VCL {
         inline IdentifierInfo* GetIdentifierInfo() { return identifierInfo; }
         inline uint32_t GetMinArgs() const { return minArgs; }
         inline uint32_t GetMaxArgs() const { return maxArgs; }
+        /**
+         * The names an argument may be given by (`Attr(name = value)`); none means arguments are
+         * only positional. The parser only checks the names: what a name stands for, and how it
+         * relates to the positional arguments, is up to whoever reads the attribute.
+         */
+        inline llvm::ArrayRef<IdentifierInfo*> GetArgNames() const { return argNames; }
+        inline bool HasArgName(IdentifierInfo* name) const { return llvm::is_contained(argNames, name); }
 
     private:
         IdentifierInfo* identifierInfo;
         uint32_t minArgs;
         uint32_t maxArgs;
+        llvm::ArrayRef<IdentifierInfo*> argNames;
 
         friend class AttributeTable;
     };
@@ -49,11 +59,15 @@ namespace VCL {
             return nullptr;
         }
 
-        inline AttributeDefinition* AddDefinition(IdentifierInfo* identifierInfo, uint32_t minArgs, uint32_t maxArgs) {
+        inline AttributeDefinition* AddDefinition(IdentifierInfo* identifierInfo, uint32_t minArgs, uint32_t maxArgs,
+                llvm::ArrayRef<IdentifierInfo*> argNames = {}) {
             if (attributes.count(identifierInfo))
                 return nullptr;
+            // Definitions are never destroyed: the names live in the same allocator.
+            IdentifierInfo** names = attributeDefinitionAllocator.Allocate<IdentifierInfo*>(argNames.size());
+            std::uninitialized_copy(argNames.begin(), argNames.end(), names);
             void* attributeDefinition = attributeDefinitionAllocator.Allocate<AttributeDefinition>();
-            new (attributeDefinition) AttributeDefinition{ identifierInfo, minArgs, maxArgs };
+            new (attributeDefinition) AttributeDefinition{ identifierInfo, minArgs, maxArgs, { names, argNames.size() } };
             attributes.insert({ identifierInfo, (AttributeDefinition*)attributeDefinition });
             return (AttributeDefinition*)attributeDefinition;
         }

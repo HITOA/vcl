@@ -294,7 +294,8 @@ VCL::Stmt* VCL::TreeTransform::TransformFunctionBody(FunctionDecl* function) {
 void VCL::TreeTransform::TransformAttributes(Decl* from, Decl* to) {
     // Instances are chained through themselves: each declaration needs its own.
     for (AttributeInstance* attribute = from->GetAttribute(); attribute != nullptr; attribute = attribute->GetNextAttribute())
-        to->PushAttribute(AttributeInstance::Create(sema.GetASTContext(), attribute->GetDefinition(), attribute->GetArgs(), attribute->GetSourceRange()));
+        to->PushAttribute(AttributeInstance::Create(sema.GetASTContext(), attribute->GetDefinition(), attribute->GetArgs(),
+            attribute->GetSourceRange(), attribute->GetArgNames()));
 }
 
 VCL::Expr* VCL::TreeTransform::TransformLoadExpr(LoadExpr* expr) {
